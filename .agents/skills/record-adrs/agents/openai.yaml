@@ -1,0 +1,4 @@
+interface:
+  display_name: "Record ADRs"
+  short_description: "Record durable architecture decisions"
+  default_prompt: "Use $record-adrs to document this important architecture decision."

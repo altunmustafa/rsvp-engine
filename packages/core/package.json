@@ -1,0 +1,72 @@
+{
+  "name": "@rsvp-engine/core",
+  "version": "0.0.0",
+  "description": "Headless, zero-dependency RSVP engine with drift-corrected scheduling and pluggable tokenization",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "scripts",
+    "README.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsup && tsc --emitDeclarationOnly --declaration --outDir dist && cp dist/index.d.ts dist/index.d.cts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/",
+    "format": "prettier . --write --ignore-path ../../.gitignore",
+    "format:check": "prettier . --check --ignore-path ../../.gitignore",
+    "typecheck": "tsc --noEmit",
+    "check:architecture": "node scripts/check-architecture.js",
+    "check:size": "node scripts/check-bundle-size.js",
+    "check:package": "node scripts/check-package.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "catalog:",
+    "tsup": "catalog:",
+    "vitest": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "typescript-eslint": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:"
+  },
+  "sideEffects": false,
+  "keywords": [
+    "rsvp",
+    "speed-reading",
+    "rapid-serial-visual-presentation",
+    "orp",
+    "spritz",
+    "reader-engine",
+    "text-pacing",
+    "headless",
+    "typescript"
+  ]
+}
