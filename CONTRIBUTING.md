@@ -27,7 +27,7 @@ Use short-lived branches named with the following pattern:
 <type>/<short-kebab-description>
 ```
 
-Choose a type that describes the branch's primary purpose: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, or `release`. Write the description in lowercase kebab-case, without a contributor name. An issue number may appear at the start of the description when useful.
+Choose the type that best describes the branch's primary purpose from the same supported type list used for commits: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, or `test`. Write the description in lowercase kebab-case, without a contributor name. An issue number may appear at the start of the description when useful.
 
 ```text
 feat/configurable-tokenizer
@@ -35,9 +35,11 @@ fix/123-pause-remaining-delay
 docs/core-api-examples
 refactor/event-dispatch
 chore/update-typescript
+ci/validate-commit-messages
+chore/version-core-package
 ```
 
-Keep one coherent change on each branch. The branch type improves navigation but does not determine the commit type or Changesets release level; choose those independently from the actual change.
+Keep one coherent change on each branch. The branch type improves navigation and describes the branch as a whole; supporting commits may use other supported types when appropriate. Neither the branch type nor an individual commit type determines the Changesets release level.
 
 Read the package-specific contributor guide before changing a package. For Core, see [`packages/core/CONTRIBUTING.md`](packages/core/CONTRIBUTING.md).
 
@@ -99,10 +101,26 @@ Do not edit package versions or generated changelog release sections by hand. Do
 Use Conventional Commits for readable Git history:
 
 ```text
-<type>(<scope>): <subject>
+<type>[optional scope]: <description>
 ```
 
-Common types are `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, and `chore`. A commit type does not automatically select a package version; the accompanying changeset is authoritative.
+Use one of the following commit types:
+
+| Type       | Use for                                                               |
+| ---------- | --------------------------------------------------------------------- |
+| `build`    | Build system, bundling, or build dependency changes.                  |
+| `chore`    | Repository maintenance that does not fit another type.                |
+| `ci`       | Continuous integration and delivery configuration.                    |
+| `docs`     | Documentation-only changes.                                           |
+| `feat`     | New user-visible functionality.                                       |
+| `fix`      | Corrections to incorrect behavior.                                    |
+| `perf`     | Measurable performance improvements.                                  |
+| `refactor` | Code restructuring without a feature, fix, or behavior change.        |
+| `revert`   | Reverting an earlier commit.                                          |
+| `style`    | Formatting-only changes that do not alter behavior.                   |
+| `test`     | Adding, correcting, or reorganizing tests without production changes. |
+
+A commit type does not automatically select a package version; the accompanying changeset is authoritative.
 
 A pull request should:
 
@@ -114,25 +132,6 @@ A pull request should:
 
 ## Release Workflow
 
-Release maintainers accumulate changesets on `main`, then perform versioning and publishing as separate reviewable operations.
+Contributors are responsible only for committing required changesets with their changes. After those changes are merged, maintainers handle package versioning and publishing.
 
-Inspect the pending plan:
-
-```bash
-pnpm changeset status
-```
-
-Apply pending changesets:
-
-```bash
-pnpm changeset version
-```
-
-Review the resulting package versions, changelogs, internal dependency updates, lockfile changes, and consumed changeset files. Run the full verification suite and commit these generated release changes.
-
-Only after the version commit is reviewed and npm authentication and package metadata are ready, publish and push the generated tags:
-
-```bash
-pnpm changeset publish
-git push --follow-tags
-```
+Do not edit package versions or generated changelogs, and do not run `pnpm changeset version` or `pnpm changeset publish`, unless a maintainer explicitly asks you to participate in a release.
