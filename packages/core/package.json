@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "description": "Headless, zero-dependency RSVP engine with drift-corrected scheduling and pluggable tokenization",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/altunmustafa/rsvp-engine.git",
+    "directory": "packages/core"
+  },
   "engines": {
     "node": ">=18"
   },
