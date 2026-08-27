@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": "^22.11 || ^24 || >=26",
+    "node": "^22.12 || ^24 || >=26",
     "pnpm": ">=10.0.0"
   },
   "scripts": {
@@ -15,16 +15,21 @@
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "typecheck": "turbo run typecheck",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "commitlint": "commitlint",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
+    "@commitlint/cli": "catalog:",
+    "@commitlint/config-conventional": "catalog:",
     "@eslint/js": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
     "eslint-plugin-import-x": "catalog:",
     "eslint-plugin-tsdoc": "catalog:",
     "globals": "catalog:",
+    "husky": "catalog:",
     "prettier": "catalog:",
     "turbo": "catalog:",
     "typescript-eslint": "catalog:"

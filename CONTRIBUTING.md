@@ -4,7 +4,7 @@ Thank you for contributing to RSVP Engine. This guide explains how to prepare th
 
 ## Prerequisites
 
-- A Node.js version supported by the root `package.json` (`^22.11`, `^24`, or `>=26`).
+- A Node.js version supported by the root `package.json` (`^22.12`, `^24`, or `>=26`).
 - pnpm 10 or newer. The exact pnpm release used by the project is declared in the root `package.json`.
 - Git.
 
@@ -119,6 +119,10 @@ Use one of the following commit types:
 | `revert`   | Reverting an earlier commit.                                          |
 | `style`    | Formatting-only changes that do not alter behavior.                   |
 | `test`     | Adding, correcting, or reorganizing tests without production changes. |
+
+Running `pnpm install` configures the repository's `commit-msg` hook. The hook uses Commitlint to reject commit messages that do not follow these conventions; staged changes remain intact so the commit can be retried with a corrected message.
+
+Keep the commit header at 100 characters or fewer. Body and footer lines must also remain within 100 characters; move supporting detail into the body instead of extending the header.
 
 A commit type does not automatically select a package version; the accompanying changeset is authoritative.
 
