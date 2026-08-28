@@ -19,8 +19,19 @@
       "cache": false
     },
     "format:check": {},
+    "//#format:package-json": {
+      "cache": false
+    },
+    "//#format:package-json:check": {},
     "typecheck": {
       "dependsOn": ["^build"]
+    },
+    "check:architecture": {},
+    "check:size": {
+      "dependsOn": ["build"]
+    },
+    "check:package": {
+      "dependsOn": ["build"]
     }
   }
 }
