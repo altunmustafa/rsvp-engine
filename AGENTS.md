@@ -15,37 +15,14 @@ A pnpm-workspace monorepo for RSVP (Rapid Serial Visual Presentation) tooling. `
 
 ## Workspace Commands
 
-Run from the repo root unless a package path is given.
+Run commands from the repository root.
 
 - **Install:** `pnpm install`
-- **Build all:** `pnpm build` (Turborepo builds dependencies first)
-- **Build one package:** `pnpm --filter @rsvp-engine/core build`
-- **Test all:** `pnpm test`
-- **Test one package:** `pnpm --filter @rsvp-engine/core test`
-- **Coverage:** `pnpm test:coverage`
-- **Lint:** `pnpm lint`
-- **Format:** `pnpm format`
-- **Typecheck all:** `pnpm typecheck`
+- **Workspace tasks:** `pnpm build`, `pnpm test`, `pnpm test:coverage`, `pnpm lint`, `pnpm format`, `pnpm typecheck`
+- **Single package:** `pnpm --filter <pkg> <script>`
 - **Create a changeset:** `pnpm changeset`
 
-Run workspace commands from the repository root, using `pnpm --filter <pkg>` when needed. Plain `npm` or `yarn` commands inside packages bypass workspace resolution and Turborepo orchestration.
-
-## Repo Structure
-
-```
-rsvp-engine/
-├── packages/
-│   ├── core/       → @rsvp-engine/core   (AGENTS.md: strict, zero-dep, <5KB, ≥95% coverage)
-│   ├── dom/        → @rsvp-engine/dom
-│   ├── react/      → @rsvp-engine/react
-│   └── vue/        → @rsvp-engine/vue
-├── examples/        # demo apps, private, not published
-├── .changeset/
-├── pnpm-workspace.yaml # workspace packages and dependency catalog
-├── turbo.json
-└── tsconfig.base.json
-
-```
+Do not run plain `npm` or `yarn` commands inside packages; they bypass workspace resolution and Turborepo orchestration.
 
 ## Cross-Package Architectural Rules
 

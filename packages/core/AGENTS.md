@@ -1,14 +1,6 @@
 # RSVP Engine (`@rsvp-engine/core`)
 
-A zero-dependency, headless TypeScript engine for Rapid Serial Visual Presentation (RSVP), with drift-corrected scheduling, pluggable tokenization, and state-machine flow control.
-
-## Key Commands
-
-- **Build:** `pnpm build`
-- **Test:** `pnpm test`
-- **Coverage:** `pnpm test:coverage`
-- **Lint:** `pnpm lint`
-- **Format:** `pnpm format`
+The zero-dependency, headless TypeScript RSVP engine. It owns state, scheduling, tokenization, and OVP calculation.
 
 ## Core Architectural Constraints
 
@@ -21,14 +13,12 @@ A zero-dependency, headless TypeScript engine for Rapid Serial Visual Presentati
 
 ## Documentation
 
-- **Architecture & DI Strategy:** See [docs/architecture/README.md](docs/architecture/README.md)
-- **Architecture Decisions:** See [docs/architecture/adr/README.md](docs/architecture/adr/README.md)
-- **State Machine Lifecycle:** See [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md)
-- **API Reference:** See [docs/API-REFERENCE.md](docs/API-REFERENCE.md)
-- **Contribution & TDD Workflow:** See [CONTRIBUTING.md](CONTRIBUTING.md)
+- Before changing module boundaries, dependency injection, scheduling design, or portability constraints, read [Architecture & DI Strategy](docs/architecture/README.md).
+- Before revisiting an accepted architecture decision, read the [ADR index](docs/architecture/adr/README.md) and the relevant record.
+- Before changing states, transitions, or playback lifecycle, read [State Machine Lifecycle](docs/STATE-MACHINE.md).
+- Before changing public exports or contracts, read the [API Reference](docs/API-REFERENCE.md).
+- For TypeScript conventions, TDD, verification, and packaging, read [Core Contribution Guide](CONTRIBUTING.md).
 
 ## Architecture Decision Records
 
-- Write ADRs only for important, durable decisions whose rationale and consequences future maintainers will need.
-- Do not write ADRs for routine refactors, naming, file layout, tests, formatting, tooling, or easily reversible details.
-- Follow the project-local `$record-adrs` skill, use its dated Michael Nygard format, store records under `docs/architecture/adr/`, and update the ADR index.
+For important, durable architecture decisions—not routine or easily reversible changes—use the project-local `$record-adrs` skill.
