@@ -75,3 +75,7 @@ rsvp-engine/
 ## Contribution & TDD Workflow
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for commit conventions, PR expectations, Changesets usage, release steps, and the mandatory TDD workflow that applies across all packages.
+
+Use the `git-collaboration` skill for tasks involving branches, commits, remotes or forks, pushes, pull requests, Git conflicts or synchronization, and merged-branch cleanup.
+
+Unless the user opts out, enable GitHub auto-merge with the rebase method for PRs submitted on behalf of the repository owner. Never bypass required checks or other merge requirements.
