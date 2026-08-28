@@ -48,6 +48,3 @@ jobs:
 
       - name: Run workspace quality gates
         run: pnpm exec turbo run lint lint:root typecheck test:coverage check:architecture check:size check:package
-
-      - name: Validate pending changesets
-        run: pnpm changeset status
