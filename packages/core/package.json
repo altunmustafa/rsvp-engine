@@ -2,23 +2,25 @@
   "name": "@rsvp-engine/core",
   "version": "0.1.0",
   "description": "Headless, zero-dependency RSVP engine with drift-corrected scheduling and pluggable tokenization",
-  "license": "MIT",
+  "keywords": [
+    "rsvp",
+    "speed-reading",
+    "rapid-serial-visual-presentation",
+    "orp",
+    "spritz",
+    "reader-engine",
+    "text-pacing",
+    "headless",
+    "typescript"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/altunmustafa/rsvp-engine.git",
     "directory": "packages/core"
   },
-  "engines": {
-    "node": ">=18"
-  },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
+  "license": "MIT",
+  "sideEffects": false,
   "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": {
@@ -31,6 +33,9 @@
       }
     }
   },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "scripts",
@@ -41,37 +46,32 @@
   ],
   "scripts": {
     "build": "tsup && tsc --emitDeclarationOnly --declaration --outDir dist && cp dist/index.d.ts dist/index.d.cts",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "lint": "eslint src/",
+    "check:architecture": "node scripts/check-architecture.js",
+    "check:package": "node scripts/check-package.js",
+    "check:size": "node scripts/check-bundle-size.js",
     "format": "prettier . --write --ignore-path ../../.gitignore",
     "format:check": "prettier . --check --ignore-path ../../.gitignore",
-    "typecheck": "tsc --noEmit",
-    "check:architecture": "node scripts/check-architecture.js",
-    "check:size": "node scripts/check-bundle-size.js",
-    "check:package": "node scripts/check-package.js"
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {},
   "devDependencies": {
-    "typescript": "catalog:",
-    "tsup": "catalog:",
-    "vitest": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "prettier": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
     "typescript-eslint": "catalog:",
-    "@types/node": "catalog:",
-    "@vitest/coverage-v8": "catalog:"
+    "vitest": "catalog:"
   },
-  "sideEffects": false,
-  "keywords": [
-    "rsvp",
-    "speed-reading",
-    "rapid-serial-visual-presentation",
-    "orp",
-    "spritz",
-    "reader-engine",
-    "text-pacing",
-    "headless",
-    "typescript"
-  ]
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }

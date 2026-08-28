@@ -2,22 +2,25 @@
   "name": "rsvp-engine",
   "private": true,
   "type": "module",
-  "engines": {
-    "node": "^22.12 || ^24 || >=26",
-    "pnpm": ">=10.0.0"
-  },
   "scripts": {
     "build": "turbo run build",
-    "test": "turbo run test",
-    "test:coverage": "turbo run test:coverage",
+    "changeset": "changeset",
+    "changeset:publish": "turbo run build check:architecture check:size check:package && changeset publish",
+    "changeset:version": "changeset version",
+    "check:architecture": "turbo run check:architecture",
+    "check:package": "turbo run check:package",
+    "check:size": "turbo run check:size",
+    "commitlint": "commitlint",
+    "format": "turbo run format format:package-json",
+    "format:check": "turbo run format:check format:package-json:check",
+    "format:package-json": "sort-package-json package.json \"packages/*/package.json\"",
+    "format:package-json:check": "sort-package-json package.json \"packages/*/package.json\" --check",
     "lint": "turbo run lint lint:root",
     "lint:root": "eslint . --ignore-pattern \"packages/**\"",
-    "format": "turbo run format",
-    "format:check": "turbo run format:check",
-    "typecheck": "turbo run typecheck",
-    "changeset": "changeset",
-    "commitlint": "commitlint",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
@@ -31,8 +34,13 @@
     "globals": "catalog:",
     "husky": "catalog:",
     "prettier": "catalog:",
+    "sort-package-json": "catalog:",
     "turbo": "catalog:",
     "typescript-eslint": "catalog:"
   },
-  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621"
+  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
+  "engines": {
+    "node": "^22.12 || ^24 || >=26",
+    "pnpm": ">=10.0.0"
+  }
 }
