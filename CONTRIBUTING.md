@@ -41,6 +41,12 @@ chore/version-core-package
 
 Keep one coherent change on each branch. The branch type improves navigation and describes the branch as a whole; supporting commits may use other supported types when appropriate. Neither the branch type nor an individual commit type determines the Changesets release level.
 
+### Worktree Isolation
+
+Keep the primary `main` checkout clean. When working on multiple changes in parallel, use one worktree, one topic branch, and one pull request per coherent outcome. A branch may be checked out in only one worktree at a time.
+
+For Codex-assisted work, use a dedicated managed worktree for each independent implementation task. One primary agent owns writes and Git state in that worktree; use subagents for read-heavy exploration, tests, triage, and review. Independent write goals belong in separate worktrees.
+
 Read the package-specific contributor guide before changing a package. For Core, see [`packages/core/CONTRIBUTING.md`](packages/core/CONTRIBUTING.md).
 
 Run workspace commands from the repository root. Do not invoke plain `npm` or `yarn` build and test commands inside an individual package because that bypasses workspace dependency resolution and Turborepo orchestration.
@@ -54,13 +60,10 @@ Run workspace commands from the repository root. Do not invoke plain `npm` or `y
 5. Add a changeset when a published package's public behavior changes.
 6. Run the relevant verification commands before opening a pull request.
 
-For the entire workspace:
+Before opening a pull request, run the canonical workspace verification command:
 
 ```bash
-pnpm build
-pnpm test
-pnpm lint
-pnpm typecheck
+pnpm verify
 ```
 
 For one package, prefer a filtered command while iterating:
@@ -128,11 +131,22 @@ A commit type does not automatically select a package version; the accompanying 
 
 A pull request should:
 
+- use a Conventional Commit title, which becomes the squash commit title;
 - explain the consumer-visible outcome;
 - include tests for behavior changes;
 - include a changeset when required;
 - update affected documentation;
 - pass build, test, lint, typecheck, and package-specific quality gates.
+
+After the final diff review and validation, complete [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) with the final scope, checks actually run, release-impact decision, and known risks. Open the pull request with its final title and body; do not submit placeholders that require an immediate follow-up edit. Update the body later only when those facts materially change.
+
+Validate the exact title before opening the pull request:
+
+```bash
+printf '%s\n' "$PR_TITLE" | pnpm exec commitlint
+```
+
+Review the complete branch diff against `main` before submission. After review begins, add correction commits instead of rewriting shared history. Pull requests are squash-merged so each reviewed change becomes one commit on `main`.
 
 ## Release Workflow
 

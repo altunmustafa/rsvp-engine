@@ -1,0 +1,7 @@
+interface:
+  display_name: "Git Collaboration"
+  short_description: "Manage Git branches, forks, commits, PRs, and cleanup"
+  default_prompt: "Use $git-collaboration to prepare and submit the current changes as a safe GitHub pull request."
+
+policy:
+  allow_implicit_invocation: true

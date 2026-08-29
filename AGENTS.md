@@ -15,37 +15,14 @@ A pnpm-workspace monorepo for RSVP (Rapid Serial Visual Presentation) tooling. `
 
 ## Workspace Commands
 
-Run from the repo root unless a package path is given.
+Run commands from the repository root.
 
 - **Install:** `pnpm install`
-- **Build all:** `pnpm build` (Turborepo builds dependencies first)
-- **Build one package:** `pnpm --filter @rsvp-engine/core build`
-- **Test all:** `pnpm test`
-- **Test one package:** `pnpm --filter @rsvp-engine/core test`
-- **Coverage:** `pnpm test:coverage`
-- **Lint:** `pnpm lint`
-- **Format:** `pnpm format`
-- **Typecheck all:** `pnpm typecheck`
+- **Workspace tasks:** `pnpm build`, `pnpm test`, `pnpm test:coverage`, `pnpm lint`, `pnpm format`, `pnpm typecheck`
+- **Single package:** `pnpm --filter <pkg> <script>`
 - **Create a changeset:** `pnpm changeset`
 
-Run workspace commands from the repository root, using `pnpm --filter <pkg>` when needed. Plain `npm` or `yarn` commands inside packages bypass workspace resolution and Turborepo orchestration.
-
-## Repo Structure
-
-```
-rsvp-engine/
-├── packages/
-│   ├── core/       → @rsvp-engine/core   (AGENTS.md: strict, zero-dep, <5KB, ≥95% coverage)
-│   ├── dom/        → @rsvp-engine/dom
-│   ├── react/      → @rsvp-engine/react
-│   └── vue/        → @rsvp-engine/vue
-├── examples/        # demo apps, private, not published
-├── .changeset/
-├── pnpm-workspace.yaml # workspace packages and dependency catalog
-├── turbo.json
-└── tsconfig.base.json
-
-```
+Do not run plain `npm` or `yarn` commands inside packages; they bypass workspace resolution and Turborepo orchestration.
 
 ## Cross-Package Architectural Rules
 
@@ -75,3 +52,16 @@ rsvp-engine/
 ## Contribution & TDD Workflow
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for commit conventions, PR expectations, Changesets usage, release steps, and the mandatory TDD workflow that applies across all packages.
+
+Use the `git-collaboration` skill for tasks involving branches, commits, remotes or forks, pushes, pull requests, Git conflicts or synchronization, and merged-branch cleanup.
+
+### Agent Delivery Workflow
+
+- Treat the local `main` checkout as a clean control plane. For new parallel implementation work, use one Codex-managed worktree, one short-lived topic branch, one primary writing agent, and one PR per coherent outcome. Continue an existing coherent task in place rather than relocating it.
+- Base new work on an up-to-date `main`. Do not base it on a dirty feature branch unless the PR is intentionally stacked and that dependency is documented.
+- Use subagents primarily for read-heavy exploration, test analysis, triage, and review. Give independent write goals separate tasks and worktrees; do not let multiple agents mutate the same worktree concurrently.
+- Before opening a PR, run `pnpm verify` and review the complete branch diff against `main` with a dedicated reviewer. Then complete [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) from that final diff and the checks actually run; create the PR with its final title and body in one operation, without placeholders or an immediate follow-up edit. Validate the exact proposed title with `printf '%s\n' "$PR_TITLE" | pnpm exec commitlint`; do not open the PR until the title passes. Update an existing PR body only when its scope, validation results, release impact, or risks materially change.
+- Use squash merge so one PR becomes one commit on `main`. Do not rewrite shared history to polish review-fix commits.
+- Unless the user opts out, enable GitHub auto-merge with the squash method after review for ordinary changes submitted on behalf of the repository owner. Never bypass required checks or unresolved review threads.
+- Require explicit owner approval before auto-merge for a major Changeset, a breaking Core API change, workflow or release-permission changes, production dependency or toolchain upgrades, cross-package architecture changes, or security-sensitive code.
+- After GitHub confirms a merge, let repository settings delete the remote branch. Preserve a Codex-managed worktree for follow-up and archive its task only when archival is authorized; clean a local/manual worktree only after verifying the exact merged head and a clean tree.
