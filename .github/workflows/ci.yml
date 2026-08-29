@@ -2,11 +2,10 @@ name: CI
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
+    types: [edited, opened, reopened, synchronize]
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -43,8 +42,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check repository formatting
-        run: pnpm format:check
+      - name: Validate pull request title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint
 
-      - name: Run workspace quality gates
-        run: pnpm exec turbo run lint lint:root typecheck test:coverage check:architecture check:size check:package
+      - name: Run workspace verification
+        run: pnpm verify
