@@ -46,7 +46,9 @@ Before push or PR submission, review the complete branch diff against its base w
 
 ## Write Reviewable Pull Requests
 
-Use the repository PR template when present. Otherwise state the reason, outcome, and actual validation. Add release impact, risk, migration, security, screenshots, or issues only when relevant. Headings are optional; omit empty sections. Use the repository's language, or English when none is established.
+When `.github/PULL_REQUEST_TEMPLATE.md` exists, read it in full and use it as the contract for the PR body. Otherwise state the reason, outcome, and actual validation. Add release impact, risk, migration, security, screenshots, or issues only when relevant. Headings are optional; omit empty sections. Use the repository's language, or English when none is established.
+
+After the final diff review and validation, complete the template with the final scope, checks actually run, release-impact decision, and known risks. Do not open a PR with placeholders or a provisional body and then immediately revise it. Create a new PR with its final title and body in one operation, using a body file when supported. After submission, update the body only when the scope, validation results, release impact, or risks materially change.
 
 Before opening a PR, formulate its final title and validate that exact string with the repository's title or commit-message validator. When the repository uses commitlint, pipe the title to `pnpm exec commitlint` through standard input. Do not open the PR until the title passes.
 

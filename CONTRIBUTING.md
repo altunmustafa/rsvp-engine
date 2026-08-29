@@ -138,6 +138,8 @@ A pull request should:
 - update affected documentation;
 - pass build, test, lint, typecheck, and package-specific quality gates.
 
+After the final diff review and validation, complete [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) with the final scope, checks actually run, release-impact decision, and known risks. Open the pull request with its final title and body; do not submit placeholders that require an immediate follow-up edit. Update the body later only when those facts materially change.
+
 Validate the exact title before opening the pull request:
 
 ```bash
