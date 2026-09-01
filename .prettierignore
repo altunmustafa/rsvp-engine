@@ -1,14 +1,5 @@
 # Handled by dedicated workspace tasks.
 /package.json
+/pnpm-lock.yaml
 /packages/
 /examples/
-
-# Generated and local files.
-/pnpm-lock.yaml
-/node_modules/
-/dist/
-/coverage/
-/.turbo/
-/.cache/
-/.local/
-/.trash/
