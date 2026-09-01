@@ -1,155 +1,124 @@
 # Contributing to RSVP Engine
 
-Thank you for contributing to RSVP Engine. This guide explains how to prepare the workspace, develop a change, document its release impact, and submit it for review.
+Thanks for contributing. This guide takes a change from local setup through review. Keep each contribution focused and ask in the issue or pull request when a project rule is unclear.
 
-## Prerequisites
+## Set Up the Workspace
 
-- A Node.js version supported by the root `package.json` (`^22.12`, `^24`, or `>=26`).
-- pnpm 10 or newer. The exact pnpm release used by the project is declared in the root `package.json`.
-- Git.
+You need Git and the Node.js/pnpm versions declared by the root [`package.json`](package.json). That file is the source of truth for supported and preferred tooling versions.
 
-The published Core package supports older Node.js runtimes independently of this development-tooling requirement.
-
-## Prepare the Workspace
-
-Clone your fork, install dependencies from the repository root, and create a short-lived branch:
+From the repository root, run:
 
 ```bash
 pnpm install
-git switch -c feat/short-description
 ```
 
-### Branch Naming
+This installs the workspace and configures the Git hooks. Run all workspace commands from the repository root; do not use plain `npm` or `yarn` commands inside packages because they bypass workspace resolution and Turborepo orchestration.
 
-Use short-lived branches named with the following pattern:
+Before changing a package, read its contributor guide and linked design documentation when available. For Core, start with [`packages/core/CONTRIBUTING.md`](packages/core/CONTRIBUTING.md).
+
+## Create a Focused Branch
+
+Start from the canonical repository's current default branch and create a short-lived branch:
 
 ```text
 <type>/<short-kebab-description>
 ```
 
-Choose the type that best describes the branch's primary purpose from the same supported type list used for commits: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, or `test`. Write the description in lowercase kebab-case, without a contributor name. An issue number may appear at the start of the description when useful.
+Use one of the [commit types](#commit-messages) for `<type>`. Keep the description lowercase and omit contributor names; an issue number may lead the description when useful.
 
 ```text
 feat/configurable-tokenizer
-fix/123-pause-remaining-delay
+fix/123-pause-delay
 docs/core-api-examples
-refactor/event-dispatch
-chore/update-typescript
-ci/validate-commit-messages
-chore/version-core-package
 ```
 
-Keep one coherent change on each branch. The branch type improves navigation and describes the branch as a whole; supporting commits may use other supported types when appropriate. Neither the branch type nor an individual commit type determines the Changesets release level.
+Keep one coherent outcome per branch and pull request. When working on multiple branches at once, use separate worktrees and never check out one branch in two worktrees.
 
-### Worktree Isolation
+## Develop Test-First
 
-Keep the primary `main` checkout clean. When working on multiple changes in parallel, use one worktree, one topic branch, and one pull request per coherent outcome. A branch may be checked out in only one worktree at a time.
-
-For Codex-assisted work, use a dedicated managed worktree for each independent implementation task. One primary agent owns writes and Git state in that worktree; use subagents for read-heavy exploration, tests, triage, and review. Independent write goals belong in separate worktrees.
-
-Read the package-specific contributor guide before changing a package. For Core, see [`packages/core/CONTRIBUTING.md`](packages/core/CONTRIBUTING.md).
-
-Run workspace commands from the repository root. Do not invoke plain `npm` or `yarn` build and test commands inside an individual package because that bypasses workspace dependency resolution and Turborepo orchestration.
-
-## Development Workflow
-
-1. Write or update a failing test that describes the intended behavior.
-2. Implement the smallest change that makes the test pass.
+1. Add or update a failing test that describes the intended behavior.
+2. Implement the smallest change that makes it pass.
 3. Refactor without weakening the test or package constraints.
-4. Update public documentation when the contract or behavior changes.
-5. Add a changeset when a published package's public behavior changes.
-6. Run the relevant verification commands before opening a pull request.
+4. Update documentation when public behavior or contracts change.
+5. Add a Changeset when the change affects package consumers.
+6. Run focused checks while iterating and the full verification before opening a pull request.
 
-Before opening a pull request, run the canonical workspace verification command:
-
-```bash
-pnpm verify
-```
-
-For one package, prefer a filtered command while iterating:
+Use filters for faster package-level feedback, for example:
 
 ```bash
 pnpm --filter @rsvp-engine/core test
 pnpm --filter @rsvp-engine/core build
 ```
 
-Run broader workspace checks before merging a Core public API change because downstream packages may depend on it.
+Core API changes require workspace-wide verification because other packages may depend on them.
 
-## Changesets
+## Record Release Impact
 
-Changesets, not commit-message parsing, determine package versions and generated changelog entries.
-
-Add a changeset for a consumer-visible change to a published package:
+[Changesets](https://github.com/changesets/changesets) determine package versions and changelog entries. Add one for a consumer-visible change to a published package:
 
 ```bash
 pnpm changeset
 ```
 
-Choose the release type from the public contract:
+Choose the release level from the public contract:
 
-| Type    | Use when                                                      |
-| ------- | ------------------------------------------------------------- |
-| `patch` | Fixing incorrect behavior without breaking compatibility.     |
-| `minor` | Adding backward-compatible public functionality.              |
-| `major` | Making a backward-incompatible public API or behavior change. |
+| Level   | Use when                                              |
+| ------- | ----------------------------------------------------- |
+| `patch` | Correcting behavior without breaking compatibility    |
+| `minor` | Adding backward-compatible public behavior            |
+| `major` | Making a backward-incompatible API or behavior change |
 
-Write the summary for package consumers. Describe the observable outcome and include migration guidance for a breaking change. Commit the generated `.changeset/*.md` file with the code that it describes.
+Write the summary for package consumers and include migration guidance for breaking changes. Commit the generated `.changeset/*.md` file with its change.
 
-A changeset is normally unnecessary for tests, formatting, CI, repository-only documentation, or an internal refactor that cannot affect consumers. A correction to a file shipped in the npm package, such as its README, needs a `patch` changeset if the corrected file must reach npm consumers.
+A Changeset is normally unnecessary for tests, formatting, CI, repository-only documentation, or internal refactors. A corrected file shipped in an npm package needs a Changeset when consumers need a new release to receive it.
 
-Do not edit package versions or generated changelog release sections by hand. Do not delete pending changesets merely to make the directory clean; they are release inputs.
+Never hand-edit package versions or generated changelog sections, and do not delete pending Changesets to clean the working tree.
 
-## Commit and Pull Request Conventions
+## Verify the Change
 
-Use Conventional Commits for readable Git history:
+Before opening a pull request, run the canonical workspace check:
+
+```bash
+pnpm verify
+```
+
+Report only checks you actually ran. If verification fails, fix the cause or clearly document the unresolved failure before requesting review.
+
+## Commit Messages
+
+Use Conventional Commits:
 
 ```text
 <type>[optional scope]: <description>
 ```
 
-Use one of the following commit types:
+Choose the type that best describes the commit:
 
-| Type       | Use for                                                               |
-| ---------- | --------------------------------------------------------------------- |
-| `build`    | Build system, bundling, or build dependency changes.                  |
-| `chore`    | Repository maintenance that does not fit another type.                |
-| `ci`       | Continuous integration and delivery configuration.                    |
-| `docs`     | Documentation-only changes.                                           |
-| `feat`     | New user-visible functionality.                                       |
-| `fix`      | Corrections to incorrect behavior.                                    |
-| `perf`     | Measurable performance improvements.                                  |
-| `refactor` | Code restructuring without a feature, fix, or behavior change.        |
-| `revert`   | Reverting an earlier commit.                                          |
-| `style`    | Formatting-only changes that do not alter behavior.                   |
-| `test`     | Adding, correcting, or reorganizing tests without production changes. |
+- `feat`, `fix`, or `perf` for consumer-visible behavior;
+- `refactor` for restructuring without a behavior change;
+- `test`, `docs`, or `style` for their named concerns;
+- `build`, `ci`, or `chore` for repository and tooling maintenance;
+- `revert` for reverting an earlier change.
 
-Running `pnpm install` configures the repository's `commit-msg` hook. The hook uses Commitlint to reject commit messages that do not follow these conventions; staged changes remain intact so the commit can be retried with a corrected message.
+The Git hook validates messages with Commitlint. Keep headers, body entries, and footers naturally concise enough to satisfy [`commitlint.config.js`](commitlint.config.js); never hard-wrap prose. A commit type does not determine the package release level—the Changeset does.
 
-Keep the commit header at 100 characters or fewer. Body and footer lines must also remain within 100 characters; move supporting detail into the body instead of extending the header.
+## Open a Pull Request
 
-A commit type does not automatically select a package version; the accompanying changeset is authoritative.
+Before submission:
 
-A pull request should:
-
-- use a Conventional Commit title, which becomes the squash commit title;
-- explain the consumer-visible outcome;
-- include tests for behavior changes;
-- include a changeset when required;
-- update affected documentation;
-- pass build, test, lint, typecheck, and package-specific quality gates.
-
-After the final diff review and validation, complete [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) with the final scope, checks actually run, release-impact decision, and known risks. Open the pull request with its final title and body; do not submit placeholders that require an immediate follow-up edit. Update the body later only when those facts materially change.
-
-Validate the exact title before opening the pull request:
+1. Review the complete branch diff against the current default branch.
+2. Confirm tests, documentation, and Changesets match the final scope.
+3. Complete [the pull request template](.github/PULL_REQUEST_TEMPLATE.md) with the outcome, checks actually run, release impact, and known risks.
+4. Validate the exact Conventional Commit title:
 
 ```bash
 printf '%s\n' "$PR_TITLE" | pnpm exec commitlint
 ```
 
-Review the complete branch diff against `main` before submission. After review begins, add correction commits instead of rewriting shared history. Pull requests are squash-merged so each reviewed change becomes one commit on `main`.
+Create the pull request with its final title and body. Do not use placeholders or hard-wrap prose. Update the body only when scope, validation, release impact, or risk materially changes.
 
-## Release Workflow
+After review begins, add correction commits instead of rewriting shared history. Pull requests are squash-merged so each reviewed change becomes one commit on the default branch.
 
-Contributors are responsible only for committing required changesets with their changes. After those changes are merged, maintainers handle package versioning and publishing.
+## Releases
 
-Do not edit package versions or generated changelogs, and do not run `pnpm changeset version` or `pnpm changeset publish`, unless a maintainer explicitly asks you to participate in a release.
+Contributors include required Changesets; maintainers handle versioning and publishing after merge. Do not run `pnpm changeset version` or `pnpm changeset publish`, or edit generated release files, unless a maintainer explicitly asks you to participate in a release.
