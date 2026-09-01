@@ -34,6 +34,7 @@
     "//#root:lint": {
       "inputs": [
         "**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx}",
+        "package.json",
         "!packages/**",
         "!examples/**",
         "!node_modules/**",
@@ -42,22 +43,10 @@
     },
     "//#root:format": {
       "cache": false,
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!packages/**",
-        "!examples/**",
-        "!package.json",
-        "!pnpm-lock.yaml"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "!packages/**", "!examples/**", "!pnpm-lock.yaml"]
     },
     "//#root:format:check": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!packages/**",
-        "!examples/**",
-        "!package.json",
-        "!pnpm-lock.yaml"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "!packages/**", "!examples/**", "!pnpm-lock.yaml"]
     },
     "//#root:format:package-json": {
       "cache": false,
