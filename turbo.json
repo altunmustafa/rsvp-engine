@@ -1,32 +1,63 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["tsconfig.base.json"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"],
       "outputs": ["dist/**"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"],
       "outputs": ["coverage/**"]
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"]
     },
-    "//#lint:root": {},
     "format": {
       "cache": false
     },
     "format:check": {},
-    "//#format:package-json": {
-      "cache": false
+    "format:package-json": {
+      "cache": false,
+      "dependsOn": ["format"],
+      "inputs": ["package.json"]
     },
-    "//#format:package-json:check": {},
+    "format:package-json:check": {
+      "inputs": ["package.json"]
+    },
+    "//#root:lint": {
+      "inputs": [
+        "**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx}",
+        "package.json",
+        "!packages/**",
+        "!examples/**",
+        "!node_modules/**",
+        "!.turbo/**"
+      ]
+    },
+    "//#root:format": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$", "!packages/**", "!examples/**", "!pnpm-lock.yaml"]
+    },
+    "//#root:format:check": {
+      "inputs": ["$TURBO_DEFAULT$", "!packages/**", "!examples/**", "!pnpm-lock.yaml"]
+    },
+    "//#root:format:package-json": {
+      "cache": false,
+      "inputs": ["package.json"]
+    },
+    "//#root:format:package-json:check": {
+      "inputs": ["package.json"]
+    },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"]
     },
     "check:architecture": {},
     "check:size": {
