@@ -96,4 +96,14 @@ export default defineConfig([
     },
     extends: [tseslint.configs.disableTypeChecked],
   },
+
+  {
+    name: "browser-example-globals",
+    files: ["examples/core-browser-reader/**/*.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
 ]);

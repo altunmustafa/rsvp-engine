@@ -1,0 +1,22 @@
+{
+  "name": "@rsvp-engine/example-core-browser-reader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "format": "prettier . --write --ignore-path ../../.gitignore",
+    "format:check": "prettier . --check --ignore-path ../../.gitignore",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rsvp-engine/core": "workspace:*"
+  },
+  "devDependencies": {
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

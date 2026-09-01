@@ -13,7 +13,9 @@
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"]
     },
-    "lint": {},
+    "lint": {
+      "dependsOn": ["^build"]
+    },
     "//#lint:root": {},
     "format": {
       "cache": false
