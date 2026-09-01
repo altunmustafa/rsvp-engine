@@ -1,0 +1,97 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  box-sizing: border-box;
+  width: min(100% - 2rem, 42rem);
+  margin: 3rem auto;
+}
+
+textarea,
+input,
+progress {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+textarea {
+  margin-block: 0.4rem 1rem;
+  padding: 0.75rem;
+  resize: vertical;
+}
+
+.settings {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem 0.75rem;
+  align-items: end;
+}
+
+.settings label {
+  grid-column: 1 / -1;
+}
+
+input,
+button {
+  min-height: 2.5rem;
+  padding-inline: 0.75rem;
+}
+
+.word {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: baseline;
+  min-height: 1.5em;
+  margin-block: 3rem;
+  font-size: clamp(2rem, 8vw, 4rem);
+}
+
+.word-before,
+.word-after,
+.ovp {
+  white-space: nowrap;
+  text-wrap: nowrap;
+}
+
+.word-before {
+  text-align: right;
+}
+
+.word-after {
+  text-align: left;
+}
+
+.ovp {
+  color: #666;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ovp {
+    color: #aaa;
+  }
+}
+
+.controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-block-end: 1.5rem;
+}
+
+.controls button {
+  flex: 1;
+}
+
+progress {
+  display: block;
+  margin-block: 0.4rem;
+}
+
+#status {
+  min-height: 1.5em;
+}

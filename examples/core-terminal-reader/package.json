@@ -1,0 +1,23 @@
+{
+  "name": "@rsvp-engine/example-core-terminal-reader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "format": "prettier . --write --ignore-path ../../.gitignore",
+    "format:check": "prettier . --check --ignore-path ../../.gitignore",
+    "lint": "eslint src/",
+    "prestart": "pnpm run build",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rsvp-engine/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
+  }
+}
