@@ -1,65 +1,52 @@
 ---
 name: git-collaboration
-description: Deliver collaborative Git and GitHub changes through isolated branches or worktrees, coherent commits, pull requests, review, merge follow-up, synchronization, and cleanup. Use for delivery workflows, not Git tutoring or releases.
+description: "Use when changing Git state or performing GitHub delivery: branches, worktrees, commits, pushes, pull requests, review follow-up, merge, synchronization, or cleanup. Do not use for ordinary file edits, read-only work, Git tutoring, or releases."
 ---
 
 # Git Collaboration
 
-## Preserve Authorization Boundaries
+## Authorization Boundaries
 
-- Commit, push, fork creation, PR creation, approval, merge, settings changes, release, and branch deletion are separate effects. Perform only effects authorized by the user or an applicable standing repository instruction.
-- A request to submit a PR includes preparing coherent commits, pushing the topic branch, opening the PR, and observing its initial required checks. It does not imply approval, merge, settings changes, or release.
-- Preserve unrelated changes and existing history. Confirm exact targets before destructive or history-rewriting operations.
-- Treat Git and GitHub metadata as public. Do not expose secrets or private operational data.
+Implementation, commit, push/PR, merge, settings, release, and cleanup are separate effects. Perform only effects the user explicitly requested or a repository rule explicitly authorizes.
 
-## Discover the Effective Policy
+- An implementation request authorizes edits and proportionate validation, not commit, push, PR, auto-merge, or merge.
+- A PR request may authorize its necessary push and PR creation, but never auto-merge or manual merge.
+- Merge or auto-merge always requires a distinct explicit instruction. Never bypass checks or unresolved reviews.
+- Preserve unrelated work and history. Confirm destructive, history-rewriting, or deletion targets.
 
-Use applicable `AGENTS.md` instructions already in context. Search contribution guidance for relevant branch, commit, PR, test, and release-impact rules. Prefer targeted searches and bounded reads. Read package-specific guidance only for affected paths.
+## Read Only What Is Needed
 
-Read an applicable PR template in full. Repository and user rules override generic branch prefixes, commit formats, merge strategies, and checklists.
+Use applicable `AGENTS.md` instructions already in context. Search contribution docs for relevant branch, commit, test, PR, merge, and release rules; read only affected package guidance. Read a PR template in full only when preparing a PR.
 
-For remote, PR, or post-merge work, identify the canonical repository and effective permission from GitHub metadata rather than remote names:
+For remote/PR work, identify the canonical repository and permission from GitHub metadata, not remote names. Read exactly one role guide: [maintainer](references/maintainer.md) for `ADMIN`, `MAINTAIN`, or `WRITE`; otherwise [external contributor](references/external-contributor.md). Ask when permission is unknown and required for the next external mutation. Local-only work needs neither guide.
 
-- With `ADMIN`, `MAINTAIN`, or `WRITE` permission, read [references/maintainer.md](references/maintainer.md).
-- Without direct write permission, read [references/external-contributor.md](references/external-contributor.md).
-- If permission is unknown and the next external mutation depends on it, ask first.
-
-Read exactly one role reference. Local-only work may not need either.
+Keep context lean: prefer targeted searches, bounded diffs, and compact status; do not repeat unchanged policy or output. Report only commands actually run, and include raw output only when it supports a decision or failure diagnosis.
 
 ## Inspect and Isolate
 
-Before changing Git state, inspect the current branch or detached HEAD, status, staged and unstaged diffs, worktree list, remotes, base branch, upstream tracking, and relevant commit range.
+Before changing Git state or performing GitHub delivery, inspect branch/HEAD, status, staged and unstaged diffs, worktrees, remotes, base, upstream, and relevant commits.
 
-- Continue an existing coherent task in its current branch or worktree. Do not relocate it merely to fit a preferred layout.
-- For new parallel implementation work, use one writable worktree, one topic branch, and one PR per coherent outcome. Base it on the repository-designated base branch unless a stacked change is intentional and documented.
-- Keep a branch checked out in only one worktree. Use the product's handoff flow when available instead of checking the same branch out elsewhere.
-- Give one primary agent ownership of writes and Git state in a worktree. Use subagents primarily for read-heavy exploration, testing, triage, and review; independent write goals belong in separate worktrees.
-- Never discard, absorb, or rewrite unrelated local work.
+- Continue a suitable topic branch/worktree. For new work, never edit tracked files on local `main`: fetch the canonical remote and create `<type>/<short-kebab-description>` from its latest default branch. If the remote is unavailable, stop and present options instead of choosing a fallback.
+- Use the current checkout for sequential work. Use a separate worktree for concurrent writes, unrelated dirty work, an in-use checkout, or an explicit request; place manual worktrees at `<repository-parent>/.worktrees/<repository-name>/<task-slug>`. One writer owns Git state per worktree.
+- Keep one coherent goal per branch and PR. Never discard or absorb unrelated work.
 
-## Prepare a Reviewable Change
+## Prepare and Request Commit Approval
 
-Follow the repository's implementation and test workflow. Stage deliberately and group commits by responsibility. Avoid placeholder commits when coherent commits are practical. After review begins, prefer additive correction commits over rewriting shared history.
+Follow the repository's implementation, test, and release-impact rules. Run proportionate checks and the canonical verification command when required. Review the complete diff against its base; use an independent reviewer when available. Address evidence-based findings and rerun affected checks.
 
-Run the repository's canonical verification command when one exists; otherwise run checks proportionate to the change. Report only checks actually run. If the project tracks release impact, decide whether the PR needs an entry. Do not version or publish packages.
+Do not commit automatically. When ready, present a compact change summary, checks, release-impact decision, risks, and exact repository-compliant commit message; ask for approval. If denied, keep the work uncommitted and wait. Never hard-wrap commit-body prose. After review begins, prefer additive correction commits over rewriting shared history.
 
-Before push or PR submission, review the complete branch diff against its base with an independent or dedicated reviewer when available. Address findings based on evidence and rerun affected checks after material fixes.
+## Create a PR Only on Request
 
-## Write Reviewable Pull Requests
+When PR creation is requested, run `pnpm verify`, then complete the repository template from the final diff and actual checks. Validate the exact title with the repository validator. Create the PR once with its final title/body; omit placeholders and empty sections, and never hard-wrap PR-body prose. Update it only when scope, validation, release impact, or risk materially changes.
 
-When `.github/PULL_REQUEST_TEMPLATE.md` exists, read it in full and use it as the contract for the PR body. Otherwise state the reason, outcome, and actual validation. Add release impact, risk, migration, security, screenshots, or issues only when relevant. Headings are optional; omit empty sections. Use the repository's language, or English when none is established.
+Follow required checks and review threads within scope. Diagnose before retrying. Do not approve your own work.
 
-After the final diff review and validation, complete the template with the final scope, checks actually run, release-impact decision, and known risks. Do not open a PR with placeholders or a provisional body and then immediately revise it. Create a new PR with its final title and body in one operation, using a body file when supported. After submission, update the body only when the scope, validation results, release impact, or risks materially change.
+## Merge and Finish Only on Request
 
-Before opening a PR, formulate its final title and validate that exact string with the repository's title or commit-message validator. When the repository uses commitlint, pipe the title to `pnpm exec commitlint` through standard input. Do not open the PR until the title passes.
+For an authorized merge, use the required method and verify GitHub's result; never infer a merge from local history. Release work remains separate.
 
-Follow required checks and review threads. Diagnose failures before retrying and keep fixes within scope. Do not approve your own work, bypass requirements, or merge without authorization. A standing auto-merge instruction applies only within its stated risk boundary and required merge method.
-
-## Finish Deliberately
-
-Verify the remote PR state instead of inferring it from local history. Do not claim a merge until GitHub reports it. Treat release work as a separate workflow.
-
-Cleanup must match the active surface:
-
-- In a Codex-managed worktree, do not switch that worktree to the base branch or delete its checked-out branch. Preserve it for follow-up; archive the associated task only when task archival is authorized.
-- In a local checkout or manually managed worktree, require a clean tree, verify the exact merged head, update the base with fast-forward only, and remove only the confirmed topic branch when cleanup is authorized.
-- Let repository settings delete remote head branches automatically. Otherwise, remote branch deletion remains a separate effect.
+- Keep in-scope follow-ups on the same branch/PR before merge; start post-merge tracked changes on a fresh branch.
+- Preserve Codex-managed worktrees for follow-up; archive only when authorized.
+- Clean local/manual worktrees only after a clean-tree check and exact merged-head verification.
+- Branch deletion is separate unless repository automation performs it.

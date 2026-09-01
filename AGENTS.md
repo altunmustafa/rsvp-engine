@@ -55,13 +55,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for commit conventions, PR expectations, 
 
 Use the `git-collaboration` skill for tasks involving branches, commits, remotes or forks, pushes, pull requests, Git conflicts or synchronization, and merged-branch cleanup.
 
-### Agent Delivery Workflow
+### Git Delivery
 
-- Treat the local `main` checkout as a clean control plane. For new parallel implementation work, use one Codex-managed worktree, one short-lived topic branch, one primary writing agent, and one PR per coherent outcome. Continue an existing coherent task in place rather than relocating it.
-- Base new work on an up-to-date `main`. Do not base it on a dirty feature branch unless the PR is intentionally stacked and that dependency is documented.
-- Use subagents primarily for read-heavy exploration, test analysis, triage, and review. Give independent write goals separate tasks and worktrees; do not let multiple agents mutate the same worktree concurrently.
-- Before opening a PR, run `pnpm verify` and review the complete branch diff against `main` with a dedicated reviewer. Then complete [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) from that final diff and the checks actually run; create the PR with its final title and body in one operation, without placeholders or an immediate follow-up edit. Validate the exact proposed title with `printf '%s\n' "$PR_TITLE" | pnpm exec commitlint`; do not open the PR until the title passes. Update an existing PR body only when its scope, validation results, release impact, or risks materially change.
-- Use squash merge so one PR becomes one commit on `main`. Do not rewrite shared history to polish review-fix commits.
-- Unless the user opts out, enable GitHub auto-merge with the squash method after review for ordinary changes submitted on behalf of the repository owner. Never bypass required checks or unresolved review threads.
-- Require explicit owner approval before auto-merge for a major Changeset, a breaking Core API change, workflow or release-permission changes, production dependency or toolchain upgrades, cross-package architecture changes, or security-sensitive code.
-- After GitHub confirms a merge, let repository settings delete the remote branch. Preserve a Codex-managed worktree for follow-up and archive its task only when archival is authorized; clean a local/manual worktree only after verifying the exact merged head and a clean tree.
+Commit, PR creation, and merge each require separate explicit user authorization. Use `git-collaboration` as the workflow source only when changing Git state or performing GitHub delivery; ordinary file edits and read-only work do not trigger it.

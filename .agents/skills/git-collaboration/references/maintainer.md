@@ -8,11 +8,15 @@ Use this mode only with confirmed write permission to the canonical repository.
 - Follow the repository's PR title and merge conventions. Track required CI.
 - Rewrite or force-push a shared branch only when necessary and authorized.
 
+## Merge Gates
+
+- Use squash merge. Prefer GitHub's generated subject and verify it is exactly `<PR title> (#<number>)`, with the number matching the current PR; never guess or manually enter it. Stop if the tool or repository settings cannot guarantee the subject.
+- Before merging a breaking Core API, major Changeset, production dependency/toolchain upgrade, workflow/release/permission change, cross-package architecture change, or security-sensitive code, explain the risk and obtain owner confirmation specific to it.
+
 ## Auto-Merge
 
-Enable auto-merge only when the user or a standing repository instruction authorizes it, the change is inside any stated risk boundary, and non-gating review work is complete.
+Enable auto-merge only after a separate, explicit user instruction, when the change is inside any stated risk boundary and non-gating review work is complete. PR creation never supplies this authorization.
 
-- Use the repository-required merge method; do not choose from personal preference.
 - Never use `--admin`.
 - If the PR is immediately mergeable and the authorized auto-merge command performs the merge, verify the reported result before continuing.
 - If auto-merge is unavailable or rejected, leave the PR open and diagnose the cause. Do not weaken requirements.
