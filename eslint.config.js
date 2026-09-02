@@ -99,7 +99,7 @@ export default defineConfig([
 
   {
     name: "browser-example-globals",
-    files: ["examples/core-browser-reader/**/*.ts"],
+    files: ["examples/core-browser-reader/**/*.ts", "examples/core-readability-reader/**/*.ts"],
     languageOptions: {
       globals: {
         ...globals.browser,
