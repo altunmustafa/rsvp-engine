@@ -338,6 +338,31 @@ importers:
         specifier: 'catalog:'
         version: 8.2.1(@types/node@26.2.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.9.0)
 
+  examples/core-readability-reader:
+    dependencies:
+      '@mozilla/readability':
+        specifier: 0.6.0
+        version: 0.6.0
+      '@rsvp-engine/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+    devDependencies:
+      eslint:
+        specifier: 'catalog:'
+        version: 10.8.1(jiti@2.6.1)(supports-color@7.2.0)
+      prettier:
+        specifier: 'catalog:'
+        version: 3.9.6
+      sort-package-json:
+        specifier: 'catalog:'
+        version: 4.0.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.2.1(@types/node@26.2.0)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.9.0)
+
   examples/core-terminal-reader:
     dependencies:
       '@rsvp-engine/core':
@@ -825,6 +850,10 @@ packages:
 
   '@microsoft/tsdoc@0.16.0':
     resolution: {integrity: sha512-xgAyonlVVS+q7Vc7qLW0UrJU7rSFcETRWsqdXZtjzRU8dF+6CkozTK4V4y1LwOX7j8r/vHphjDeMeGI4tNGeGA==}
+
+  '@mozilla/readability@0.6.0':
+    resolution: {integrity: sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==}
+    engines: {node: '>=14.0.0'}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -2988,6 +3017,8 @@ snapshots:
       resolve: 1.22.12
 
   '@microsoft/tsdoc@0.16.0': {}
+
+  '@mozilla/readability@0.6.0': {}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
