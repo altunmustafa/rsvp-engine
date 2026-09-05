@@ -1,0 +1,12 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "lint": {
+      "extends": false,
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/eslint.config.js"]
+    },
+    "verify": {
+      "dependsOn": ["$TURBO_EXTENDS$", "test"]
+    }
+  }
+}
