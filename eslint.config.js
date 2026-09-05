@@ -52,6 +52,7 @@ export default defineConfig([
       ],
 
       // Safety
+      "@typescript-eslint/no-deprecated": "warn",
       "@typescript-eslint/prefer-readonly": "error",
       "@typescript-eslint/switch-exhaustiveness-check": "error",
 
@@ -88,7 +89,7 @@ export default defineConfig([
 
   {
     name: "disables/typechecking",
-    files: ["**/*.js", "**/*.test.ts", "**/*.config.ts", "**/docs/**"],
+    files: ["**/*.js", "**/*.test.{ts,tsx}", "**/*.config.ts", "**/docs/**"],
     languageOptions: {
       parserOptions: {
         projectService: false,
@@ -99,7 +100,11 @@ export default defineConfig([
 
   {
     name: "browser-example-globals",
-    files: ["examples/core-browser-reader/**/*.ts", "examples/core-readability-reader/**/*.ts"],
+    files: [
+      "examples/core-browser-reader/**/*.ts",
+      "examples/core-readability-reader/**/*.ts",
+      "examples/react-reader/**/*.tsx",
+    ],
     languageOptions: {
       globals: {
         ...globals.browser,

@@ -1,0 +1,70 @@
+{
+  "name": "@rsvp-engine/react",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Headless React bindings for @rsvp-engine/core",
+  "license": "MIT",
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup && tsc --emitDeclarationOnly --declaration --outDir dist && cp dist/index.d.ts dist/index.d.cts",
+    "check:architecture": "node scripts/check-architecture.js",
+    "check:package": "node scripts/check-package.js",
+    "check:size": "node scripts/check-bundle-size.js",
+    "format": "prettier . --write --ignore-path ../../.gitignore",
+    "format:check": "prettier . --check --ignore-path ../../.gitignore",
+    "format:package-json": "sort-package-json package.json",
+    "format:package-json:check": "sort-package-json package.json --check",
+    "lint": "eslint src/ type-tests/ *.config.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.type-tests.json"
+  },
+  "dependencies": {
+    "@rsvp-engine/core": "workspace:*",
+    "use-sync-external-store": "catalog:"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@types/use-sync-external-store": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "jsdom": "catalog:",
+    "prettier": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "sort-package-json": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

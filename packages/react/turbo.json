@@ -1,0 +1,22 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "check:package": {
+      "inputs": ["package.json", "scripts/check-package.js"]
+    },
+    "check:size": {
+      "inputs": ["scripts/check-bundle-size.js"]
+    },
+    "verify": {
+      "dependsOn": [
+        "$TURBO_EXTENDS$",
+        "test:coverage",
+        "check:architecture",
+        "check:size",
+        "check:package",
+        "@rsvp-engine/react-fixture-18#verify",
+        "@rsvp-engine/react-fixture-19#verify"
+      ]
+    }
+  }
+}
