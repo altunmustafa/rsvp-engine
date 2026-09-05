@@ -43,12 +43,13 @@ Keep one coherent outcome per branch and pull request. When working on multiple 
 5. Add a Changeset when the change affects package consumers.
 6. Run focused checks while iterating and the full verification before opening a pull request.
 
-Use filters for faster package-level feedback, for example:
+Run the package verification while iterating:
 
 ```bash
-pnpm --filter @rsvp-engine/core test
-pnpm --filter @rsvp-engine/core build
+pnpm verify --filter=@rsvp-engine/core
 ```
+
+The root `verify` script runs the task dependencies declared in `turbo.json` and reuses cached results for cache-enabled tasks when their inputs are unchanged.
 
 Core API changes require workspace-wide verification because other packages may depend on them.
 
@@ -94,11 +95,17 @@ Use Conventional Commits:
 
 Choose the type that best describes the commit:
 
-- `feat`, `fix`, or `perf` for consumer-visible behavior;
-- `refactor` for restructuring without a behavior change;
-- `test`, `docs`, or `style` for their named concerns;
-- `build`, `ci`, or `chore` for repository and tooling maintenance;
-- `revert` for reverting an earlier change.
+- `build`: Changes to the build system, tooling, or external dependencies.
+- `chore`: Repository maintenance that does not affect source or test code.
+- `ci`: Changes to CI/CD configuration, workflows, or automation scripts.
+- `docs`: Changes that affect documentation only.
+- `feat`: Adds a new feature or user-facing capability.
+- `fix`: Fixes a bug or incorrect behavior.
+- `perf`: Improves performance without changing behavior.
+- `refactor`: Changes code structure without adding features or fixing bugs.
+- `revert`: Reverts changes introduced by a previous commit.
+- `style`: Formatting changes that do not affect code behavior.
+- `test`: Adds, fixes, or improves tests.
 
 The Git hook validates messages with Commitlint. Keep headers, body entries, and footers naturally concise enough to satisfy [`commitlint.config.js`](commitlint.config.js); never hard-wrap prose. A commit type does not determine the package release level—the Changeset does.
 

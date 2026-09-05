@@ -1,0 +1,14 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "verify": {
+      "dependsOn": [
+        "$TURBO_EXTENDS$",
+        "test:coverage",
+        "check:architecture",
+        "check:size",
+        "check:package"
+      ]
+    }
+  }
+}
