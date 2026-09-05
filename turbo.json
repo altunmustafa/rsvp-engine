@@ -6,6 +6,15 @@
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"],
       "outputs": ["dist/**"]
     },
+    "dev": {
+      "cache": false,
+      "dependsOn": ["^build"],
+      "persistent": true
+    },
+    "start": {
+      "cache": false,
+      "dependsOn": ["build"]
+    },
     "test": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"]
@@ -17,15 +26,21 @@
     },
     "lint": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/eslint.config.js",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ]
     },
     "format": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["format:package-json"]
     },
-    "format:check": {},
+    "format:check": {
+      "dependsOn": ["format:package-json:check"]
+    },
     "format:package-json": {
       "cache": false,
-      "dependsOn": ["format"],
       "inputs": ["package.json"]
     },
     "format:package-json:check": {
@@ -36,6 +51,7 @@
         "**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx}",
         "package.json",
         "!packages/**",
+        "!fixtures/**",
         "!examples/**",
         "!node_modules/**",
         "!.turbo/**"
@@ -43,10 +59,24 @@
     },
     "//#root:format": {
       "cache": false,
-      "inputs": ["$TURBO_DEFAULT$", "!packages/**", "!examples/**", "!pnpm-lock.yaml"]
+      "dependsOn": ["//#root:format:package-json"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!packages/**",
+        "!fixtures/**",
+        "!examples/**",
+        "!pnpm-lock.yaml"
+      ]
     },
     "//#root:format:check": {
-      "inputs": ["$TURBO_DEFAULT$", "!packages/**", "!examples/**", "!pnpm-lock.yaml"]
+      "dependsOn": ["//#root:format:package-json:check"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!packages/**",
+        "!fixtures/**",
+        "!examples/**",
+        "!pnpm-lock.yaml"
+      ]
     },
     "//#root:format:package-json": {
       "cache": false,
@@ -65,6 +95,18 @@
     },
     "check:package": {
       "dependsOn": ["build"]
+    },
+    "verify": {
+      "dependsOn": [
+        "build",
+        "format:check",
+        "format:package-json:check",
+        "lint",
+        "typecheck",
+        "//#root:format:check",
+        "//#root:format:package-json:check",
+        "//#root:lint"
+      ]
     }
   }
 }

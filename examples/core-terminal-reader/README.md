@@ -5,13 +5,13 @@ A minimal Node.js example for `@rsvp-engine/core`. It renders each word on one t
 Run the default text from the repository root:
 
 ```bash
-pnpm --filter @rsvp-engine/example-core-terminal-reader start
+pnpm start --filter=@rsvp-engine/example-core-terminal-reader
 ```
 
 Or provide your own text and reading speed:
 
 ```bash
-pnpm --filter @rsvp-engine/example-core-terminal-reader start --text "Read this text one word at a time." --wpm 350
+pnpm start --filter=@rsvp-engine/example-core-terminal-reader -- --text "Read this text one word at a time." --wpm 350
 ```
 
 `--text` defaults to the built-in sample and `--wpm` defaults to `300`.

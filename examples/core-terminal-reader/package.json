@@ -9,7 +9,6 @@
     "format:package-json": "sort-package-json package.json",
     "format:package-json:check": "sort-package-json package.json --check",
     "lint": "eslint src/",
-    "prestart": "pnpm run build",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit"
   },

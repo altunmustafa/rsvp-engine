@@ -5,7 +5,7 @@ A small, framework-free browser example for `@rsvp-engine/core`. It shows how to
 From the repository root:
 
 ```bash
-pnpm --filter @rsvp-engine/example-core-browser-reader dev
+pnpm dev --filter=@rsvp-engine/example-core-browser-reader
 ```
 
 Open the local URL printed by Vite. The example imports only the public `@rsvp-engine/core` package API.

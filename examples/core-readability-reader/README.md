@@ -9,7 +9,7 @@ To use copied HTML instead, leave **Article URL** empty, paste the complete docu
 From the repository root:
 
 ```bash
-pnpm --filter @rsvp-engine/example-core-readability-reader dev
+pnpm dev --filter=@rsvp-engine/example-core-readability-reader
 ```
 
 Open the local URL printed by Vite, then perform this browser smoke test:

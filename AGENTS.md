@@ -19,7 +19,7 @@ Run commands from the repository root.
 
 - **Install:** `pnpm install`
 - **Workspace tasks:** `pnpm build`, `pnpm test`, `pnpm test:coverage`, `pnpm lint`, `pnpm format`, `pnpm typecheck`
-- **Single package:** `pnpm --filter <pkg> <script>`
+- **Single-package verification:** `pnpm verify --filter=<pkg>`
 - **Create a changeset:** `pnpm changeset`
 
 Do not run plain `npm` or `yarn` commands inside packages; they bypass workspace resolution and Turborepo orchestration.
@@ -47,7 +47,7 @@ Do not run plain `npm` or `yarn` commands inside packages; they bypass workspace
 
 3. Reference shared dependencies using `catalog:` instead of explicit versions.
 4. Add a package-level `AGENTS.md` for package-specific constraints.
-5. Add a root TypeScript project reference; update `pnpm-workspace.yaml` only if its globs do not already include the package.
+5. Give the package its own `typecheck` script so Turbo and root verification discover it. Do not add TypeScript project references unless the repository introduces a solution `tsconfig`; update `pnpm-workspace.yaml` only if its globs do not already include the package.
 
 ## Contribution & TDD Workflow
 
