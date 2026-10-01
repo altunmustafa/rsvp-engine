@@ -60,6 +60,10 @@ const tokens = await tokenizeWithYourService(text);
 engine.loadTokens(tokens);
 ```
 
+## Speed control
+
+Use `engine.setSpeed(225)` to set the reading rate or `engine.setMsPerItem(250)` to set the base display duration. The last supplied value is preserved exactly in its unit, including in snapshots; the other unit is derived without additional rounding. Changes affect subsequently scheduled display periods.
+
 ## Contributing
 
 See the [contributor guidelines](./CONTRIBUTING.md) to develop and verify changes locally.

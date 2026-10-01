@@ -17,6 +17,26 @@ afterEach(() => {
 });
 
 describe("context-bound React bindings", () => {
+  it("preserves exact slider values through speed actions and selectors", () => {
+    const controller = createRsvpController();
+    const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<string>();
+    const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
+      <RsvpProvider controller={controller}>{children}</RsvpProvider>
+    );
+    const { result } = renderHook(
+      () => ({ actions: useRsvpActions(), wpm: useRsvpSelector(({ snapshot }) => snapshot.wpm) }),
+      { wrapper: Wrapper },
+    );
+    const actions = result.current.actions;
+    expect(actions.setSpeed).toBe(controller.setSpeed);
+    for (const wpm of [225, 425, 450, 825, 850, 900, 925]) {
+      act(() => actions.setSpeed(wpm));
+      expect(result.current.wpm).toBe(wpm);
+      expect(result.current.actions).toBe(actions);
+    }
+    controller.destroy();
+  });
+
   it("rerenders only when the selected value changes", () => {
     const controller = createRsvpController({ data: "one two", wpm: 300 });
     const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();

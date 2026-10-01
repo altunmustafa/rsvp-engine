@@ -16,6 +16,6 @@ Terms used by `@rsvp-engine/core` and its documentation.
 
 **`msPerItem`:** The base display duration of an item, in milliseconds.
 
-**WPM (Words per minute):** Reading speed derived from `msPerItem`.
+**WPM (Words per minute):** The configured reading rate. An explicit WPM input is preserved exactly; when the speed is set in `msPerItem`, WPM is derived as `60_000 / msPerItem`.
 
 **State machine:** Enforces valid transitions among `IDLE`, `PLAYING`, `PAUSED`, `STOPPED`, `COMPLETED`, and `ERROR`.

@@ -15,6 +15,11 @@ import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
 import { DEFAULT_WPM } from "./config";
 import { validateMsPerItem, validateTokens, validateWpm } from "./validation";
 
+interface SpeedSetting {
+  readonly unit: "wpm" | "msPerItem";
+  readonly value: number;
+}
+
 /**
  * Headless RSVP Engine — orchestrates state machine, scheduler, tokenizer, and event emitter.
  * @typeParam T - The type of items being presented (defaults to `string`).
@@ -30,7 +35,7 @@ export class RSVPEngine<T = string> {
   #hasPresentedCurrent = false;
   #deadline: number | null = null;
   #remainingDelay: number | null = null;
-  #msPerItem: number = 60_000 / DEFAULT_WPM;
+  #speed: SpeedSetting = { unit: "wpm", value: DEFAULT_WPM };
   #destroyed = false;
 
   constructor(options: RSVPEngineOptions<T> = {}) {
@@ -174,7 +179,7 @@ export class RSVPEngine<T = string> {
       return;
     }
 
-    this.#scheduleAdvance(this.#msPerItem * item.delayMultiplier);
+    this.#scheduleAdvance(this.msPerItem * item.delayMultiplier);
   }
 
   #scheduleAdvance(delay: number): void {
@@ -236,7 +241,7 @@ export class RSVPEngine<T = string> {
 
     if (previousState === "PAUSED" && this.#hasPresentedCurrent) {
       const item = this.#tokens[this.#currentIndex];
-      this.#scheduleAdvance(this.#remainingDelay ?? this.#msPerItem * item.delayMultiplier);
+      this.#scheduleAdvance(this.#remainingDelay ?? this.msPerItem * item.delayMultiplier);
       return;
     }
 
@@ -320,7 +325,7 @@ export class RSVPEngine<T = string> {
 
     this.#currentIndex = index;
     this.#hasPresentedCurrent = true;
-    this.#remainingDelay = this.#msPerItem * this.#tokens[index].delayMultiplier;
+    this.#remainingDelay = this.msPerItem * this.#tokens[index].delayMultiplier;
 
     if (previousState !== "PAUSED") {
       this.#emitter.emit("stateChange", {
@@ -353,7 +358,7 @@ export class RSVPEngine<T = string> {
     if (this.#currentIndex < this.#tokens.length - 1) {
       this.#currentIndex++;
       this.#hasPresentedCurrent = true;
-      this.#remainingDelay = this.#msPerItem * this.#tokens[this.#currentIndex].delayMultiplier;
+      this.#remainingDelay = this.msPerItem * this.#tokens[this.#currentIndex].delayMultiplier;
       this.#emitter.emit("itemChange", {
         item: this.#tokens[this.#currentIndex],
         index: this.#currentIndex,
@@ -379,7 +384,7 @@ export class RSVPEngine<T = string> {
     if (this.#currentIndex > 0) {
       this.#currentIndex--;
       this.#hasPresentedCurrent = true;
-      this.#remainingDelay = this.#msPerItem * this.#tokens[this.#currentIndex].delayMultiplier;
+      this.#remainingDelay = this.msPerItem * this.#tokens[this.#currentIndex].delayMultiplier;
       this.#emitter.emit("itemChange", {
         item: this.#tokens[this.#currentIndex],
         index: this.#currentIndex,
@@ -436,21 +441,23 @@ export class RSVPEngine<T = string> {
   // ────────── Speed Control ──────────
 
   /**
-   * Updates playback speed via WPM (live, mid-playback).
+   * Sets WPM for subsequently scheduled display periods, preserving the input exactly.
+   * The corresponding ms-per-item interval is derived without additional rounding.
    */
   public setSpeed(wpm: number): void {
     this.#assertNotDestroyed();
     validateWpm(wpm);
-    this.#msPerItem = 60_000 / wpm;
+    this.#speed = { unit: "wpm", value: wpm };
   }
 
   /**
-   * Directly sets ms-per-item interval (live, mid-playback).
+   * Sets the interval for subsequently scheduled display periods, preserving the input exactly.
+   * The corresponding WPM is derived without additional rounding.
    */
   public setMsPerItem(ms: number): void {
     this.#assertNotDestroyed();
     validateMsPerItem(ms);
-    this.#msPerItem = ms;
+    this.#speed = { unit: "msPerItem", value: ms };
   }
 
   // ────────── State & Snapshot Getters ──────────
@@ -460,14 +467,14 @@ export class RSVPEngine<T = string> {
     return this.#stateMachine.state;
   }
 
-  /** Current WPM computed from msPerItem. */
+  /** Exact WPM input, or the WPM derived from the last ms-per-item input. */
   public get wpm(): number {
-    return 60_000 / this.#msPerItem;
+    return this.#speed.unit === "wpm" ? this.#speed.value : 60_000 / this.#speed.value;
   }
 
-  /** Current ms-per-item interval. */
+  /** Exact ms-per-item input, or the interval derived from the last WPM input. */
   public get msPerItem(): number {
-    return this.#msPerItem;
+    return this.#speed.unit === "msPerItem" ? this.#speed.value : 60_000 / this.#speed.value;
   }
 
   /** Current token index (0-based). */
@@ -520,7 +527,7 @@ export class RSVPEngine<T = string> {
       progress: this.progress,
       totalItems: this.totalItems,
       wpm: this.wpm,
-      msPerItem: this.#msPerItem,
+      msPerItem: this.msPerItem,
     });
   }
 }

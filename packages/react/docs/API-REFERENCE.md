@@ -88,6 +88,8 @@ const { play, pause } = useRsvpActions();
 
 Lifecycle ownership remains explicit, so `destroy` is intentionally absent.
 
+The same speed commands are available on the controller. `setSpeed(225)` preserves `225` exactly in `snapshot.wpm`; `setMsPerItem(ms)` preserves the interval and derives WPM from it. Fractional inputs are supported. Repeating an unchanged value does not notify subscribers. Switching input units can change the derived WPM even when the interval is unchanged, which is an observable snapshot update. See [Core speed semantics](../../core/docs/API-REFERENCE.md#data-and-speed-methods).
+
 ### `useRsvpController()`
 
 Returns the exact controller provided by the matching Provider without subscribing to state:

@@ -24,6 +24,8 @@ export interface RSVPSnapshot<T = string> {
   readonly currentItem: RSVPItem<T> | null;
   readonly progress: number;
   readonly totalItems: number;
+  /** Exact WPM input, or the WPM derived from the last ms-per-item input. */
   readonly wpm: number;
+  /** Exact ms-per-item input, or the interval derived from the last WPM input. */
   readonly msPerItem: number;
 }
