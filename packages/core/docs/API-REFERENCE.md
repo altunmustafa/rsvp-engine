@@ -38,7 +38,21 @@ Invalid control commands emit `error` and preserve the current state. They do no
 - `load(data)` synchronously invokes the configured tokenizer.
 - `loadTokens(tokens)` accepts externally prepared tokens, including results produced asynchronously outside the engine.
 - Loading is rejected while `PLAYING` or `ERROR`.
-- `setSpeed(wpm)` and `setMsPerItem(ms)` affect subsequently scheduled display periods.
+- `setSpeed(wpm)` and `setMsPerItem(ms)` affect subsequently scheduled display periods. They do not replace a running timer or a paused item's remaining duration.
+
+The last speed input is preserved exactly as a JavaScript `number` in its supplied unit; the other unit is derived using `60_000 / value`. This applies to constructor options, getters, and snapshots, including fractional inputs. Constructor `msPerItem` takes precedence over `wpm` when both are supplied.
+
+```typescript
+engine.setSpeed(225);
+engine.wpm; // 225
+engine.snapshot().wpm; // 225
+engine.msPerItem; // 266.6666666666667
+
+engine.setMsPerItem(engine.msPerItem);
+engine.wpm; // 224.99999999999997: now derived from the explicit interval
+```
+
+Derived values retain normal floating-point precision without additional rounding. Strict equality between WPM and `60_000 / msPerItem` is not guaranteed after setting WPM. A snapshot does not record the source unit and is not a lossless speed-restoration format: passing both snapshot fields back as constructor options selects `msPerItem`.
 
 Tokens require a non-negative integer `ovpIndex` (within string bounds for string values) and a positive finite `delayMultiplier`.
 

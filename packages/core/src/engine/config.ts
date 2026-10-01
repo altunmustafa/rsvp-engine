@@ -7,7 +7,7 @@ import type { TokenizerStrategy } from "../tokenizer/types";
 export interface RSVPEngineOptions<T = string> {
   /** Raw text string, single generic item, or generic item array. */
   readonly data?: T | T[];
-  /** Target speed in Words Per Minute. Defaults to 300. */
+  /** Target WPM, preserved exactly unless msPerItem is supplied. Defaults to 300. */
   readonly wpm?: number;
   /** Direct ms-per-item override. Takes precedence over `wpm`. */
   readonly msPerItem?: number;

@@ -516,6 +516,81 @@ describe("RSVPEngine", () => {
   // ────── Speed Control ──────
 
   describe("speed control", () => {
+    it.each([
+      ...Array.from({ length: 37 }, (_, index) => 100 + index * 25),
+      225.5,
+      224.99999999999997,
+      MIN_WPM,
+      MAX_WPM,
+    ])("preserves the exact WPM input %s in getters and snapshots", (wpm) => {
+      const engine = createEngine({ wpm });
+      expect(engine.wpm).toBe(wpm);
+      expect(engine.snapshot().wpm).toBe(wpm);
+
+      engine.setMsPerItem(500);
+      engine.setSpeed(wpm);
+      expect(engine.wpm).toBe(wpm);
+      expect(engine.msPerItem).toBe(60_000 / wpm);
+      expect(engine.snapshot()).toMatchObject({ wpm, msPerItem: 60_000 / wpm });
+    });
+
+    it("preserves the last input unit even when the duration is unchanged", () => {
+      const engine = createEngine({ wpm: 225 });
+      const ms = engine.msPerItem;
+      const original = engine.snapshot();
+
+      engine.setMsPerItem(ms);
+      expect(engine.msPerItem).toBe(ms);
+      expect(engine.wpm).toBe(60_000 / ms);
+      expect(engine.snapshot()).toMatchObject({ wpm: 60_000 / ms, msPerItem: ms });
+
+      engine.setSpeed(225);
+      expect(engine.snapshot()).toEqual(original);
+    });
+
+    it.each([10, 66.66666666666667, 266.6666666666667, 60000])(
+      "preserves direct duration %s and constructor precedence",
+      (msPerItem) => {
+        const engine = createEngine({ wpm: 225, msPerItem });
+        expect(engine.snapshot()).toMatchObject({ msPerItem, wpm: 60_000 / msPerItem });
+        engine.setSpeed(425);
+        engine.setMsPerItem(msPerItem);
+        expect(engine.msPerItem).toBe(msPerItem);
+        expect(engine.snapshot()).toMatchObject({ msPerItem, wpm: 60_000 / msPerItem });
+      },
+    );
+
+    it.each(["setSpeed", "setMsPerItem"] as const)(
+      "%s rejects invalid inputs without changing speed and rejects use after destruction",
+      (method) => {
+        const engine = createEngine({ wpm: 225 });
+        const snapshot = engine.snapshot();
+        for (const value of [0, -1, 60001, Number.NaN, Infinity, -Infinity]) {
+          expect(() => engine[method](value)).toThrow(InvalidInputError);
+          expect(engine.snapshot()).toEqual(snapshot);
+        }
+        engine.destroy();
+        expect(() => engine[method](300)).toThrow(EngineDestroyedError);
+      },
+    );
+
+    it("uses the new speed for the next item without replacing a paused remainder", () => {
+      const engine = createEngine({ data: "one two three", wpm: 600 });
+      engine.play();
+      vi.advanceTimersByTime(40);
+      engine.pause();
+      engine.setSpeed(225);
+      engine.play();
+      vi.advanceTimersByTime(59);
+      expect(engine.currentIndex).toBe(0);
+      vi.advanceTimersByTime(1);
+      expect(engine.currentIndex).toBe(1);
+      vi.advanceTimersByTime(265);
+      expect(engine.currentIndex).toBe(1);
+      vi.advanceTimersByTime(2);
+      expect(engine.currentIndex).toBe(2);
+    });
+
     it("setSpeed() updates msPerItem and wpm", () => {
       const engine = createEngine({ wpm: 300 });
       engine.setSpeed(600);

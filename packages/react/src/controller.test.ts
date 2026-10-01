@@ -56,6 +56,32 @@ describe("RSVP controller", () => {
     controller.destroy();
   });
 
+  it("preserves exact WPM and notifies only for observable changes", () => {
+    const controller = createRsvpController({ wpm: 425 });
+    const server = controller.getServerSnapshot();
+    expect(server.snapshot.wpm).toBe(425);
+    const listener = vi.fn();
+    controller.subscribe(listener);
+    const { setSpeed } = controller;
+
+    setSpeed(225);
+    const exact = controller.getSnapshot();
+    expect(exact.snapshot.wpm).toBe(225);
+    setSpeed(225);
+    expect(controller.getSnapshot()).toBe(exact);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    controller.setMsPerItem(exact.snapshot.msPerItem);
+    expect(controller.getSnapshot().snapshot.wpm).toBe(60_000 / exact.snapshot.msPerItem);
+    expect(listener).toHaveBeenCalledTimes(2);
+    setSpeed(225);
+    expect(controller.getSnapshot().snapshot.wpm).toBe(225);
+    expect(listener).toHaveBeenCalledTimes(3);
+    expect(controller.getServerSnapshot()).toBe(server);
+    controller.destroy();
+    expect(() => setSpeed(300)).toThrow(EngineDestroyedError);
+  });
+
   it("preserves separate meaningful Core event updates without notifying for duplicates", () => {
     const controller = createRsvpController({ data: "one two", wpm: 600 });
     const observed: { state: string; progress: number }[] = [];

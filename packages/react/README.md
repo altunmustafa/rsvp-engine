@@ -48,6 +48,10 @@ function App() {
 
 `useRsvpSelector` delegates concurrent-safe selection to React's official external-store implementation and rerenders its component only when the selected result changes. `useRsvpActions` does not subscribe to controller state, so controls do not rerender on every RSVP item.
 
+## Speed control
+
+Call `controller.setSpeed(225)` or obtain `setSpeed` from `useRsvpActions()` to set the reading rate. Core preserves the supplied WPM exactly in snapshots. `setMsPerItem(ms)` sets an exact base duration and derives WPM instead.
+
 ## Lifecycle ownership
 
 The controller is externally owned. The Provider exposes it to descendants, while Provider and hook unmounts only remove React subscriptions. Playback state and controller lifetime remain under application control.
