@@ -32,11 +32,7 @@ If yes, list each package as "<package-name>: patch/minor/major" in bullets. -->
 
 ## Checklist
 
-- [ ] `pnpm verify` passes locally
-- [ ] Relevant tests pass <!-- tests, commands... -->
-- [ ] Types and docs updated if the public API changed
-- [ ] Any new dependency is justified above
+<!-- Keep checklist items unchanged in PR descriptions; only update their checked state. -->
 
-## Notes (optional)
-
-<!-- Add screenshots, tradeoffs, or known gaps in bullets. Remove this section if unnecessary. -->
+- [ ] Passed `pnpm verify`
+- [ ] Updated public API types and docs (or not required)
