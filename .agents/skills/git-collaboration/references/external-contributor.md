@@ -10,6 +10,6 @@ Use this mode without direct write permission to the canonical repository.
 - Respect fork PR token and approval limits. Do not weaken Actions permissions or run untrusted fork code with privileged events.
 - Track visible checks and feedback. Separate code failures from checks awaiting maintainer action.
 
-For cleanup, verify the canonical PR was merged and follow the surface-aware cleanup rules in `SKILL.md`. In a clean local checkout or manual worktree, delete only the confirmed local topic branch when authorized. Force local deletion only after a verified squash or rebase merge that Git cannot detect by ancestry.
+For cleanup, verify the canonical PR was merged and follow the [shared cleanup rules](../SKILL.md#merge-and-finish-only-on-request). In a clean local checkout or manual worktree, delete only the confirmed local topic branch when authorized. Force local deletion only after a verified squash or rebase merge that Git cannot detect by ancestry.
 
 Delete the fork branch only when explicitly requested. Never delete or rewrite canonical branches.
