@@ -1,6 +1,6 @@
 ---
 name: record-adrs
-description: Record or update architecture decision records. Use when a decision materially constrains architecture, public contracts, portability, dependencies, runtime behavior, or another long-lived design boundary whose rationale future maintainers will need.
+description: Records durable architecture decisions and their tradeoffs. Use when creating or revisiting a decision about public contracts, dependencies, portability, or runtime boundaries.
 ---
 
 # Record ADRs
@@ -8,10 +8,11 @@ description: Record or update architecture decision records. Use when a decision
 ## Overview
 
 - Write an ADR only for important, durable decisions with meaningful alternatives and future consequences.
-- Do not write ADRs for routine refactors, naming, file layout, tests, formatting, tooling, or easily reversible implementation details.
-- Follow the repository's existing ADR location, numbering, naming, and index conventions. When none exist, store records in `docs/architecture/adr/`, assign the next four-digit number, and maintain a `README.md` index.
-- Keep records concise. Do not rewrite an accepted decision; add a superseding ADR when the decision changes.
-- Use the Michael Nygard format with a date directly below the title.
+- Routine refactors, naming, tests, formatting, and reversible tooling changes do not need an ADR. Judge by lasting consequences, not the category of file changed.
+- Locate the ADR index and relevant records for the affected component in the target repository. Follow its location, numbering, naming, and index conventions. If no convention exists, choose a documentation directory appropriate to the decision's scope, use four-digit numbering, and create an index.
+- Preserve accepted decisions as history. When replacing one, add a superseding record and update the old record's status and index links; factual corrections may be edited in place.
+- Record unresolved choices as Proposed. Use Accepted only when the decision is established by the user's direction or the repository; writing an ADR does not authorize implementation.
+- Follow the repository's existing ADR template. If none exists, use the Michael Nygard template below with a date directly below the title.
 
 ## Template
 

@@ -1,15 +1,10 @@
 # RSVP Engine (`@rsvp-engine/core`)
 
-The zero-dependency, headless TypeScript RSVP engine. It owns state, scheduling, tokenization, and OVP calculation.
-
 ## Core Architectural Constraints
 
-- **Zero Production Dependencies:** Keep `dependencies` in `package.json` empty.
-- **Zero DOM Coupling:** Do not reference `window`, `document`, `HTMLElement`, or browser DOM APIs. Core must run in Node.js, Web Workers, and React Native.
-- **Bundle Footprint:** Minified + Gzipped footprint must remain strictly `< 5 KB`.
-- **Strict TypeScript:** Keep `"strict": true`, avoid implicit `any`, and use ECMAScript `#privateField` syntax for internal state.
-- **Timer Precision:** Main thread drift must remain `< 10ms` over 1 minute of playback.
-- **Test Coverage:** Maintain at least 95% line and branch coverage. Use Vitest and TDD for feature changes.
+- Keep Core platform-neutral: no `window`, `document`, `HTMLElement`, or browser DOM APIs. It must run in Node.js, Web Workers, and React Native.
+- Preserve the bundle budget enforced by [check-bundle-size.js](scripts/check-bundle-size.js) and coverage thresholds in [vitest.config.ts](vitest.config.ts).
+- When changing scheduling, preserve drift correction and recovery under delayed callbacks as tested in [scheduler tests](src/scheduler/drift-corrected-scheduler.test.ts). The simulated lag target is not a wall-clock guarantee under arbitrary main-thread blocking.
 
 ## Documentation
 
@@ -17,8 +12,4 @@ The zero-dependency, headless TypeScript RSVP engine. It owns state, scheduling,
 - Before revisiting an accepted architecture decision, read the [ADR index](docs/architecture/adr/README.md) and the relevant record.
 - Before changing states, transitions, or playback lifecycle, read [State Machine Lifecycle](docs/STATE-MACHINE.md).
 - Before changing public exports or contracts, read the [API Reference](docs/API-REFERENCE.md).
-- For TypeScript conventions, TDD, verification, and packaging, read [Core Contribution Guide](CONTRIBUTING.md).
-
-## Architecture Decision Records
-
-For important, durable architecture decisions—not routine or easily reversible changes—use the project-local `$record-adrs` skill.
+- For Core-specific TypeScript conventions and behavioral tests, follow the [Core Contribution Guide](CONTRIBUTING.md).
