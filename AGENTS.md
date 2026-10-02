@@ -1,60 +1,25 @@
-# RSVP Engine (Monorepo)
+# RSVP Engine
 
-A pnpm-workspace monorepo for RSVP (Rapid Serial Visual Presentation) tooling. `@rsvp-engine/core` is the headless, zero-dependency engine; the other packages wrap it for specific environments and frameworks.
+Read the applicable package's `AGENTS.md` when working there; its more specific instructions take precedence over this file.
 
-## Packages
+## Development and Verification
 
-| Package | Path | Depends on | Purpose |
-| --- | --- | --- | --- |
-| `@rsvp-engine/core` | `packages/core` | — | Headless, zero-dependency state machine, scheduler, OVP calculation |
-| `@rsvp-engine/dom` | `packages/dom` | `core` | HTML/DOM parsing and extraction for browser input |
-| `@rsvp-engine/react` | `packages/react` | `core` | React hooks / headless components |
-| `@rsvp-engine/vue` | `packages/vue` | `core` | Vue composables / headless components |
+- Use pnpm from the repository root so workspace resolution and task orchestration apply.
+- For code changes, follow the mandatory TDD workflow in [CONTRIBUTING.md](CONTRIBUTING.md#develop-test-first) and the affected package's contributor guide. Load design references when the change touches their subject.
+- Use `pnpm verify --filter=<pkg>` for package verification. Core API or behavior changes require checking downstream packages, examples, and compatibility fixtures and running workspace-wide `pnpm verify`.
+- For documentation-only changes, check affected links and formatting. Before opening a PR, follow the full verification requirements in [CONTRIBUTING.md](CONTRIBUTING.md#verify-the-change).
+- Fix failures caused by the requested change and rerun affected checks; report unrelated failures. Treat configuration and validation scripts as the source of truth for quality thresholds; do not weaken them to make checks pass.
 
-> Package-specific constraints live in each package's `AGENTS.md`. Always check the nearest `AGENTS.md` to the file you are editing; it takes precedence over this file.
+## Dependency Boundaries
 
-## Workspace Commands
+- Core must remain free of production dependencies, including other workspace packages. Adapters may depend on Core, but must not import from sibling adapters. Raise shared logic that needs a new package as an architecture decision.
+- Use `workspace:*` for internal dependencies and the catalog in [pnpm-workspace.yaml](pnpm-workspace.yaml) for shared external dependencies.
+- Package TypeScript configurations must extend [tsconfig.base.json](tsconfig.base.json) without loosening strictness.
+- When adding a package, use `packages/<name>` and `@rsvp-engine/<name>`, follow an existing package's layout, and provide its own `typecheck` script. Keep package-specific constraints in its `AGENTS.md`. Add workspace globs only if needed; do not introduce TypeScript project references without a solution configuration.
 
-Run commands from the repository root.
+## Decisions and Delivery
 
-- **Install:** `pnpm install`
-- **Workspace tasks:** `pnpm build`, `pnpm test`, `pnpm test:coverage`, `pnpm lint`, `pnpm format`, `pnpm typecheck`
-- **Single-package verification:** `pnpm verify --filter=<pkg>`
-- **Create a changeset:** `pnpm changeset`
-
-Do not run plain `npm` or `yarn` commands inside packages; they bypass workspace resolution and Turborepo orchestration.
-
-## Cross-Package Architectural Rules
-
-- **Dependency direction is one-way:** `dom`, `react`, and `vue` may depend on `core`; `core` must not depend on another workspace package and must remain dependency-free in production.
-- **Internal dependencies use `workspace:*`:** For example, `"@rsvp-engine/core": "workspace:*"`.
-- **Shared external dependencies use the catalog:** Declare common versions under `catalog:` in `pnpm-workspace.yaml` and reference them as `"dependency": "catalog:"`.
-- **No cross-imports between sibling packages:** `react` must not import from `dom` or `vue`. If two framework packages need to share non-`core` logic, that logic belongs in `core` or a new shared package — raise this rather than adding a sibling dependency.
-- **Check downstream compatibility for Core API changes:** Review `react`, `vue`, and `dom` whenever Core's exported types or behavior change.
-- **Strict TypeScript applies everywhere:** Package configurations extend `tsconfig.base.json` and must not loosen strictness.
-
-## Versioning & Releases
-
-- Changesets control independent package versions. Follow [`CONTRIBUTING.md`](CONTRIBUTING.md) to decide when one is required and commit it with the change it describes.
-- Do not delete pending changesets or hand-edit package versions and generated changelog entries.
-- Do not run `changeset version` or `changeset publish` unless the user explicitly requests a release.
-
-## Adding a New Package
-
-1. Scaffold under `packages/<name>/` following an existing package's layout (`package.json`, `tsconfig.json`, `src/`, `AGENTS.md`).
-
-2. Name it `@rsvp-engine/<name>` to match the folder name.
-
-3. Reference shared dependencies using `catalog:` instead of explicit versions.
-4. Add a package-level `AGENTS.md` for package-specific constraints.
-5. Give the package its own `typecheck` script so Turbo and root verification discover it. Do not add TypeScript project references unless the repository introduces a solution `tsconfig`; update `pnpm-workspace.yaml` only if its globs do not already include the package.
-
-## Contribution & TDD Workflow
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for commit conventions, PR expectations, Changesets usage, release steps, and the mandatory TDD workflow that applies across all packages.
-
-Use the `git-collaboration` skill for tasks involving branches, commits, remotes or forks, pushes, pull requests, Git conflicts or synchronization, and merged-branch cleanup.
-
-### Git Delivery
-
-Commit, PR creation, and merge each require separate explicit user authorization. Use `git-collaboration` as the workflow source only when changing Git state or performing GitHub delivery; ordinary file edits and read-only work do not trigger it.
+- Use the project-local `record-adrs` skill for durable architecture decisions affecting contracts, dependencies, runtime behavior, or portability.
+- For consumer-visible changes, follow [Changeset guidance](CONTRIBUTING.md#record-release-impact). Do not delete pending Changesets or hand-edit package versions or generated changelog entries. Versioning and publishing require an explicit release request.
+- Commit, PR creation, and merge each require separate explicit user authorization.
+- Use `git-collaboration` when changing Git state or performing GitHub delivery, including branches, commits, remotes, pushes, PRs, conflicts, synchronization, and cleanup. Read-only work and ordinary file edits do not trigger it.

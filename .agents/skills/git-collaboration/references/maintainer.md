@@ -2,16 +2,13 @@
 
 Use this mode only with confirmed write permission to the canonical repository.
 
-- Discover the default branch, repository merge settings, active rulesets or protections, remotes, and upstream tracking.
-- Follow repository branch policy. Do not push directly to a protected base branch.
-- Push the topic branch to a writable remote. Open the PR against the canonical base.
-- Follow the repository's PR title and merge conventions. Track required CI.
+- Respect protected branches, required checks, and unresolved reviews when delivering or merging.
 - Rewrite or force-push a shared branch only when necessary and authorized.
 
 ## Merge Gates
 
-- Use squash merge. Prefer GitHub's generated subject and verify it is exactly `<PR title> (#<number>)`, with the number matching the current PR; never guess or manually enter it. Stop if the tool or repository settings cannot guarantee the subject.
-- Before merging a breaking Core API, major Changeset, production dependency/toolchain upgrade, workflow/release/permission change, cross-package architecture change, or security-sensitive code, explain the risk and obtain owner confirmation specific to it.
+- Use the merge method required by the target repository or explicitly selected by the user, within repository protections. Check any resulting commit-title requirements against the actual PR metadata. Stop if the available tool cannot satisfy a required merge method or title convention.
+- Before merging a breaking public API, major release impact, production dependency/toolchain upgrade, workflow/release/permission change, cross-component architecture change, or security-sensitive code, explain the risk and ensure the owner's merge authorization covers it. Ask only if that risk was not covered by an earlier confirmation.
 
 ## Auto-Merge
 
@@ -23,7 +20,7 @@ Enable auto-merge only after a separate, explicit user instruction, when the cha
 
 After auto-merge is enabled:
 
-- Monitor required checks, review threads, and PR state.
+- Check required checks, review threads, and PR state within the requested follow-up scope. Use a supported automation only when ongoing monitoring is requested.
 - Stop on an actionable failure or persistent blocked state.
 - Do not claim a merge until GitHub reports the PR as merged.
 
@@ -31,7 +28,7 @@ After auto-merge is enabled:
 
 Record the PR base, head branch, head commit, merge method, and merged state before cleanup.
 
-- For a Codex-managed worktree, leave Git state in place for possible follow-up. When archival is authorized, archive the task and let Codex manage the worktree lifecycle.
+- For a Codex-managed worktree, leave Git state in place for possible follow-up. When worktree archival is authorized, use the app's worktree archival tool. Archiving the chat is a separate action and is not implied by worktree cleanup.
 - For a local checkout or manual worktree, require a clean tree and confirm the local topic tip matches the recorded PR head. Switch to the verified base only if that branch is not owned by another worktree, update it with fast-forward only, prune stale tracking refs, and delete only the verified local topic branch when authorized.
 - Forced local deletion is acceptable only after the commit comparison succeeds and GitHub confirms a squash or rebase merge that Git cannot represent as ancestry.
 - If repository settings already delete merged head branches, do not issue a redundant remote deletion. Otherwise remote deletion requires authorization.
