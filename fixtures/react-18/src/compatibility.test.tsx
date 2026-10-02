@@ -32,7 +32,7 @@ describe("React 18 compatibility", () => {
     );
 
     expect(rendered.container.textContent).toBe("300");
-    act(() => controller.setSpeed(600));
+    act(() => controller.setWpm(600));
     expect(rendered.container.textContent).toBe("600");
     controller.destroy();
   });

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DefaultOVPStrategy } from "./ovp";
+import { DefaultOvpStrategy } from "./ovp";
 
-describe("DefaultOVPStrategy", () => {
-  const strategy = new DefaultOVPStrategy();
+describe("DefaultOvpStrategy", () => {
+  const strategy = new DefaultOvpStrategy();
 
   afterEach(() => {
     vi.unstubAllGlobals();

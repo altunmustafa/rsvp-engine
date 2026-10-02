@@ -1,7 +1,7 @@
-import type { EventCallback, RSVPEventMap, RSVPEventType, UnsubscribeFn } from "./types";
+import type { EventCallback, RsvpEventMap, RsvpEventType, UnsubscribeFn } from "./types";
 
 type ListenerRegistry<T> = {
-  [K in RSVPEventType]: Set<EventCallback<RSVPEventMap<T>[K]>>;
+  [K in RsvpEventType]: Set<EventCallback<RsvpEventMap<T>[K]>>;
 };
 
 export class EventEmitter<T = string> {
@@ -12,9 +12,9 @@ export class EventEmitter<T = string> {
     error: new Set(),
   };
 
-  public on<K extends RSVPEventType>(
+  public on<K extends RsvpEventType>(
     event: K,
-    callback: EventCallback<RSVPEventMap<T>[K]>,
+    callback: EventCallback<RsvpEventMap<T>[K]>,
   ): UnsubscribeFn {
     const eventListeners = this.#listenerRegistry[event];
     eventListeners.add(callback);
@@ -24,7 +24,7 @@ export class EventEmitter<T = string> {
     };
   }
 
-  public emit<K extends RSVPEventType>(event: K, payload: RSVPEventMap<T>[K]): void {
+  public emit<K extends RsvpEventType>(event: K, payload: RsvpEventMap<T>[K]): void {
     const eventListeners = this.#listenerRegistry[event];
 
     // Copy to array to handle safe iteration if unsubscribed during emit

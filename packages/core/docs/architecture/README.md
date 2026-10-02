@@ -6,10 +6,10 @@ The package is a synchronous, event-driven Rapid Serial Visual Presentation (RSV
 
 ```mermaid
 flowchart LR
-    Host["Host application"] -->|"data and controls"| Engine["RSVPEngine"]
+    Host["Host application"] -->|"data and controls"| Engine["RsvpEngine"]
     Engine --> State["StateMachine"]
     Engine --> Tokenizer["TokenizerStrategy"]
-    Tokenizer --> OVP["OVPStrategy"]
+    Tokenizer --> OVP["OvpStrategy"]
     Engine --> Scheduler["SchedulerStrategy"]
     Scheduler --> Driver["TimeDriver"]
     Engine -->|"typed events"| Host
@@ -33,7 +33,7 @@ Invalid commands are reported without changing state. `ERROR` is reserved for un
 ## Dependency injection
 
 - `TokenizerStrategy<T>` converts synchronous input into `Token<T>[]`.
-- `OVPStrategy` selects the UTF-16 viewing-position offset for string tokens.
+- `OvpStrategy` selects the UTF-16 viewing-position offset for string tokens.
 - `SchedulerStrategy` controls delayed task execution.
 - `TimeDriver` supplies the monotonic clock and timer host.
 
@@ -56,4 +56,4 @@ Browser background throttling is outside the headless core. Browser hosts should
 
 ## Unicode decision
 
-The default tokenizer feature-detects `Intl.Segmenter` for Unicode word boundaries. A whitespace fallback keeps older runtimes functional. `DefaultOVPStrategy` operates on grapheme clusters, with a small dependency-free fallback for combining marks and ZWJ emoji, while returning UTF-16 offsets compatible with JavaScript string slicing. A custom `OVPStrategy` can be injected into `DefaultTokenizer` without replacing the complete tokenization strategy.
+The default tokenizer feature-detects `Intl.Segmenter` for Unicode word boundaries. A whitespace fallback keeps older runtimes functional. `DefaultOvpStrategy` operates on grapheme clusters, with a small dependency-free fallback for combining marks and ZWJ emoji, while returning UTF-16 offsets compatible with JavaScript string slicing. A custom `OvpStrategy` can be injected into `DefaultTokenizer` without replacing the complete tokenization strategy.

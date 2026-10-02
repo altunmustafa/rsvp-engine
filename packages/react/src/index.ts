@@ -31,11 +31,11 @@ export {
 } from "@rsvp-engine/core";
 
 export type {
-  OVPStrategy,
-  RSVPItem,
-  RSVPEngineOptions,
-  RSVPSnapshot,
-  RSVPState,
+  OvpStrategy,
+  RsvpItem,
+  RsvpEngineOptions,
+  RsvpSnapshot,
+  RsvpState,
   SchedulerStrategy,
   TimeDriver,
   Token,

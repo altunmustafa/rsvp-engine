@@ -1,4 +1,4 @@
-import type { OVPStrategy } from "./types";
+import type { OvpStrategy } from "./types";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -124,14 +124,14 @@ describe("DefaultTokenizer", () => {
 
   describe("configuration", () => {
     it("uses an injected OVP strategy for string tokens", () => {
-      class LastCharacterOVPStrategy implements OVPStrategy {
+      class LastCharacterOvpStrategy implements OvpStrategy {
         public calculate(text: string): number {
           return Math.max(0, text.length - 1);
         }
       }
 
       const tokenizer = new DefaultTokenizer<string>({
-        ovpStrategy: new LastCharacterOVPStrategy(),
+        ovpStrategy: new LastCharacterOvpStrategy(),
       });
 
       expect(tokenizer.tokenize("Hello world")).toMatchObject([

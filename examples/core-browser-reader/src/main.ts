@@ -1,4 +1,4 @@
-import { RSVPEngine } from "@rsvp-engine/core";
+import { RsvpEngine } from "@rsvp-engine/core";
 
 import "./styles.css";
 
@@ -15,7 +15,7 @@ const domElements = {
   status: document.querySelector<HTMLParagraphElement>("#status")!,
 };
 
-const engine = new RSVPEngine({
+const engine = new RsvpEngine({
   data: domElements.textInput.value,
   wpm: domElements.wpmInput.valueAsNumber,
 });
@@ -62,7 +62,7 @@ document.querySelector<HTMLButtonElement>("#load")!.addEventListener("click", ()
 
 domElements.wpmInput.addEventListener("input", () => {
   if (domElements.wpmInput.reportValidity()) {
-    engine.setSpeed(domElements.wpmInput.valueAsNumber);
+    engine.setWpm(domElements.wpmInput.valueAsNumber);
   }
 });
 

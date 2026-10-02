@@ -4,7 +4,7 @@ import type { TokenizerStrategy } from "../tokenizer/types";
 /**
  * Configuration options for the RSVP Engine.
  */
-export interface RSVPEngineOptions<T = string> {
+export interface RsvpEngineOptions<T = string> {
   /** Raw text string, single generic item, or generic item array. */
   readonly data?: T | T[];
   /** Target WPM, preserved exactly unless msPerItem is supplied. Defaults to 300. */

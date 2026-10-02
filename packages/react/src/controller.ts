@@ -1,15 +1,15 @@
 import type { RsvpController, RsvpControllerSnapshot, RsvpStoreListener } from "./types";
 import type {
   ErrorPayload,
-  RSVPEngineOptions,
-  RSVPSnapshot,
+  RsvpEngineOptions,
+  RsvpSnapshot,
   Token,
   UnsubscribeFn,
 } from "@rsvp-engine/core";
 
-import { EngineDestroyedError, RSVPEngine } from "@rsvp-engine/core";
+import { EngineDestroyedError, RsvpEngine } from "@rsvp-engine/core";
 
-function coreSnapshotsEqual<T>(left: RSVPSnapshot<T>, right: RSVPSnapshot<T>): boolean {
+function coreSnapshotsEqual<T>(left: RsvpSnapshot<T>, right: RsvpSnapshot<T>): boolean {
   return (
     left.state === right.state &&
     left.currentIndex === right.currentIndex &&
@@ -26,7 +26,7 @@ function toError(value: unknown): Error {
 }
 
 class RsvpControllerImpl<T> implements RsvpController<T> {
-  readonly #engine: RSVPEngine<T>;
+  readonly #engine: RsvpEngine<T>;
   readonly #listeners = new Set<RsvpStoreListener>();
   readonly #engineUnsubscribers: UnsubscribeFn[];
   readonly #serverSnapshot: RsvpControllerSnapshot<T>;
@@ -34,8 +34,8 @@ class RsvpControllerImpl<T> implements RsvpController<T> {
   #errorRevision = 0;
   #destroyed = false;
 
-  constructor(options: RSVPEngineOptions<T>) {
-    this.#engine = new RSVPEngine(options);
+  constructor(options: RsvpEngineOptions<T>) {
+    this.#engine = new RsvpEngine(options);
     this.#snapshot = Object.freeze({
       snapshot: this.#engine.snapshot(),
       error: null,
@@ -81,7 +81,7 @@ class RsvpControllerImpl<T> implements RsvpController<T> {
   readonly loadTokens = (tokens: Token<T>[]): void =>
     this.#execute(() => this.#engine.loadTokens(tokens));
 
-  readonly setSpeed = (wpm: number): void => this.#execute(() => this.#engine.setSpeed(wpm));
+  readonly setWpm = (wpm: number): void => this.#execute(() => this.#engine.setWpm(wpm));
 
   readonly setMsPerItem = (ms: number): void => this.#execute(() => this.#engine.setMsPerItem(ms));
 
@@ -134,7 +134,7 @@ class RsvpControllerImpl<T> implements RsvpController<T> {
     this.#commit(this.#engine.snapshot(), error);
   }
 
-  #commit(snapshot: RSVPSnapshot<T>, error: Error | null): void {
+  #commit(snapshot: RsvpSnapshot<T>, error: Error | null): void {
     if (coreSnapshotsEqual(this.#snapshot.snapshot, snapshot) && this.#snapshot.error === error) {
       return;
     }
@@ -154,7 +154,7 @@ class RsvpControllerImpl<T> implements RsvpController<T> {
 
 /** Creates a headless controller that owns one Core engine. */
 export function createRsvpController<T = string>(
-  options: RSVPEngineOptions<T> = {},
+  options: RsvpEngineOptions<T> = {},
 ): RsvpController<T> {
   return new RsvpControllerImpl(options);
 }

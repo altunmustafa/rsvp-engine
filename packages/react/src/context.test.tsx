@@ -28,9 +28,10 @@ describe("context-bound React bindings", () => {
       { wrapper: Wrapper },
     );
     const actions = result.current.actions;
-    expect(actions.setSpeed).toBe(controller.setSpeed);
+    expect(actions.setWpm).toBe(controller.setWpm);
+    expect(actions).not.toHaveProperty("setSpeed");
     for (const wpm of [225, 425, 450, 825, 850, 900, 925]) {
-      act(() => actions.setSpeed(wpm));
+      act(() => actions.setWpm(wpm));
       expect(result.current.wpm).toBe(wpm);
       expect(result.current.actions).toBe(actions);
     }
@@ -58,7 +59,7 @@ describe("context-bound React bindings", () => {
     act(() => controller.load("three four five"));
     expect(renders).toBe(1);
 
-    act(() => controller.setSpeed(600));
+    act(() => controller.setWpm(600));
     expect(renders).toBe(2);
     expect(rendered.container.textContent).toBe("600");
     controller.destroy();
@@ -83,7 +84,7 @@ describe("context-bound React bindings", () => {
     act(() => controller.load("three four"));
     expect(result.current).toBe(initial);
 
-    act(() => controller.setSpeed(600));
+    act(() => controller.setWpm(600));
     expect(result.current).toEqual({ wpm: 600 });
     expect(result.current).not.toBe(initial);
     controller.destroy();
@@ -144,10 +145,10 @@ describe("context-bound React bindings", () => {
     );
     expect(rendered.container.textContent).toBe("600");
 
-    act(() => first.setSpeed(900));
+    act(() => first.setWpm(900));
     expect(rendered.container.textContent).toBe("600");
 
-    act(() => second.setSpeed(1_200));
+    act(() => second.setWpm(1_200));
     expect(rendered.container.textContent).toBe("1200");
     first.destroy();
     second.destroy();
@@ -221,7 +222,7 @@ describe("context-bound React bindings", () => {
 
     unmount();
     expect(destroy).not.toHaveBeenCalled();
-    expect(() => controller.setSpeed(600)).not.toThrow();
+    expect(() => controller.setWpm(600)).not.toThrow();
     controller.destroy();
   });
 
@@ -241,7 +242,7 @@ describe("context-bound React bindings", () => {
       const wpm = useRsvpSelector(({ snapshot }) => snapshot.wpm);
       return <span>{wpm}</span>;
     };
-    controller.setSpeed(600);
+    controller.setWpm(600);
 
     const tree = (
       <RsvpProvider controller={controller}>

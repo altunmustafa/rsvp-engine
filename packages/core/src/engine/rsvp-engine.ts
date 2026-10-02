@@ -1,8 +1,8 @@
-import type { RSVPEngineOptions } from "./config";
-import type { RSVPItem, RSVPSnapshot } from "./types";
-import type { EventCallback, RSVPEventMap, RSVPEventType, UnsubscribeFn } from "../events/types";
+import type { RsvpEngineOptions } from "./config";
+import type { RsvpItem, RsvpSnapshot } from "./types";
+import type { EventCallback, RsvpEventMap, RsvpEventType, UnsubscribeFn } from "../events/types";
 import type { SchedulerStrategy, TimeDriver } from "../scheduler/types";
-import type { RSVPState } from "../state/types";
+import type { RsvpState } from "../state/types";
 import type { Token, TokenizerStrategy } from "../tokenizer/types";
 
 import { EngineDestroyedError, IndexOutOfBoundsError, InvalidInputError } from "../errors";
@@ -24,13 +24,13 @@ interface SpeedSetting {
  * Headless RSVP Engine — orchestrates state machine, scheduler, tokenizer, and event emitter.
  * @typeParam T - The type of items being presented (defaults to `string`).
  */
-export class RSVPEngine<T = string> {
+export class RsvpEngine<T = string> {
   readonly #stateMachine: StateMachine;
   readonly #emitter: EventEmitter<T>;
   readonly #scheduler: SchedulerStrategy;
   readonly #timeDriver: TimeDriver;
   readonly #tokenizer: TokenizerStrategy<T>;
-  #tokens: RSVPItem<T>[] = [];
+  #tokens: RsvpItem<T>[] = [];
   #currentIndex = 0;
   #hasPresentedCurrent = false;
   #deadline: number | null = null;
@@ -38,7 +38,7 @@ export class RSVPEngine<T = string> {
   #speed: SpeedSetting = { unit: "wpm", value: DEFAULT_WPM };
   #destroyed = false;
 
-  constructor(options: RSVPEngineOptions<T> = {}) {
+  constructor(options: RsvpEngineOptions<T> = {}) {
     this.#stateMachine = new StateMachine();
     this.#emitter = new EventEmitter<T>();
 
@@ -50,7 +50,7 @@ export class RSVPEngine<T = string> {
     if (options.msPerItem !== undefined) {
       this.setMsPerItem(options.msPerItem);
     } else if (options.wpm !== undefined) {
-      this.setSpeed(options.wpm);
+      this.setWpm(options.wpm);
     }
 
     // Constructor failures must remain observable because listeners cannot be attached yet.
@@ -444,7 +444,7 @@ export class RSVPEngine<T = string> {
    * Sets WPM for subsequently scheduled display periods, preserving the input exactly.
    * The corresponding ms-per-item interval is derived without additional rounding.
    */
-  public setSpeed(wpm: number): void {
+  public setWpm(wpm: number): void {
     this.#assertNotDestroyed();
     validateWpm(wpm);
     this.#speed = { unit: "wpm", value: wpm };
@@ -463,7 +463,7 @@ export class RSVPEngine<T = string> {
   // ────────── State & Snapshot Getters ──────────
 
   /** Current engine state. */
-  public get state(): RSVPState {
+  public get state(): RsvpState {
     return this.#stateMachine.state;
   }
 
@@ -483,7 +483,7 @@ export class RSVPEngine<T = string> {
   }
 
   /** Current token/item being displayed, or null if none. */
-  public get currentItem(): RSVPItem<T> | null {
+  public get currentItem(): RsvpItem<T> | null {
     return this.#tokens[this.#currentIndex] ?? null;
   }
 
@@ -505,9 +505,9 @@ export class RSVPEngine<T = string> {
   /**
    * Subscribes to an engine event. Returns an unsubscribe function.
    */
-  public on<K extends RSVPEventType>(
+  public on<K extends RsvpEventType>(
     event: K,
-    callback: EventCallback<RSVPEventMap<T>[K]>,
+    callback: EventCallback<RsvpEventMap<T>[K]>,
   ): UnsubscribeFn {
     this.#assertNotDestroyed();
     return this.#emitter.on(event, callback);
@@ -518,7 +518,7 @@ export class RSVPEngine<T = string> {
   /**
    * Returns a frozen, readonly snapshot of the full engine state.
    */
-  public snapshot(): RSVPSnapshot<T> {
+  public snapshot(): RsvpSnapshot<T> {
     this.#assertNotDestroyed();
     return Object.freeze({
       state: this.state,

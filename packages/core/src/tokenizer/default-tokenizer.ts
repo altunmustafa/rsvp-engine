@@ -1,8 +1,8 @@
-import type { OVPStrategy, Token, TokenizerStrategy } from "./types";
+import type { OvpStrategy, Token, TokenizerStrategy } from "./types";
 
 import { InvalidInputError } from "../errors";
 
-import { DefaultOVPStrategy } from "./ovp";
+import { DefaultOvpStrategy } from "./ovp";
 
 /**
  * Options for configuring `DefaultTokenizer`.
@@ -17,7 +17,7 @@ export interface DefaultTokenizerOptions {
   /** Whether array elements and nested inputs should be recursively tokenized. Defaults to `false`. */
   readonly nestedTokenize?: boolean;
   /** Strategy used to calculate viewing positions for string tokens. */
-  readonly ovpStrategy?: OVPStrategy;
+  readonly ovpStrategy?: OvpStrategy;
 }
 
 /**
@@ -31,14 +31,14 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
   readonly #clauseDelay: number;
   readonly #dashDelay: number;
   readonly #nestedTokenize: boolean;
-  readonly #ovpStrategy: OVPStrategy;
+  readonly #ovpStrategy: OvpStrategy;
 
   constructor(options: DefaultTokenizerOptions = {}) {
     this.#sentenceDelay = options.sentenceDelay ?? 2.0;
     this.#clauseDelay = options.clauseDelay ?? 1.5;
     this.#dashDelay = options.dashDelay ?? 1.3;
     this.#nestedTokenize = options.nestedTokenize ?? false;
-    this.#ovpStrategy = options.ovpStrategy ?? new DefaultOVPStrategy();
+    this.#ovpStrategy = options.ovpStrategy ?? new DefaultOvpStrategy();
     this.#validateOptions();
   }
 

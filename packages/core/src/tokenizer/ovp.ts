@@ -1,9 +1,9 @@
-import type { OVPStrategy } from "./types";
+import type { OvpStrategy } from "./types";
 
 /**
  * Default grapheme-aware Optimal Viewing Position strategy.
  */
-export class DefaultOVPStrategy implements OVPStrategy {
+export class DefaultOvpStrategy implements OvpStrategy {
   /**
    * Calculates the Optimal Viewing Position for text.
    * @returns The zero-based UTF-16 offset of the OVP grapheme.
