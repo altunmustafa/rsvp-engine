@@ -1,9 +1,9 @@
 # API Reference: `@rsvp-engine/core`
 
-## `RSVPEngine<T = string>`
+## `RsvpEngine<T = string>`
 
 ```typescript
-new RSVPEngine<T>(options?: RSVPEngineOptions<T>)
+new RsvpEngine<T>(options?: RsvpEngineOptions<T>)
 ```
 
 ### Options
@@ -38,12 +38,12 @@ Invalid control commands emit `error` and preserve the current state. They do no
 - `load(data)` synchronously invokes the configured tokenizer.
 - `loadTokens(tokens)` accepts externally prepared tokens, including results produced asynchronously outside the engine.
 - Loading is rejected while `PLAYING` or `ERROR`.
-- `setSpeed(wpm)` and `setMsPerItem(ms)` affect subsequently scheduled display periods. They do not replace a running timer or a paused item's remaining duration.
+- `setWpm(wpm)` and `setMsPerItem(ms)` affect subsequently scheduled display periods. They do not replace a running timer or a paused item's remaining duration.
 
 The last speed input is preserved exactly as a JavaScript `number` in its supplied unit; the other unit is derived using `60_000 / value`. This applies to constructor options, getters, and snapshots, including fractional inputs. Constructor `msPerItem` takes precedence over `wpm` when both are supplied.
 
 ```typescript
-engine.setSpeed(225);
+engine.setWpm(225);
 engine.wpm; // 225
 engine.snapshot().wpm; // 225
 engine.msPerItem; // 266.6666666666667
@@ -77,19 +77,19 @@ engine.on("error", ({ error }) => {});
 
 ## Tokenization
 
-`DefaultTokenizer` uses `Intl.Segmenter` for word boundaries when the runtime provides it and falls back to whitespace segmentation. `DefaultOVPStrategy` produces grapheme-aware JavaScript string offsets so consumers can safely use `slice()`.
+`DefaultTokenizer` uses `Intl.Segmenter` for word boundaries when the runtime provides it and falls back to whitespace segmentation. `DefaultOvpStrategy` produces grapheme-aware JavaScript string offsets so consumers can safely use `slice()`.
 
-Supported options are `sentenceDelay`, `clauseDelay`, `dashDelay`, `nestedTokenize`, and `ovpStrategy`. Delay values must be positive and finite. Custom OVP strategies implement `OVPStrategy` and can be injected without replacing the tokenizer:
+Supported options are `sentenceDelay`, `clauseDelay`, `dashDelay`, `nestedTokenize`, and `ovpStrategy`. Delay values must be positive and finite. Custom OVP strategies implement `OvpStrategy` and can be injected without replacing the tokenizer:
 
 ```typescript
-class LastCharacterOVPStrategy implements OVPStrategy {
+class LastCharacterOvpStrategy implements OvpStrategy {
   calculate(text: string): number {
     return Math.max(0, text.length - 1);
   }
 }
 
 const tokenizer = new DefaultTokenizer({
-  ovpStrategy: new LastCharacterOVPStrategy(),
+  ovpStrategy: new LastCharacterOvpStrategy(),
 });
 ```
 

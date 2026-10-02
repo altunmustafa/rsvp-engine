@@ -50,7 +50,13 @@ function App() {
 
 ## Speed control
 
-Call `controller.setSpeed(225)` or obtain `setSpeed` from `useRsvpActions()` to set the reading rate. Core preserves the supplied WPM exactly in snapshots. `setMsPerItem(ms)` sets an exact base duration and derives WPM instead.
+Call `controller.setWpm(225)` or obtain `setWpm` from `useRsvpActions()` to set the reading rate. Core preserves the supplied WPM exactly in snapshots. `setMsPerItem(ms)` sets an exact base duration and derives WPM instead.
+
+## Migrating API names
+
+Replace `controller.setSpeed(wpm)` with `controller.setWpm(wpm)` and destructure `setWpm` instead of `setSpeed` from `useRsvpActions()`. The old command is removed without a compatibility alias.
+
+Core types re-exported by this package are renamed to `RsvpEngineOptions`, `RsvpItem`, `RsvpSnapshot`, `RsvpState`, and `OvpStrategy`. Replace their previous `RSVP`/`OVP` spellings in imports and annotations. React-specific names such as `RsvpController` and `createRsvpContext` are unchanged.
 
 ## Lifecycle ownership
 

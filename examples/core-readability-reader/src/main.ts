@@ -1,4 +1,4 @@
-import { RSVPEngine } from "@rsvp-engine/core";
+import { RsvpEngine } from "@rsvp-engine/core";
 
 import { extractReadableArticle, fetchHtmlSource } from "./extract";
 import "./styles.css";
@@ -28,7 +28,7 @@ const domElements = {
 
 let fetchController: AbortController | undefined;
 
-const engine = new RSVPEngine({
+const engine = new RsvpEngine({
   data: domElements.extractedText.value,
   wpm: domElements.wpmInput.valueAsNumber,
 });
@@ -146,7 +146,7 @@ domElements.parseForm.addEventListener("submit", (event) => {
 
 domElements.wpmInput.addEventListener("input", () => {
   if (domElements.wpmInput.reportValidity()) {
-    engine.setSpeed(domElements.wpmInput.valueAsNumber);
+    engine.setWpm(domElements.wpmInput.valueAsNumber);
   }
 });
 

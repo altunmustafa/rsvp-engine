@@ -37,7 +37,7 @@ stateDiagram-v2
 
 ## Error policy
 
-The low-level `StateMachine.transition()` throws `InvalidTransitionError` for an illegal action. `RSVPEngine` catches invalid user controls, emits an `error` event, and preserves its state. Empty data, out-of-range seek, duplicate play, or pause in IDLE are non-fatal.
+The low-level `StateMachine.transition()` throws `InvalidTransitionError` for an illegal action. `RsvpEngine` catches invalid user controls, emits an `error` event, and preserves its state. Empty data, out-of-range seek, duplicate play, or pause in IDLE are non-fatal.
 
 Unexpected tokenizer or scheduler failures are fatal. Explicit `load()` failures are rethrown after entering `ERROR`; constructor tokenization failures are thrown because no listener can exist yet.
 

@@ -20,7 +20,7 @@ export interface TokenizerStrategy<T> {
 /**
  * Strategy for selecting the Optimal Viewing Position within text.
  */
-export interface OVPStrategy {
+export interface OvpStrategy {
   /**
    * Returns the zero-based UTF-16 offset of the preferred viewing position.
    */

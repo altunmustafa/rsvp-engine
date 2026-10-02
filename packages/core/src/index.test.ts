@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EngineDestroyedError, RSVPEngine } from "./index";
+import { EngineDestroyedError, RsvpEngine } from "./index";
 
 describe("Public API integration", () => {
   beforeEach(() => {
@@ -13,7 +13,7 @@ describe("Public API integration", () => {
   });
 
   it("completes a full playback lifecycle successfully", () => {
-    const engine = new RSVPEngine({
+    const engine = new RsvpEngine({
       data: "This is a complete test.",
       wpm: 600, // 100ms per token
     });
@@ -61,7 +61,7 @@ describe("Public API integration", () => {
   });
 
   it("handles seeking and navigation accurately", () => {
-    const engine = new RSVPEngine({
+    const engine = new RsvpEngine({
       data: "one two three four",
       wpm: 600,
     });
@@ -91,7 +91,7 @@ describe("Public API integration", () => {
   });
 
   it("gracefully handles errors and destroys", () => {
-    const engine = new RSVPEngine({ data: "hello", wpm: 300 });
+    const engine = new RsvpEngine({ data: "hello", wpm: 300 });
 
     expect(() => {
       engine.pause(); // Invalid transition from IDLE

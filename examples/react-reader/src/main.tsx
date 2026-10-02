@@ -63,7 +63,7 @@ function ReaderSettings() {
   const [source, setSource] = useState(initialText);
   const state = useRsvpSelector(({ snapshot }) => snapshot.state);
   const wpm = useRsvpSelector(({ snapshot }) => snapshot.wpm);
-  const { load, pause, reset, setSpeed } = useRsvpActions();
+  const { load, pause, reset, setWpm } = useRsvpActions();
 
   function loadSource(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,7 +101,7 @@ function ReaderSettings() {
           max={1_000}
           step={25}
           value={wpm}
-          onChange={(event) => setSpeed(event.currentTarget.valueAsNumber)}
+          onChange={(event) => setWpm(event.currentTarget.valueAsNumber)}
         />
       </div>
 

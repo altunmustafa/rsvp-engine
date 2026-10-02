@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 
-import { RSVPEngine } from "@rsvp-engine/core";
+import { RsvpEngine } from "@rsvp-engine/core";
 
 const defaultText =
   "Rapid serial visual presentation (RSVP) is a scientific method for studying the timing of vision. In RSVP, a sequence of stimuli is shown to an observer at one location in their visual field. The observer is instructed to report one of these stimuli – the target – which has a feature that differentiates it from the rest of the stream. For instance, observers may see a sequence of stimuli consisting of gray letters with the exception of one red letter. They are told to report the red letter. People make errors in this task in the form of reports of stimuli that occurred before or after the target. The position in time of the letter they report, relative to the target, is an estimate of the timing of visual selection on that trial.";
@@ -13,7 +13,7 @@ const { values } = parseArgs({
 const text = values.text ?? defaultText;
 const wpm = values.wpm !== undefined ? Number(values.wpm) : 300;
 
-const engine = new RSVPEngine({ data: text, wpm });
+const engine = new RsvpEngine({ data: text, wpm });
 
 function highlightOvp(value: string, ovpIndex: number): string {
   const before = value.slice(0, ovpIndex);

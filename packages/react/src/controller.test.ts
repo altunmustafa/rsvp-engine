@@ -30,7 +30,7 @@ describe("RSVP controller", () => {
     expect(controller.getSnapshot()).toBe(initial);
     expect(controller.getServerSnapshot()).toBe(initial);
 
-    controller.setSpeed(600);
+    controller.setWpm(600);
 
     expect(controller.getSnapshot()).not.toBe(initial);
     expect(controller.getServerSnapshot()).toBe(initial);
@@ -42,8 +42,8 @@ describe("RSVP controller", () => {
     const listener = vi.fn();
     controller.subscribe(listener);
 
-    controller.setSpeed(600);
-    controller.setSpeed(600);
+    controller.setWpm(600);
+    controller.setWpm(600);
     controller.load("one two");
     controller.setMsPerItem(200);
 
@@ -62,24 +62,25 @@ describe("RSVP controller", () => {
     expect(server.snapshot.wpm).toBe(425);
     const listener = vi.fn();
     controller.subscribe(listener);
-    const { setSpeed } = controller;
+    const { setWpm } = controller;
+    expect(controller).not.toHaveProperty("setSpeed");
 
-    setSpeed(225);
+    setWpm(225);
     const exact = controller.getSnapshot();
     expect(exact.snapshot.wpm).toBe(225);
-    setSpeed(225);
+    setWpm(225);
     expect(controller.getSnapshot()).toBe(exact);
     expect(listener).toHaveBeenCalledTimes(1);
 
     controller.setMsPerItem(exact.snapshot.msPerItem);
     expect(controller.getSnapshot().snapshot.wpm).toBe(60_000 / exact.snapshot.msPerItem);
     expect(listener).toHaveBeenCalledTimes(2);
-    setSpeed(225);
+    setWpm(225);
     expect(controller.getSnapshot().snapshot.wpm).toBe(225);
     expect(listener).toHaveBeenCalledTimes(3);
     expect(controller.getServerSnapshot()).toBe(server);
     controller.destroy();
-    expect(() => setSpeed(300)).toThrow(EngineDestroyedError);
+    expect(() => setWpm(300)).toThrow(EngineDestroyedError);
   });
 
   it("preserves separate meaningful Core event updates without notifying for duplicates", () => {
@@ -131,7 +132,7 @@ describe("RSVP controller", () => {
     controller.seek(1);
     controller.stop();
     controller.loadTokens([{ value: "replacement", ovpIndex: 0, delayMultiplier: 1 }]);
-    controller.setSpeed(600);
+    controller.setWpm(600);
     controller.setMsPerItem(250);
 
     expect(controller.getSnapshot().snapshot).toMatchObject({
@@ -164,7 +165,7 @@ describe("RSVP controller", () => {
     const reported = controller.getSnapshot().error;
     expect(reported).toBeInstanceOf(InvalidInputError);
 
-    controller.setSpeed(600);
+    controller.setWpm(600);
     expect(controller.getSnapshot().error).toBe(reported);
 
     controller.clearError();
@@ -180,7 +181,7 @@ describe("RSVP controller", () => {
 
     let thrown: unknown;
     try {
-      controller.setSpeed(0);
+      controller.setWpm(0);
     } catch (error) {
       thrown = error;
     }
@@ -225,8 +226,8 @@ describe("RSVP controller", () => {
     const unsubscribeSecond = controller.subscribe(second);
     controller.subscribe(() => unsubscribeSecond());
 
-    controller.setSpeed(400);
-    controller.setSpeed(500);
+    controller.setWpm(400);
+    controller.setWpm(500);
 
     expect(second).toHaveBeenCalledOnce();
     controller.destroy();

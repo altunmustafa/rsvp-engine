@@ -1,11 +1,11 @@
-import type { RSVPState, StateMachineAction } from "./types";
+import type { RsvpState, StateMachineAction } from "./types";
 
 import { InvalidTransitionError } from "../errors";
 
 export class StateMachine {
-  #state: RSVPState = "IDLE";
+  #state: RsvpState = "IDLE";
 
-  readonly #transitions: Record<RSVPState, Partial<Record<StateMachineAction, RSVPState>>> = {
+  readonly #transitions: Record<RsvpState, Partial<Record<StateMachineAction, RsvpState>>> = {
     IDLE: {
       load: "IDLE",
       play: "PLAYING",
@@ -41,11 +41,11 @@ export class StateMachine {
     },
   };
 
-  public get state(): RSVPState {
+  public get state(): RsvpState {
     return this.#state;
   }
 
-  public transition(action: StateMachineAction): RSVPState {
+  public transition(action: StateMachineAction): RsvpState {
     const allowedTransitions = this.#transitions[this.#state];
     const nextState = allowedTransitions[action];
 

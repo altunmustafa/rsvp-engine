@@ -20,7 +20,7 @@ function NumberConsumer(): ReactNode {
   const actions: RsvpActions<number> = useRsvpActions();
   const controller: RsvpController<number> = useRsvpController();
   actions.load([4, 5]);
-  controller.setSpeed(600);
+  controller.setWpm(600);
   // @ts-expect-error Number actions cannot load string data.
   actions.load("invalid");
   return currentValue ?? null;

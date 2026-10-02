@@ -24,9 +24,9 @@ pnpm add @rsvp-engine/core
 ## Quick start
 
 ```typescript
-import { RSVPEngine } from "@rsvp-engine/core";
+import { RsvpEngine } from "@rsvp-engine/core";
 
-const engine = new RSVPEngine({
+const engine = new RsvpEngine({
   data: "Rapid Serial Visual Presentation powers modern speed reading.",
   wpm: 300,
 });
@@ -62,7 +62,26 @@ engine.loadTokens(tokens);
 
 ## Speed control
 
-Use `engine.setSpeed(225)` to set the reading rate or `engine.setMsPerItem(250)` to set the base display duration. The last supplied value is preserved exactly in its unit, including in snapshots; the other unit is derived without additional rounding. Changes affect subsequently scheduled display periods.
+Use `engine.setWpm(225)` to set the reading rate or `engine.setMsPerItem(250)` to set the base display duration. The last supplied value is preserved exactly in its unit, including in snapshots; the other unit is derived without additional rounding. Changes affect subsequently scheduled display periods.
+
+## Migrating API names
+
+Acronyms in class and type names use ordinary PascalCase. The previous names are removed without compatibility aliases:
+
+| Previous name        | Replacement          |
+| -------------------- | -------------------- |
+| `RSVPEngine`         | `RsvpEngine`         |
+| `RSVPEngineOptions`  | `RsvpEngineOptions`  |
+| `RSVPItem`           | `RsvpItem`           |
+| `RSVPSnapshot`       | `RsvpSnapshot`       |
+| `RSVPState`          | `RsvpState`          |
+| `RSVPEventType`      | `RsvpEventType`      |
+| `RSVPEventMap`       | `RsvpEventMap`       |
+| `OVPStrategy`        | `OvpStrategy`        |
+| `DefaultOVPStrategy` | `DefaultOvpStrategy` |
+| `setSpeed(wpm)`      | `setWpm(wpm)`        |
+
+Update imports, type annotations, constructor calls, and speed commands. `setMsPerItem`, uppercase constants such as `DEFAULT_WPM`, and state values such as `"PLAYING"` retain their names and behavior.
 
 ## Contributing
 

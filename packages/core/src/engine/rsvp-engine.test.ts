@@ -1,4 +1,4 @@
-import type { RSVPEngineOptions } from "./config";
+import type { RsvpEngineOptions } from "./config";
 import type { SchedulerStrategy } from "../scheduler/types";
 import type { TokenizerStrategy } from "../tokenizer/types";
 
@@ -7,17 +7,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EngineDestroyedError, InvalidInputError } from "../errors";
 
 import { MAX_MS_PER_ITEM, MAX_WPM, MIN_MS_PER_ITEM, MIN_WPM } from "./config";
-import { RSVPEngine } from "./rsvp-engine";
+import { RsvpEngine } from "./rsvp-engine";
 
-function createEngine(overrides: Partial<RSVPEngineOptions<string>> = {}): RSVPEngine<string> {
-  return new RSVPEngine<string>({
+function createEngine(overrides: Partial<RsvpEngineOptions<string>> = {}): RsvpEngine<string> {
+  return new RsvpEngine<string>({
     data: "Hello world foo bar baz",
     wpm: 300,
     ...overrides,
   });
 }
 
-describe("RSVPEngine", () => {
+describe("RsvpEngine", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -31,7 +31,7 @@ describe("RSVPEngine", () => {
 
   describe("construction & configuration", () => {
     it("starts in IDLE state with default wpm", () => {
-      const engine = new RSVPEngine();
+      const engine = new RsvpEngine();
       expect(engine.state).toBe("IDLE");
       expect(engine.wpm).toBe(300);
     });
@@ -86,7 +86,7 @@ describe("RSVPEngine", () => {
       const customTokenizer: TokenizerStrategy<string> = {
         tokenize: vi.fn().mockReturnValue([{ value: "custom", ovpIndex: 0, delayMultiplier: 1.0 }]),
       };
-      const engine = new RSVPEngine({ data: "anything", tokenizer: customTokenizer, wpm: 300 });
+      const engine = new RsvpEngine({ data: "anything", tokenizer: customTokenizer, wpm: 300 });
       expect(customTokenizer.tokenize).toHaveBeenCalledWith("anything");
       expect(engine.totalItems).toBe(1);
     });
@@ -97,7 +97,7 @@ describe("RSVPEngine", () => {
           .fn()
           .mockReturnValue([{ value: "from-class", ovpIndex: 2, delayMultiplier: 1.5 }]),
       };
-      const engine = new RSVPEngine({ data: "sample", tokenizer: customStrategy, wpm: 300 });
+      const engine = new RsvpEngine({ data: "sample", tokenizer: customStrategy, wpm: 300 });
       expect(customStrategy.tokenize).toHaveBeenCalledWith("sample");
       expect(engine.totalItems).toBe(1);
       expect(engine.currentItem).toMatchObject({ value: "from-class", ovpIndex: 2 });
@@ -108,7 +108,7 @@ describe("RSVPEngine", () => {
         schedule: vi.fn(),
         cancel: vi.fn(),
       };
-      const engine = new RSVPEngine({
+      const engine = new RsvpEngine({
         data: "Hello world",
         scheduler: customScheduler,
         wpm: 300,
@@ -118,7 +118,7 @@ describe("RSVPEngine", () => {
     });
 
     it("accepts no data and starts empty", () => {
-      const engine = new RSVPEngine({ wpm: 300 });
+      const engine = new RsvpEngine({ wpm: 300 });
       expect(engine.totalItems).toBe(0);
       expect(engine.currentItem).toBeNull();
     });
@@ -128,7 +128,7 @@ describe("RSVPEngine", () => {
 
   describe("data and token loading", () => {
     it("load() tokenizes and loads new text into engine", () => {
-      const engine = new RSVPEngine({ wpm: 300 });
+      const engine = new RsvpEngine({ wpm: 300 });
       expect(engine.totalItems).toBe(0);
 
       engine.load("new text to read");
@@ -137,7 +137,7 @@ describe("RSVPEngine", () => {
     });
 
     it("loadTokens() directly loads pre-tokenized items (e.g. from async or external tokenizers)", () => {
-      const engine = new RSVPEngine({ wpm: 300 });
+      const engine = new RsvpEngine({ wpm: 300 });
       expect(engine.totalItems).toBe(0);
 
       engine.loadTokens([
@@ -150,13 +150,13 @@ describe("RSVPEngine", () => {
     });
 
     it("load() throws EngineDestroyedError on destroyed engine", () => {
-      const engine = new RSVPEngine({ wpm: 300 });
+      const engine = new RsvpEngine({ wpm: 300 });
       engine.destroy();
       expect(() => engine.load("text")).toThrow(EngineDestroyedError);
     });
 
     it("loadTokens() throws EngineDestroyedError on destroyed engine", () => {
-      const engine = new RSVPEngine({ wpm: 300 });
+      const engine = new RsvpEngine({ wpm: 300 });
       engine.destroy();
       expect(() =>
         engine.loadTokens([{ value: "token", ovpIndex: 0, delayMultiplier: 1.0 }]),
@@ -189,7 +189,7 @@ describe("RSVPEngine", () => {
       const tokenizer: TokenizerStrategy<string> = {
         tokenize: () => [{ value: "bad", ovpIndex: 0, delayMultiplier: 0 }],
       };
-      const engine = new RSVPEngine({ tokenizer });
+      const engine = new RsvpEngine({ tokenizer });
 
       expect(() => engine.load("bad")).toThrow(InvalidInputError);
       expect(engine.state).toBe("IDLE");
@@ -528,7 +528,7 @@ describe("RSVPEngine", () => {
       expect(engine.snapshot().wpm).toBe(wpm);
 
       engine.setMsPerItem(500);
-      engine.setSpeed(wpm);
+      engine.setWpm(wpm);
       expect(engine.wpm).toBe(wpm);
       expect(engine.msPerItem).toBe(60_000 / wpm);
       expect(engine.snapshot()).toMatchObject({ wpm, msPerItem: 60_000 / wpm });
@@ -544,7 +544,7 @@ describe("RSVPEngine", () => {
       expect(engine.wpm).toBe(60_000 / ms);
       expect(engine.snapshot()).toMatchObject({ wpm: 60_000 / ms, msPerItem: ms });
 
-      engine.setSpeed(225);
+      engine.setWpm(225);
       expect(engine.snapshot()).toEqual(original);
     });
 
@@ -553,14 +553,14 @@ describe("RSVPEngine", () => {
       (msPerItem) => {
         const engine = createEngine({ wpm: 225, msPerItem });
         expect(engine.snapshot()).toMatchObject({ msPerItem, wpm: 60_000 / msPerItem });
-        engine.setSpeed(425);
+        engine.setWpm(425);
         engine.setMsPerItem(msPerItem);
         expect(engine.msPerItem).toBe(msPerItem);
         expect(engine.snapshot()).toMatchObject({ msPerItem, wpm: 60_000 / msPerItem });
       },
     );
 
-    it.each(["setSpeed", "setMsPerItem"] as const)(
+    it.each(["setWpm", "setMsPerItem"] as const)(
       "%s rejects invalid inputs without changing speed and rejects use after destruction",
       (method) => {
         const engine = createEngine({ wpm: 225 });
@@ -579,7 +579,7 @@ describe("RSVPEngine", () => {
       engine.play();
       vi.advanceTimersByTime(40);
       engine.pause();
-      engine.setSpeed(225);
+      engine.setWpm(225);
       engine.play();
       vi.advanceTimersByTime(59);
       expect(engine.currentIndex).toBe(0);
@@ -591,9 +591,9 @@ describe("RSVPEngine", () => {
       expect(engine.currentIndex).toBe(2);
     });
 
-    it("setSpeed() updates msPerItem and wpm", () => {
+    it("setWpm() updates msPerItem and wpm", () => {
       const engine = createEngine({ wpm: 300 });
-      engine.setSpeed(600);
+      engine.setWpm(600);
       expect(engine.wpm).toBe(600);
       expect(engine.msPerItem).toBe(100);
     });
@@ -610,7 +610,7 @@ describe("RSVPEngine", () => {
         schedule: vi.fn(),
         cancel: vi.fn(),
       };
-      const engine = new RSVPEngine({
+      const engine = new RsvpEngine({
         data: "Hello world",
         wpm: 300,
         scheduler: customScheduler,
@@ -618,19 +618,19 @@ describe("RSVPEngine", () => {
       engine.play();
       expect(customScheduler.schedule).toHaveBeenCalledWith(expect.any(Function), 200);
 
-      engine.setSpeed(600);
+      engine.setWpm(600);
       expect(engine.msPerItem).toBe(100);
       expect(engine.wpm).toBe(600);
     });
 
-    it("setSpeed throws for invalid wpm (out of bounds or non-finite)", () => {
+    it("setWpm throws for invalid wpm (out of bounds or non-finite)", () => {
       const engine = createEngine();
-      expect(() => engine.setSpeed(0)).toThrow(InvalidInputError);
-      expect(() => engine.setSpeed(-1)).toThrow(InvalidInputError);
-      expect(() => engine.setSpeed(MIN_WPM - 1)).toThrow(InvalidInputError);
-      expect(() => engine.setSpeed(MAX_WPM + 1)).toThrow(InvalidInputError);
-      expect(() => engine.setSpeed(Number.NaN)).toThrow(InvalidInputError);
-      expect(() => engine.setSpeed(Number.POSITIVE_INFINITY)).toThrow(InvalidInputError);
+      expect(() => engine.setWpm(0)).toThrow(InvalidInputError);
+      expect(() => engine.setWpm(-1)).toThrow(InvalidInputError);
+      expect(() => engine.setWpm(MIN_WPM - 1)).toThrow(InvalidInputError);
+      expect(() => engine.setWpm(MAX_WPM + 1)).toThrow(InvalidInputError);
+      expect(() => engine.setWpm(Number.NaN)).toThrow(InvalidInputError);
+      expect(() => engine.setWpm(Number.POSITIVE_INFINITY)).toThrow(InvalidInputError);
     });
 
     it("setMsPerItem throws for invalid ms (out of bounds or non-finite)", () => {
@@ -721,7 +721,7 @@ describe("RSVPEngine", () => {
         schedule: vi.fn(),
         cancel: vi.fn(),
       };
-      const engine = new RSVPEngine({
+      const engine = new RsvpEngine({
         data: "Hello world",
         wpm: 300,
         scheduler: customScheduler,
@@ -742,7 +742,7 @@ describe("RSVPEngine", () => {
       expect(() => engine.next()).toThrow(EngineDestroyedError);
       expect(() => engine.previous()).toThrow(EngineDestroyedError);
       expect(() => engine.reset()).toThrow(EngineDestroyedError);
-      expect(() => engine.setSpeed(300)).toThrow(EngineDestroyedError);
+      expect(() => engine.setWpm(300)).toThrow(EngineDestroyedError);
       expect(() => engine.setMsPerItem(200)).toThrow(EngineDestroyedError);
       expect(() => engine.on("itemChange", () => "")).toThrow(EngineDestroyedError);
       expect(() => engine.snapshot()).toThrow(EngineDestroyedError);
@@ -761,7 +761,7 @@ describe("RSVPEngine", () => {
 
   describe("error handling", () => {
     it("play() with no data emits a non-fatal error", () => {
-      const engine = new RSVPEngine({ wpm: 300 });
+      const engine = new RsvpEngine({ wpm: 300 });
       const errors: Error[] = [];
       engine.on("error", (p) => errors.push(p.error));
 
@@ -771,7 +771,7 @@ describe("RSVPEngine", () => {
     });
 
     it("empty string data produces no tokens, play emits error", () => {
-      const engine = new RSVPEngine({ data: "", wpm: 300 });
+      const engine = new RsvpEngine({ data: "", wpm: 300 });
       const errors: Error[] = [];
       engine.on("error", (p) => errors.push(p.error));
 
@@ -781,7 +781,7 @@ describe("RSVPEngine", () => {
     });
 
     it("whitespace-only data produces no tokens, play emits error", () => {
-      const engine = new RSVPEngine({ data: "   ", wpm: 300 });
+      const engine = new RsvpEngine({ data: "   ", wpm: 300 });
       const errors: Error[] = [];
       engine.on("error", (p) => errors.push(p.error));
 
@@ -847,7 +847,7 @@ describe("RSVPEngine", () => {
         },
       };
       expect(
-        () => new RSVPEngine({ data: "hello", tokenizer: throwingTokenizer, wpm: 300 }),
+        () => new RsvpEngine({ data: "hello", tokenizer: throwingTokenizer, wpm: 300 }),
       ).toThrow("Sync tokenizer error");
     });
 
@@ -903,7 +903,7 @@ describe("RSVPEngine", () => {
     });
 
     it("validates pre-tokenized items without changing state", () => {
-      const engine = new RSVPEngine({ wpm: 300 });
+      const engine = new RsvpEngine({ wpm: 300 });
 
       expect(() => engine.loadTokens(null as never)).toThrow(InvalidInputError);
       expect(() => engine.loadTokens([null] as never)).toThrow(InvalidInputError);
@@ -974,12 +974,12 @@ describe("RSVPEngine", () => {
     });
 
     it("currentItem returns null when no tokens", () => {
-      const engine = new RSVPEngine({ wpm: 300 });
+      const engine = new RsvpEngine({ wpm: 300 });
       expect(engine.currentItem).toBeNull();
     });
 
     it("progress is 0 when no tokens", () => {
-      const engine = new RSVPEngine({ wpm: 300 });
+      const engine = new RsvpEngine({ wpm: 300 });
       expect(engine.progress).toBe(0);
     });
   });

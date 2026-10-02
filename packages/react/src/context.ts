@@ -49,7 +49,7 @@ export function createRsvpContext<T = string>(): RsvpContextBundle<T> {
           reset: controller.reset,
           load: controller.load,
           loadTokens: controller.loadTokens,
-          setSpeed: controller.setSpeed,
+          setWpm: controller.setWpm,
           setMsPerItem: controller.setMsPerItem,
           clearError: controller.clearError,
         }),

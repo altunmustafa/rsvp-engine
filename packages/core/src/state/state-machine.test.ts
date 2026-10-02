@@ -1,4 +1,4 @@
-import type { RSVPState, StateMachineAction } from "./types";
+import type { RsvpState, StateMachineAction } from "./types";
 
 import { describe, expect, it } from "vitest";
 
@@ -12,7 +12,7 @@ describe("StateMachine", () => {
     expect(sMachine.state).toBe("IDLE");
   });
 
-  const setupStateMachine = (state: RSVPState): StateMachine => {
+  const setupStateMachine = (state: RsvpState): StateMachine => {
     const sMachine = new StateMachine();
     switch (state) {
       case "IDLE":
@@ -40,7 +40,7 @@ describe("StateMachine", () => {
   };
 
   describe("Valid transitions", () => {
-    const validTransitions: { from: RSVPState; action: StateMachineAction; to: RSVPState }[] = [
+    const validTransitions: { from: RsvpState; action: StateMachineAction; to: RsvpState }[] = [
       { from: "IDLE", action: "play", to: "PLAYING" },
       { from: "IDLE", action: "load", to: "IDLE" },
       { from: "IDLE", action: "error", to: "ERROR" },
@@ -79,7 +79,7 @@ describe("StateMachine", () => {
   });
 
   describe("Invalid transitions", () => {
-    const invalidTransitions: { from: RSVPState; action: StateMachineAction }[] = [
+    const invalidTransitions: { from: RsvpState; action: StateMachineAction }[] = [
       { from: "IDLE", action: "pause" },
       { from: "IDLE", action: "stop" },
       { from: "IDLE", action: "seek" },
@@ -117,10 +117,10 @@ describe("StateMachine", () => {
     it.for(invalidTransitions)(
       "throws InvalidTransitionError when transitioning from $from on $action",
       ({ from, action }) => {
-        const targetSM = setupStateMachine(from);
+        const targetStateMachine = setupStateMachine(from);
 
-        expect(targetSM.state).toBe(from);
-        expect(() => targetSM.transition(action)).toThrowError(InvalidTransitionError);
+        expect(targetStateMachine.state).toBe(from);
+        expect(() => targetStateMachine.transition(action)).toThrowError(InvalidTransitionError);
       },
     );
   });

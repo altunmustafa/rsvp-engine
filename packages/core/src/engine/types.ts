@@ -1,10 +1,10 @@
-import type { RSVPState } from "../state/types";
+import type { RsvpState } from "../state/types";
 
 /**
  * A single presentable item in the RSVP sequence.
  * @typeParam T - The type of the item value (defaults to `string`).
  */
-export interface RSVPItem<T = string> {
+export interface RsvpItem<T = string> {
   /** The raw value of the item. */
   readonly value: T;
   /** Zero-based index within the token sequence. */
@@ -18,10 +18,10 @@ export interface RSVPItem<T = string> {
 /**
  * A readonly snapshot of the full engine state at a point in time.
  */
-export interface RSVPSnapshot<T = string> {
-  readonly state: RSVPState;
+export interface RsvpSnapshot<T = string> {
+  readonly state: RsvpState;
   readonly currentIndex: number;
-  readonly currentItem: RSVPItem<T> | null;
+  readonly currentItem: RsvpItem<T> | null;
   readonly progress: number;
   readonly totalItems: number;
   /** Exact WPM input, or the WPM derived from the last ms-per-item input. */

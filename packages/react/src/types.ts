@@ -1,4 +1,4 @@
-import type { RSVPEngineOptions, RSVPSnapshot, Token, UnsubscribeFn } from "@rsvp-engine/core";
+import type { RsvpEngineOptions, RsvpSnapshot, Token, UnsubscribeFn } from "@rsvp-engine/core";
 import type { ReactElement, ReactNode } from "react";
 
 /** Callback invoked after the controller's observable snapshot changes. */
@@ -7,7 +7,7 @@ export type RsvpStoreListener = () => void;
 /** Immutable observable state exposed by an RSVP controller. */
 export interface RsvpControllerSnapshot<T = string> {
   /** The latest immutable Core snapshot. */
-  readonly snapshot: RSVPSnapshot<T>;
+  readonly snapshot: RsvpSnapshot<T>;
   /** The most recently observed error, or `null` after explicit clearing. */
   readonly error: Error | null;
 }
@@ -23,7 +23,7 @@ export interface RsvpActions<T = string> {
   readonly reset: () => void;
   readonly load: (data: T | T[]) => void;
   readonly loadTokens: (tokens: Token<T>[]) => void;
-  readonly setSpeed: (wpm: number) => void;
+  readonly setWpm: (wpm: number) => void;
   readonly setMsPerItem: (ms: number) => void;
   readonly clearError: () => void;
 }
@@ -68,4 +68,4 @@ export interface RsvpContextBundle<T = string> {
 }
 
 /** Options accepted by {@link createRsvpController}. */
-export type RsvpControllerOptions<T = string> = RSVPEngineOptions<T>;
+export type RsvpControllerOptions<T = string> = RsvpEngineOptions<T>;
