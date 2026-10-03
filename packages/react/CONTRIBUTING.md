@@ -11,3 +11,5 @@ pnpm verify --filter=@rsvp-engine/react
 ```
 
 The `verify` script includes the package's checks and the isolated React 18 and React 19 compatibility fixtures.
+
+The [TypeScript consumer fixture](../../fixtures/typescript-consumer/README.md) checks public declarations under NodeNext and bundler resolution with library checking enabled. Keep source API type tests in this package and package-consumer tests in the fixture.

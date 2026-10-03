@@ -13,6 +13,8 @@ Core must remain dependency-free, platform-neutral, deterministic, and compact. 
 
 Quality thresholds, package outputs, and supported runtimes are encoded in package configuration and validation scripts. Treat those files as the source of truth; the root `pnpm verify` command runs the applicable gates.
 
+Package verification includes the [TypeScript consumer fixture](../../fixtures/typescript-consumer/README.md), which checks public declarations under NodeNext and bundler resolution with library checking enabled. Keep consumer tests importing from package exports rather than source files.
+
 ## Write TypeScript Deliberately
 
 - Use `interface` for object contracts and `type` for unions and primitives.

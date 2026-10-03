@@ -1,0 +1,33 @@
+{
+  "name": "@rsvp-engine/typescript-consumer-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format": "prettier . --write --ignore-path ../../.gitignore",
+    "format:check": "prettier . --check --ignore-path ../../.gitignore",
+    "format:package-json": "sort-package-json package.json",
+    "format:package-json:check": "sort-package-json package.json --check",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit -p tsconfig.nodenext.json && tsc --noEmit -p tsconfig.bundler.json"
+  },
+  "dependencies": {
+    "@rsvp-engine/core": "workspace:*",
+    "@rsvp-engine/react": "workspace:*",
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "sort-package-json": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependenciesMeta": {
+    "@rsvp-engine/core": {
+      "injected": true
+    },
+    "@rsvp-engine/react": {
+      "injected": true
+    }
+  }
+}

@@ -14,6 +14,7 @@
         "check:architecture",
         "check:size",
         "check:package",
+        "@rsvp-engine/typescript-consumer-fixture#verify",
         "@rsvp-engine/react-fixture-18#verify",
         "@rsvp-engine/react-fixture-19#verify"
       ]
