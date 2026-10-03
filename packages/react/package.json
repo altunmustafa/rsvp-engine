@@ -48,6 +48,7 @@
     "format:package-json": "sort-package-json package.json",
     "format:package-json:check": "sort-package-json package.json --check",
     "lint": "eslint src/ type-tests/ *.config.ts",
+    "sync:injected": "node --eval \"\"",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.type-tests.json"

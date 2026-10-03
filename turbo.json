@@ -90,6 +90,10 @@
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"]
     },
     "check:architecture": {},
+    "sync:injected": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
     "check:size": {
       "dependsOn": ["build"]
     },

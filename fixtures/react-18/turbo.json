@@ -3,7 +3,14 @@
   "tasks": {
     "lint": {
       "extends": false,
+      "dependsOn": ["^sync:injected"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/eslint.config.js"]
+    },
+    "test": {
+      "dependsOn": ["$TURBO_EXTENDS$", "^sync:injected"]
+    },
+    "typecheck": {
+      "dependsOn": ["$TURBO_EXTENDS$", "^sync:injected"]
     },
     "verify": {
       "dependsOn": ["$TURBO_EXTENDS$", "test"]

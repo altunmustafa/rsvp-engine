@@ -5,6 +5,7 @@ packages:
 
 syncInjectedDepsAfterScripts:
   - build
+  - sync:injected
 
 dedupeInjectedDeps: false
 
