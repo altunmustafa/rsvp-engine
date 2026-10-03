@@ -2,7 +2,7 @@
   "extends": ["//"],
   "tasks": {
     "check:package": {
-      "inputs": ["package.json", "scripts/check-package.js"]
+      "inputs": ["$TURBO_DEFAULT$"]
     },
     "check:size": {
       "inputs": ["scripts/check-bundle-size.js"]

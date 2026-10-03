@@ -30,8 +30,8 @@ for (const file of productionSourceFiles(sourceRoot)) {
 const manifest = JSON.parse(readFileSync(new URL("package.json", packageRoot), "utf8"));
 const runtimeDependencies = Object.keys(manifest.dependencies ?? {}).sort();
 const allowedRuntimeDependencies = ["@rsvp-engine/core", "use-sync-external-store"];
-if (manifest.private !== true) {
-  throw new Error("The React package must remain private until release preparation.");
+if (manifest.private === true || manifest.publishConfig?.access !== "public") {
+  throw new Error("The React package must be configured for public publication.");
 }
 if (JSON.stringify(runtimeDependencies) !== JSON.stringify(allowedRuntimeDependencies)) {
   throw new Error(
@@ -56,5 +56,5 @@ if (
 }
 
 console.log(
-  "Architecture constraints passed: private, Core-backed, official-selector, React-peer, and DOM-free.",
+  "Architecture constraints passed: public, Core-backed, official-selector, React-peer, and DOM-free.",
 );

@@ -1,5 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const esm = await import("@rsvp-engine/react");
 const require = createRequire(import.meta.url);
@@ -51,3 +56,59 @@ for (const external of ["@rsvp-engine/core", "react", "use-sync-external-store"]
 }
 
 console.log("ESM, CJS, declarations, public React API, and external peers are present.");
+
+const packageRoot = fileURLToPath(new URL("../", import.meta.url));
+const workspaceRoot = fileURLToPath(new URL("../../../", import.meta.url));
+const temporaryDirectory = mkdtempSync(join(tmpdir(), "rsvp-react-package-"));
+
+try {
+  const archive = join(temporaryDirectory, "react.tgz");
+  execFileSync("pnpm", ["--filter", "@rsvp-engine/react", "pack", "--out", archive], {
+    cwd: workspaceRoot,
+    stdio: "pipe",
+  });
+  const files = execFileSync("tar", ["-tzf", archive], { encoding: "utf8" }).trim().split("\n");
+  const manifest = JSON.parse(
+    execFileSync("tar", ["-xOf", archive, "package/package.json"], { encoding: "utf8" }),
+  );
+  assert.notEqual(manifest.private, true, "The tarball must be publishable.");
+  assert.equal(manifest.publishConfig?.access, "public");
+  assert.equal(manifest.publishConfig?.provenance, true);
+  assert.equal(manifest.license, "MIT");
+  assert.equal(manifest.repository?.directory, "packages/react");
+  const coreManifest = JSON.parse(
+    readFileSync(new URL("../../core/package.json", import.meta.url), "utf8"),
+  );
+  assert.equal(manifest.dependencies["@rsvp-engine/core"], coreManifest.version);
+  for (const version of Object.values(manifest.dependencies)) {
+    assert(
+      !/^(workspace|catalog):/.test(version),
+      "Packed dependencies must resolve outside the workspace.",
+    );
+  }
+  for (const file of [
+    "README.md",
+    "LICENSE",
+    manifest.main,
+    manifest.module,
+    manifest.types,
+    manifest.exports["."].import.default,
+    manifest.exports["."].require.default,
+    manifest.exports["."].import.types,
+    manifest.exports["."].require.types,
+  ]) {
+    assert(files.includes(`package/${file.replace(/^\.\//, "")}`), `Missing packed file: ${file}`);
+  }
+  // Changesets creates the changelog during the first versioning step.
+  if (existsSync(join(packageRoot, "CHANGELOG.md"))) {
+    assert(files.includes("package/CHANGELOG.md"), "The generated changelog must be packed.");
+  } else {
+    assert.equal(manifest.version, "0.0.0", "Versioned releases require a generated changelog.");
+  }
+  assert(!files.some((file) => /^package\/(docs|src|type-tests|node_modules)\//.test(file)));
+  console.log(
+    "Tarball includes public entries, types, license, and README with resolved dependencies.",
+  );
+} finally {
+  rmSync(temporaryDirectory, { recursive: true, force: true });
+}
