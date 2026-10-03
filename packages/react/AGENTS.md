@@ -9,7 +9,6 @@
 - Use React's external-store contract for subscriptions and preserve the construction-time server snapshot.
 - Delegate selector memoization and equality handling to `useSyncExternalStoreWithSelector`; do not maintain a render-shared selector cache.
 - Preserve cached immutable snapshots and notify subscribers only when observable state changes.
-- Keep the package private until the release-preparation stage explicitly removes the publication guard.
 - Preserve coverage thresholds in [vitest.config.ts](vitest.config.ts). Follow [CONTRIBUTING.md](CONTRIBUTING.md) for React-specific behavior, SSR, type, and compatibility checks.
 
 ## Architecture

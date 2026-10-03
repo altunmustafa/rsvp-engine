@@ -1,26 +1,27 @@
 # `@rsvp-engine/react`
 
-Headless, context-first React bindings for `@rsvp-engine/core`. The package provides an externally owned controller and typed Context hooks without importing React DOM, browser globals, host UI, or styles.
+Headless React bindings for `@rsvp-engine/core`. A controller owns playback; typed context hooks connect it to your UI. The package supports React Native without importing React DOM, browser globals, or styles.
 
-The package remains private until its release-preparation stage.
+## Installation
+
+```sh
+pnpm add @rsvp-engine/react react
+```
+
+React is a peer dependency; see [package.json](package.json) for supported versions. Core and the external-store selector implementation are installed as dependencies. ESM, CommonJS, and TypeScript declarations are included.
 
 ## Basic usage
 
-Create one typed Context bundle and reuse it throughout the application:
+Create the context bundle once at module scope. This example uses a controller owned by a single client-side application:
 
 ```tsx
 import { createRsvpContext, createRsvpController } from "@rsvp-engine/react";
 
-const controller = createRsvpController({
-  data: "Read this text",
-  wpm: 300,
-});
-
+const controller = createRsvpController({ data: "Read this text", wpm: 300 });
 const { RsvpProvider, useRsvpSelector, useRsvpActions } = createRsvpContext<string>();
 
 function Word() {
   const word = useRsvpSelector(({ snapshot }) => snapshot.currentItem?.value);
-
   return <strong>{word}</strong>;
 }
 
@@ -46,26 +47,119 @@ function App() {
 }
 ```
 
-`useRsvpSelector` delegates concurrent-safe selection to React's official external-store implementation and rerenders its component only when the selected result changes. `useRsvpActions` does not subscribe to controller state, so controls do not rerender on every RSVP item.
+## React context and hooks
 
-## Speed control
+`createRsvpContext<T = string>()` returns an isolated, typed Provider and three hooks. Hooks must run under their matching Provider or they throw. Different bundles can represent independent readers or item types.
 
-Call `controller.setWpm(225)` or obtain `setWpm` from `useRsvpActions()` to set the reading rate. Core preserves the supplied WPM exactly in snapshots. `setMsPerItem(ms)` sets an exact base duration and derives WPM instead.
+| API | Behavior |
+| --- | --- |
+| `RsvpProvider` | Accepts `controller: RsvpController<T>` and optional React `children`. Replacing the controller moves selector subscriptions to the new instance. |
+| `useRsvpSelector(selector, equalityFn?)` | Selects from `{ snapshot, error }`. Rerenders only when the selected value changes; comparison defaults to `Object.is`. |
+| `useRsvpActions()` | Returns a frozen command object, stable while the controller stays the same. Does not subscribe to playback. Excludes `destroy`. |
+| `useRsvpController()` | Returns the provided controller without subscribing. Use for imperative integrations; reading `getSnapshot()` through it does not make a component reactive. |
 
-## Migrating API names
+Selectors must be pure. When returning an object, provide an equality function to avoid rerenders for equivalent values:
 
-Replace `controller.setSpeed(wpm)` with `controller.setWpm(wpm)` and destructure `setWpm` instead of `setSpeed` from `useRsvpActions()`. The old command is removed without a compatibility alias.
+```tsx
+const status = useRsvpSelector(
+  ({ snapshot }) => ({ state: snapshot.state, wpm: snapshot.wpm }),
+  (left, right) => left.state === right.state && left.wpm === right.wpm,
+);
+```
 
-Core types re-exported by this package are renamed to `RsvpEngineOptions`, `RsvpItem`, `RsvpSnapshot`, `RsvpState`, and `OvpStrategy`. Replace their previous `RSVP`/`OVP` spellings in imports and annotations. React-specific names such as `RsvpController` and `createRsvpContext` are unchanged.
+## Controller API
 
-## Lifecycle ownership
+### `createRsvpController<T = string>(options?)`
 
-The controller is externally owned. The Provider exposes it to descendants, while Provider and hook unmounts only remove React subscriptions. Playback state and controller lifetime remain under application control.
+Creates and owns one Core engine. All options are optional; construction failures throw.
 
-Map controller operations to application lifecycle boundaries: pause playback when the reader session becomes inactive, and call `controller.destroy()` when the application-level owner permanently releases the controller.
+| Option | Type | Behavior |
+| --- | --- | --- |
+| `data` | `T \| T[]` | Initial input, tokenized synchronously. Omit to start empty. |
+| `wpm` | `number` | Defaults to `DEFAULT_WPM`; valid between `MIN_WPM` and `MAX_WPM`, inclusive. |
+| `msPerItem` | `number` | Base duration between `MIN_MS_PER_ITEM` and `MAX_MS_PER_ITEM`, inclusive. Takes precedence over `wpm`. |
+| `tokenizer` | `TokenizerStrategy<T>` | Defaults to Core's Unicode-aware text tokenizer. |
+| `scheduler` | `SchedulerStrategy` | Defaults to Core's drift-corrected scheduler. |
+| `timeDriver` | `TimeDriver` | Clock and timers for scheduling and pause/resume accounting. |
 
-## Server rendering
+The default tokenizer wraps non-string values as individual items and treats array elements as individual tokens.
 
-Selectors read the controller's immutable construction-time snapshot during server rendering and switch to its live snapshot during hydration. Create controllers per request for request-specific data; do not share mutable controllers between server requests.
+### Commands
 
-See [`docs/API-REFERENCE.md`](docs/API-REFERENCE.md) for the complete API and [`docs/architecture/adr/README.md`](docs/architecture/adr/README.md) for design decisions.
+Available on the controller and through `useRsvpActions()`; all return `void`.
+
+| Method | Behavior |
+| --- | --- |
+| `play()` | Starts or resumes; a fresh session presents its first item immediately. |
+| `pause()` | Preserves the item and remaining display time. |
+| `stop()` | Stops and returns selection to index `0`, retaining data. |
+| `seek(index: number)` | Selects a zero-based index and enters `PAUSED`. Valid from `PAUSED`, `STOPPED`, or `COMPLETED`. |
+| `next()` / `previous()` | Moves one item while `PAUSED`; does nothing at the boundary. |
+| `reset()` | Clears data and recovers `ERROR` to `IDLE`. Only valid from `ERROR`. |
+| `load(data: T \| T[])` | Replaces input through the tokenizer; rejected while `PLAYING` or `ERROR`. |
+| `loadTokens(tokens: Token<T>[])` | Replaces input with prepared tokens; same state restrictions as `load`. |
+| `setWpm(wpm: number)` | Sets the base reading rate. |
+| `setMsPerItem(ms: number)` | Sets the base item duration. |
+| `clearError()` | Clears the observable error without resetting playback. |
+
+Pause or stop before loading during playback; reset after a fatal error before loading again. Loading leaves the engine in `IDLE`.
+
+Speed commands accept finite fractional values within the exported limits. The supplied unit is preserved exactly; the other is derived as `60_000 / value` with normal floating-point precision. Changes affect future display periods, preserving a running timer or paused item's remaining duration. Each token's `delayMultiplier` scales its display duration.
+
+### Snapshots and subscriptions
+
+| Method | Behavior |
+| --- | --- |
+| `getSnapshot()` | Cached live `{ snapshot, error }`; reference stays stable until observable state changes. |
+| `getServerSnapshot()` | Immutable construction-time snapshot for server rendering. |
+| `subscribe(listener: () => void)` | Observes changes; returns an unsubscribe function. |
+| `destroy()` | Permanently releases timers and subscriptions; idempotent. |
+
+The nested `snapshot` has readonly fields:
+
+| Field               | Meaning                                                                          |
+| ------------------- | -------------------------------------------------------------------------------- |
+| `state`             | `"IDLE" \| "PLAYING" \| "PAUSED" \| "STOPPED" \| "COMPLETED" \| "ERROR"`.        |
+| `currentIndex`      | Zero-based selected or presented index; `0` when empty.                          |
+| `currentItem`       | `RsvpItem<T> \| null`, with `value`, `index`, `ovpIndex`, and `delayMultiplier`. |
+| `progress`          | `0` before presentation; reaches `1` on the final item.                          |
+| `totalItems`        | Loaded token count.                                                              |
+| `wpm` / `msPerItem` | Base reading rate and display duration.                                          |
+
+The final item still needs its display period after progress reaches `1`. Use `state === "COMPLETED"` to detect completion.
+
+### Errors
+
+Select `error` with `useRsvpSelector(({ error }) => error)`. It is an `Error | null` and persists across successful commands until `clearError()`. Clearing it does not recover an engine in `ERROR`; use `reset()`.
+
+Invalid transitions and navigation report observable errors without necessarily throwing. Synchronous failures, such as invalid speed input, are recorded and rethrown. Handle both observable errors and thrown exceptions. Ordinary invalid commands preserve usable state; fatal failures enter `ERROR`.
+
+## Lifecycle and server rendering
+
+The application owns the controller. Provider and hook unmounts only remove subscriptions. Pause when a reader session becomes inactive; call `destroy()` when its owner permanently releases it.
+
+Cached snapshots remain readable after destruction; commands and new subscriptions throw `EngineDestroyedError`.
+
+For SSR, create controllers per request with matching initial data on the server and client. Selectors read the construction-time snapshot during server rendering and switch to live state during hydration.
+
+## Custom items and strategies
+
+Use the same item type for `createRsvpController<T>()` and `createRsvpContext<T>()`. A `Token<T>` contains `value: T`, `ovpIndex: number`, and `delayMultiplier: number`. The OVP is a non-negative integer UTF-16 offset, no greater than string length, suitable for `slice()`. The delay multiplier must be positive and finite.
+
+Prepare asynchronous input outside the controller, then pass tokens to `loadTokens`. Inject strategies through controller options:
+
+| Type | Contract |
+| --- | --- |
+| `TokenizerStrategy<T>` | `tokenize(input: T \| T[]): Token<T>[]` |
+| `SchedulerStrategy` | `schedule(task: () => void, delayMs: number): void`; `cancel(): void` |
+| `TimeDriver` | `now(): number`; `setTimeout(callback: () => void, ms: number): unknown`; `clearTimeout(handle: unknown): void` |
+| `OvpStrategy` | `calculate(text: string): number`, returning the preferred UTF-16 offset. Inject through a compatible tokenizer. |
+
+Concrete tokenizer and scheduler classes are available from `@rsvp-engine/core`.
+
+## Additional exports
+
+- Constants: `DEFAULT_WPM`, `MIN_WPM`, `MAX_WPM`, `MIN_MS_PER_ITEM`, `MAX_MS_PER_ITEM`.
+- Error classes: `EngineDestroyedError`, `IndexOutOfBoundsError`, `InvalidInputError`, `InvalidTransitionError`.
+- React types: `RsvpController<T>`, `RsvpControllerOptions<T>`, `RsvpActions<T>`, `RsvpControllerSnapshot<T>`, `RsvpStoreListener`, `RsvpProviderProps<T>`, `RsvpContextBundle<T>`, `RsvpSelector<T, Selected>`, `RsvpEqualityFn<Selected>`, `UseRsvpSelector<T>`.
+- Core types: `RsvpEngineOptions`, `RsvpItem`, `RsvpSnapshot`, `RsvpState`, `Token`, `TokenizerStrategy`, `OvpStrategy`, `SchedulerStrategy`, `TimeDriver`, `UnsubscribeFn`.
