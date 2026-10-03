@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+### Patch Changes
+
+- b130c26: Fix TypeScript declaration compatibility for NodeNext consumers. Bundle declarations into separate ESM and CommonJS entry points so package-internal extensionless imports no longer cause type-resolution errors.
+
 ## 1.0.0
 
 ### Major Changes
