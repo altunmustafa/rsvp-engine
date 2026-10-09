@@ -33,6 +33,8 @@ Constructor tokenization failures are thrown so they cannot be lost before event
 
 Invalid control commands emit `error` and preserve the current state. They do not turn a usable session into a terminal error.
 
+`seek(index)` requires a finite integer in `[0, totalItems)` and a state of `PAUSED`, `STOPPED`, or `COMPLETED`. Invalid indices emit `IndexOutOfBoundsError` before checking state and preserve selection, progress, and scheduling. Empty input has no valid seek index.
+
 ### Data and speed methods
 
 - `load(data)` synchronously invokes the configured tokenizer.

@@ -64,6 +64,10 @@ engine.loadTokens(tokens);
 
 Use `engine.setWpm(225)` to set the reading rate or `engine.setMsPerItem(250)` to set the base display duration. The last supplied value is preserved exactly in its unit, including in snapshots; the other unit is derived without additional rounding. Changes affect subsequently scheduled display periods.
 
+## Seeking
+
+`seek(index)` requires a finite integer within the loaded token bounds and a state of `PAUSED`, `STOPPED`, or `COMPLETED`. It selects an item in `PAUSED` without starting playback. Invalid indices report `IndexOutOfBoundsError` and preserve playback state, position, progress, and scheduling. Empty input has no valid seek index.
+
 ## Migrating API names
 
 Acronyms in class and type names use ordinary PascalCase. The previous names are removed without compatibility aliases:

@@ -1,6 +1,6 @@
 import type { SchedulerStrategy, TokenizerStrategy } from "@rsvp-engine/core";
 
-import { EngineDestroyedError, InvalidInputError } from "@rsvp-engine/core";
+import { EngineDestroyedError, IndexOutOfBoundsError, InvalidInputError } from "@rsvp-engine/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createRsvpController } from "./controller";
@@ -219,6 +219,32 @@ describe("RSVP controller", () => {
     });
     controller.destroy();
   });
+
+  it.for([NaN, 0.5])(
+    "reports seek(%s) without corrupting the cached playback snapshot",
+    (index) => {
+      const controller = createRsvpController({ data: "one two three", wpm: 600 });
+      controller.play();
+      vi.advanceTimersByTime(140);
+      controller.pause();
+      const before = controller.getSnapshot();
+      const listener = vi.fn();
+      controller.subscribe(listener);
+
+      expect(() => controller.seek(index)).not.toThrow();
+
+      expect(controller.getSnapshot().snapshot).toEqual(before.snapshot);
+      expect(controller.getSnapshot().error).toBeInstanceOf(IndexOutOfBoundsError);
+      expect(listener).toHaveBeenCalledTimes(1);
+      controller.clearError();
+      controller.play();
+      vi.advanceTimersByTime(59);
+      expect(controller.getSnapshot().snapshot.currentIndex).toBe(1);
+      vi.advanceTimersByTime(1);
+      expect(controller.getSnapshot().snapshot.currentIndex).toBe(2);
+      controller.destroy();
+    },
+  );
 
   it("allows safe unsubscription during notification", () => {
     const controller = createRsvpController({ data: "one two" });

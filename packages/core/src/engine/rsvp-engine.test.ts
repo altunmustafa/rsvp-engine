@@ -4,7 +4,7 @@ import type { TokenizerStrategy } from "../tokenizer/types";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EngineDestroyedError, InvalidInputError } from "../errors";
+import { EngineDestroyedError, IndexOutOfBoundsError, InvalidInputError } from "../errors";
 
 import { MAX_MS_PER_ITEM, MAX_WPM, MIN_MS_PER_ITEM, MIN_WPM } from "./config";
 import { RsvpEngine } from "./rsvp-engine";
@@ -422,29 +422,57 @@ describe("RsvpEngine", () => {
       expect(changes).toEqual([{ item: "foo", reason: "seek" }]);
     });
 
-    it("seek() out of bounds emits a non-fatal error", () => {
+    it.for([NaN, Infinity, -Infinity, 0.5, -0.5, -1, 5])(
+      "rejects seek(%s) without changing position or the paused remainder",
+      (index) => {
+        const engine = createEngine({ wpm: 600 });
+        engine.play();
+        vi.advanceTimersByTime(140);
+        engine.pause();
+        const before = engine.snapshot();
+        const errors: Error[] = [];
+        engine.on("error", ({ error }) => errors.push(error));
+        const itemChange = vi.fn();
+        const stateChange = vi.fn();
+        engine.on("itemChange", itemChange);
+        engine.on("stateChange", stateChange);
+
+        expect(() => engine.seek(index)).not.toThrow();
+
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toBeInstanceOf(IndexOutOfBoundsError);
+        expect(errors[0]).toMatchObject({ index, totalItems: before.totalItems });
+        expect(engine.snapshot()).toEqual(before);
+        expect(itemChange).not.toHaveBeenCalled();
+        expect(stateChange).not.toHaveBeenCalled();
+        expect(vi.getTimerCount()).toBe(0);
+
+        engine.play();
+        vi.advanceTimersByTime(59);
+        expect(engine.currentIndex).toBe(1);
+        vi.advanceTimersByTime(1);
+        expect(engine.currentIndex).toBe(2);
+        engine.destroy();
+      },
+    );
+
+    it("preserves active playback when a seek index is invalid", () => {
       const engine = createEngine({ wpm: 600 });
       engine.play();
-      engine.pause();
-
+      vi.advanceTimersByTime(40);
+      const before = engine.snapshot();
       const errors: Error[] = [];
-      engine.on("error", (payload) => errors.push(payload.error));
+      engine.on("error", ({ error }) => errors.push(error));
 
-      engine.seek(100);
-      expect(errors.length).toBe(1);
-      expect(engine.state).toBe("PAUSED");
-    });
+      expect(() => engine.seek(NaN)).not.toThrow();
 
-    it("seek() with negative index triggers ERROR", () => {
-      const engine = createEngine({ wpm: 600 });
-      engine.play();
-      engine.pause();
-
-      const errors: Error[] = [];
-      engine.on("error", (payload) => errors.push(payload.error));
-
-      engine.seek(-1);
-      expect(errors.length).toBe(1);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toBeInstanceOf(IndexOutOfBoundsError);
+      expect(engine.snapshot()).toEqual(before);
+      expect(vi.getTimerCount()).toBe(1);
+      vi.advanceTimersByTime(60);
+      expect(engine.currentIndex).toBe(1);
+      engine.destroy();
     });
 
     it("next() advances index in PAUSED state", () => {

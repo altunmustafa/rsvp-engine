@@ -305,11 +305,12 @@ export class RsvpEngine<T = string> {
   /**
    * Jumps to a specific token index. Transitions to PAUSED state.
    * Only available from PAUSED, STOPPED, or COMPLETED states.
+   * The index must be a finite integer within the loaded token bounds.
    */
   public seek(index: number): void {
     this.#assertNotDestroyed();
 
-    if (index < 0 || index >= this.#tokens.length) {
+    if (!Number.isInteger(index) || index < 0 || index >= this.#tokens.length) {
       this.#reportError(new IndexOutOfBoundsError(index, this.#tokens.length));
       return;
     }
