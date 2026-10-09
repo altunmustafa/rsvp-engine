@@ -93,7 +93,7 @@ Available on the controller and through `useRsvpActions()`; all return `void`.
 | `play()` | Starts or resumes; a fresh session presents its first item immediately. |
 | `pause()` | Preserves the item and remaining display time. |
 | `stop()` | Stops and returns selection to index `0`, retaining data. |
-| `seek(index: number)` | Selects a zero-based index and enters `PAUSED`. Valid from `PAUSED`, `STOPPED`, or `COMPLETED`. |
+| `seek(index: number)` | Requires an in-bounds finite integer; enters `PAUSED` from `PAUSED`, `STOPPED`, or `COMPLETED`. |
 | `next()` / `previous()` | Moves one item while `PAUSED`; does nothing at the boundary. |
 | `reset()` | Clears data and recovers `ERROR` to `IDLE`. Only valid from `ERROR`. |
 | `load(data: T \| T[])` | Replaces input through the tokenizer; rejected while `PLAYING` or `ERROR`. |
@@ -103,6 +103,8 @@ Available on the controller and through `useRsvpActions()`; all return `void`.
 | `clearError()` | Clears the observable error without resetting playback. |
 
 Pause or stop before loading during playback; reset after a fatal error before loading again. Loading leaves the engine in `IDLE`.
+
+Invalid seek indices record `IndexOutOfBoundsError` before checking state and preserve position, progress, and scheduling. Empty input has no valid seek index.
 
 Speed commands accept finite fractional values within the exported limits. The supplied unit is preserved exactly; the other is derived as `60_000 / value` with normal floating-point precision. Changes affect future display periods, preserving a running timer or paused item's remaining duration. Each token's `delayMultiplier` scales its display duration.
 

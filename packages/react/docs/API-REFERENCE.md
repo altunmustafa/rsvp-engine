@@ -88,6 +88,8 @@ const { play, pause } = useRsvpActions();
 
 Lifecycle ownership remains explicit, so `destroy` is intentionally absent.
 
+`seek()` requires a finite integer in `[0, totalItems)` and `PAUSED`, `STOPPED`, or `COMPLETED`. Invalid indices record `IndexOutOfBoundsError` before checking state without throwing or changing selection, progress, or scheduling. Empty input has no valid seek index.
+
 The same speed commands are available on the controller. `setWpm(225)` preserves `225` exactly in `snapshot.wpm`; `setMsPerItem(ms)` preserves the interval and derives WPM from it. Fractional inputs are supported. Repeating an unchanged value does not notify subscribers. Switching input units can change the derived WPM even when the interval is unchanged, which is an observable snapshot update. See [Core speed semantics](https://github.com/altunmustafa/rsvp-engine/blob/main/packages/core/docs/API-REFERENCE.md#data-and-speed-methods).
 
 ### `useRsvpController()`
