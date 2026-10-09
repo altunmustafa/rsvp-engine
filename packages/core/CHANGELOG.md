@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3
+
+### Patch Changes
+
+- 66fa040: Clarify that stop() is valid only while playing or paused, retains loaded data, and reports invalid transitions for repeated or completed-session calls. Document the observable error behavior without changing playback.
+
 ## 1.0.2
 
 ### Patch Changes

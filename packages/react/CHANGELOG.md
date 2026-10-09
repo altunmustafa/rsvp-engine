@@ -1,5 +1,13 @@
 # @rsvp-engine/react
 
+## 0.1.2
+
+### Patch Changes
+
+- 66fa040: Clarify that stop() is valid only while playing or paused, retains loaded data, and reports invalid transitions for repeated or completed-session calls. Document the observable error behavior without changing playback.
+- Updated dependencies [66fa040]
+  - @rsvp-engine/core@1.0.3
+
 ## 0.1.1
 
 ### Patch Changes

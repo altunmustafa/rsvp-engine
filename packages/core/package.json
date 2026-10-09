@@ -1,6 +1,6 @@
 {
   "name": "@rsvp-engine/core",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Headless, zero-dependency RSVP engine with drift-corrected scheduling and pluggable tokenization",
   "keywords": [
     "rsvp",
