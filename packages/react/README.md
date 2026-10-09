@@ -92,7 +92,7 @@ Available on the controller and through `useRsvpActions()`; all return `void`.
 | --- | --- |
 | `play()` | Starts or resumes; a fresh session presents its first item immediately. |
 | `pause()` | Preserves the item and remaining display time. |
-| `stop()` | Stops and returns selection to index `0`, retaining data. |
+| `stop()` | Valid only from `PLAYING` or `PAUSED`; resets index and progress to `0`, retaining data. |
 | `seek(index: number)` | Requires an in-bounds finite integer; enters `PAUSED` from `PAUSED`, `STOPPED`, or `COMPLETED`. |
 | `next()` / `previous()` | Moves one item while `PAUSED`; does nothing at the boundary. |
 | `reset()` | Clears data and recovers `ERROR` to `IDLE`. Only valid from `ERROR`. |
@@ -103,6 +103,8 @@ Available on the controller and through `useRsvpActions()`; all return `void`.
 | `clearError()` | Clears the observable error without resetting playback. |
 
 Pause or stop before loading during playback; reset after a fatal error before loading again. Loading leaves the engine in `IDLE`.
+
+Stop is not idempotent: calls from `IDLE`, `STOPPED`, `COMPLETED`, or `ERROR` record `InvalidTransitionError` without resetting state, position, or progress. In particular, a completed session stays completed and a repeated Stop records an error. Guard Stop controls using the playback state; the observable error persists until `clearError()`. See the [Stop state contract](https://github.com/altunmustafa/rsvp-engine/blob/main/packages/core/docs/STATE-MACHINE.md#stop-behavior).
 
 Invalid seek indices record `IndexOutOfBoundsError` before checking state and preserve position, progress, and scheduling. Empty input has no valid seek index.
 

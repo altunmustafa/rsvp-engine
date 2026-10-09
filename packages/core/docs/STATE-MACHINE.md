@@ -35,6 +35,23 @@ stateDiagram-v2
 | `COMPLETED` | Final item finished its display duration.                   | `length - 1`, progress `1`.       |
 | `ERROR`     | Unexpected runtime failure made playback unsafe.            | Preserved until reset.            |
 
+## Stop behavior
+
+`stop()` is valid only from `PLAYING` or `PAUSED`. A successful call cancels the pending task, retains loaded tokens, and resets index and progress to zero without starting playback.
+
+| Starting state | Result of `stop()`                                               | Reported error           |
+| -------------- | ---------------------------------------------------------------- | ------------------------ |
+| `IDLE`         | State, position, and progress are preserved.                     | `InvalidTransitionError` |
+| `PLAYING`      | Enters `STOPPED` with index and progress zero.                   | None                     |
+| `PAUSED`       | Enters `STOPPED` with index and progress zero.                   | None                     |
+| `STOPPED`      | State, position, and progress are preserved.                     | `InvalidTransitionError` |
+| `COMPLETED`    | Remains completed with the final item selected and progress one. | `InvalidTransitionError` |
+| `ERROR`        | Fatal state and retained position are preserved.                 | `InvalidTransitionError` |
+
+Stop is not idempotent: a repeated call from `STOPPED` reports an error. Empty input remains `IDLE`, where Stop is also invalid. The engine emits these errors without throwing or entering a fatal state. A destroyed engine instead throws `EngineDestroyedError`.
+
+The React controller records invalid Stop calls in its observable `error`. Successful commands do not clear that error; consumers must call `clearError()` explicitly. Clearing the observable error does not recover a fatal `ERROR` state. Guard Stop controls using the playback state before invoking them.
+
 ## Error policy
 
 The low-level `StateMachine.transition()` throws `InvalidTransitionError` for an illegal action. `RsvpEngine` catches invalid user controls, emits an `error` event, and preserves its state. Empty data, invalid seek indices, duplicate play, or pause in IDLE are non-fatal.
