@@ -104,8 +104,6 @@ Available on the controller and through `useRsvpActions()`; all return `void`.
 
 Pause or stop before loading during playback; reset after a fatal error before loading again. Loading leaves the engine in `IDLE`.
 
-Stop is not idempotent: calls from `IDLE`, `STOPPED`, `COMPLETED`, or `ERROR` record `InvalidTransitionError` without resetting state, position, or progress. In particular, a completed session stays completed and a repeated Stop records an error. Guard Stop controls using the playback state; the observable error persists until `clearError()`. See the [Stop state contract](https://github.com/altunmustafa/rsvp-engine/blob/main/packages/core/docs/STATE-MACHINE.md#stop-behavior).
-
 Invalid seek indices record `IndexOutOfBoundsError` before checking state and preserve position, progress, and scheduling. Empty input has no valid seek index.
 
 Speed commands accept finite fractional values within the exported limits. The supplied unit is preserved exactly; the other is derived as `60_000 / value` with normal floating-point precision. Changes affect future display periods, preserving a running timer or paused item's remaining duration. Each token's `delayMultiplier` scales its display duration.

@@ -90,7 +90,7 @@ Lifecycle ownership remains explicit, so `destroy` is intentionally absent.
 
 `seek()` requires a finite integer in `[0, totalItems)` and `PAUSED`, `STOPPED`, or `COMPLETED`. Invalid indices record `IndexOutOfBoundsError` before checking state without throwing or changing selection, progress, or scheduling. Empty input has no valid seek index.
 
-`stop()` is valid only from `PLAYING` or `PAUSED`. It cancels playback, resets index and progress to zero, and retains data. Calls from `IDLE`, `STOPPED`, `COMPLETED`, or `ERROR` record `InvalidTransitionError` without throwing or changing state, position, or progress. Stop is not idempotent. Guard calls using playback state; the observable error remains until `clearError()`. See the [Stop state contract](https://github.com/altunmustafa/rsvp-engine/blob/main/packages/core/docs/STATE-MACHINE.md#stop-behavior).
+`stop()` is valid only in `PLAYING` or `PAUSED`. Invalid calls record `InvalidTransitionError` in the controller's observable `error`.
 
 The same speed commands are available on the controller. `setWpm(225)` preserves `225` exactly in `snapshot.wpm`; `setMsPerItem(ms)` preserves the interval and derives WPM from it. Fractional inputs are supported. Repeating an unchanged value does not notify subscribers. Switching input units can change the derived WPM even when the interval is unchanged, which is an observable snapshot update. See [Core speed semantics](https://github.com/altunmustafa/rsvp-engine/blob/main/packages/core/docs/API-REFERENCE.md#data-and-speed-methods).
 

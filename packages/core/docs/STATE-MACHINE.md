@@ -37,20 +37,7 @@ stateDiagram-v2
 
 ## Stop behavior
 
-`stop()` is valid only from `PLAYING` or `PAUSED`. A successful call cancels the pending task, retains loaded tokens, and resets index and progress to zero without starting playback.
-
-| Starting state | Result of `stop()`                                               | Reported error           |
-| -------------- | ---------------------------------------------------------------- | ------------------------ |
-| `IDLE`         | State, position, and progress are preserved.                     | `InvalidTransitionError` |
-| `PLAYING`      | Enters `STOPPED` with index and progress zero.                   | None                     |
-| `PAUSED`       | Enters `STOPPED` with index and progress zero.                   | None                     |
-| `STOPPED`      | State, position, and progress are preserved.                     | `InvalidTransitionError` |
-| `COMPLETED`    | Remains completed with the final item selected and progress one. | `InvalidTransitionError` |
-| `ERROR`        | Fatal state and retained position are preserved.                 | `InvalidTransitionError` |
-
-Stop is not idempotent: a repeated call from `STOPPED` reports an error. Empty input remains `IDLE`, where Stop is also invalid. The engine emits these errors without throwing or entering a fatal state. A destroyed engine instead throws `EngineDestroyedError`.
-
-The React controller records invalid Stop calls in its observable `error`. Successful commands do not clear that error; consumers must call `clearError()` explicitly. Clearing the observable error does not recover a fatal `ERROR` state. Guard Stop controls using the playback state before invoking them.
+`stop()` is valid only from `PLAYING` or `PAUSED`: it enters `STOPPED`, cancels the pending task, retains loaded tokens, and resets index and progress to zero. Calls from any other state, including repeated calls or calls after completion, emit `InvalidTransitionError` without changing state, position, or progress.
 
 ## Error policy
 

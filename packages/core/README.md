@@ -66,7 +66,7 @@ Use `engine.setWpm(225)` to set the reading rate or `engine.setMsPerItem(250)` t
 
 ## Stopping playback
 
-`stop()` is valid only in `PLAYING` or `PAUSED`. It cancels playback, resets index and progress to zero, and retains loaded data. Calls from `IDLE`, `STOPPED`, `COMPLETED`, or `ERROR` report `InvalidTransitionError` and preserve state, position, and progress. Repeated Stop is not a harmless no-op, and Stop after completion does not return to the beginning. See the [Stop state contract](https://github.com/altunmustafa/rsvp-engine/blob/main/packages/core/docs/STATE-MACHINE.md#stop-behavior).
+`stop()` is valid only in `PLAYING` or `PAUSED`; it cancels playback, resets index and progress to zero, and retains loaded data. Other calls emit `InvalidTransitionError` without changing playback.
 
 ## Seeking
 
