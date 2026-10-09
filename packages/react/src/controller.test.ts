@@ -1,4 +1,4 @@
-import type { SchedulerStrategy, TokenizerStrategy } from "@rsvp-engine/core";
+import type { RsvpSnapshot, SchedulerStrategy, TokenizerStrategy } from "@rsvp-engine/core";
 
 import { EngineDestroyedError, IndexOutOfBoundsError, InvalidInputError } from "@rsvp-engine/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,13 +15,31 @@ describe("RSVP controller", () => {
     vi.useRealTimers();
   });
 
+  it("exposes the flat Core snapshot through reads and subscription payloads", () => {
+    const controller = createRsvpController({ data: "one two", wpm: 600 });
+    const initial = controller.getSnapshot();
+    expect(initial).toMatchObject({ state: "IDLE", totalItems: 2, progress: 0, error: null });
+    expect(initial).not.toHaveProperty("snapshot");
+    const observed: RsvpSnapshot<string>[] = [];
+    controller.subscribe((snapshot) => {
+      expect(snapshot).toBe(controller.getSnapshot());
+      observed.push(snapshot);
+    });
+    controller.play();
+    expect(observed).toHaveLength(1);
+    expect(observed[0]).toMatchObject({ state: "PLAYING", progress: 0.5, error: null });
+    expect(controller.getServerSnapshot()).toBe(initial);
+    expect(initial.state).toBe("IDLE");
+    controller.destroy();
+  });
+
   it("returns cached immutable client and construction-time server snapshots", () => {
     const controller = createRsvpController({ data: "one two", wpm: 300 });
     const initial = controller.getSnapshot();
 
     expect(Object.isFrozen(initial)).toBe(true);
     expect(initial.error).toBeNull();
-    expect(initial.snapshot).toMatchObject({
+    expect(initial).toMatchObject({
       state: "IDLE",
       totalItems: 2,
       progress: 0,
@@ -37,6 +55,20 @@ describe("RSVP controller", () => {
     controller.destroy();
   });
 
+  it("forwards Core event types with their snapshots", () => {
+    const controller = createRsvpController({ data: "one two", wpm: 600 });
+    const listener = vi.fn();
+    controller.subscribe(listener);
+    controller.play();
+    expect(listener).toHaveBeenLastCalledWith(controller.getSnapshot(), "started");
+    vi.advanceTimersByTime(100);
+    expect(listener).toHaveBeenLastCalledWith(controller.getSnapshot(), "advanced");
+    controller.pause();
+    controller.previous();
+    expect(listener).toHaveBeenLastCalledWith(controller.getSnapshot(), "navigated");
+    controller.destroy();
+  });
+
   it("notifies once for silent mutations and skips unchanged snapshots", () => {
     const controller = createRsvpController<string>();
     const listener = vi.fn();
@@ -48,7 +80,7 @@ describe("RSVP controller", () => {
     controller.setMsPerItem(200);
 
     expect(listener).toHaveBeenCalledTimes(3);
-    expect(controller.getSnapshot().snapshot).toMatchObject({
+    expect(controller.getSnapshot()).toMatchObject({
       totalItems: 2,
       wpm: 300,
       msPerItem: 200,
@@ -59,7 +91,7 @@ describe("RSVP controller", () => {
   it("preserves exact WPM and notifies only for observable changes", () => {
     const controller = createRsvpController({ wpm: 425 });
     const server = controller.getServerSnapshot();
-    expect(server.snapshot.wpm).toBe(425);
+    expect(server.wpm).toBe(425);
     const listener = vi.fn();
     controller.subscribe(listener);
     const { setWpm } = controller;
@@ -67,43 +99,40 @@ describe("RSVP controller", () => {
 
     setWpm(225);
     const exact = controller.getSnapshot();
-    expect(exact.snapshot.wpm).toBe(225);
+    expect(exact.wpm).toBe(225);
     setWpm(225);
     expect(controller.getSnapshot()).toBe(exact);
     expect(listener).toHaveBeenCalledTimes(1);
 
-    controller.setMsPerItem(exact.snapshot.msPerItem);
-    expect(controller.getSnapshot().snapshot.wpm).toBe(60_000 / exact.snapshot.msPerItem);
+    controller.setMsPerItem(exact.msPerItem);
+    expect(controller.getSnapshot().wpm).toBe(60_000 / exact.msPerItem);
     expect(listener).toHaveBeenCalledTimes(2);
     setWpm(225);
-    expect(controller.getSnapshot().snapshot.wpm).toBe(225);
+    expect(controller.getSnapshot().wpm).toBe(225);
     expect(listener).toHaveBeenCalledTimes(3);
     expect(controller.getServerSnapshot()).toBe(server);
     controller.destroy();
     expect(() => setWpm(300)).toThrow(EngineDestroyedError);
   });
 
-  it("preserves separate meaningful Core event updates without notifying for duplicates", () => {
+  it("observes one consistent Core update per presentation and completion", () => {
     const controller = createRsvpController({ data: "one two", wpm: 600 });
     const observed: { state: string; progress: number }[] = [];
     controller.subscribe(() => {
-      const { progress, state } = controller.getSnapshot().snapshot;
+      const { progress, state } = controller.getSnapshot();
       observed.push({ state, progress });
     });
 
     controller.play();
 
-    expect(observed).toEqual([
-      { state: "PLAYING", progress: 0 },
-      { state: "PLAYING", progress: 0.5 },
-    ]);
+    expect(observed).toEqual([{ state: "PLAYING", progress: 0.5 }]);
 
     vi.advanceTimersByTime(100);
     expect(observed.at(-1)).toEqual({ state: "PLAYING", progress: 1 });
 
     vi.advanceTimersByTime(100);
     expect(observed.at(-1)).toEqual({ state: "COMPLETED", progress: 1 });
-    expect(observed).toHaveLength(4);
+    expect(observed).toHaveLength(3);
     controller.destroy();
   });
 
@@ -126,16 +155,16 @@ describe("RSVP controller", () => {
     controller.play();
     controller.pause();
     controller.next();
-    expect(controller.getSnapshot().snapshot.currentIndex).toBe(1);
+    expect(controller.getSnapshot().currentIndex).toBe(1);
     controller.previous();
-    expect(controller.getSnapshot().snapshot.currentIndex).toBe(0);
+    expect(controller.getSnapshot().currentIndex).toBe(0);
     controller.seek(1);
     controller.stop();
     controller.loadTokens([{ value: "replacement", ovpIndex: 0, delayMultiplier: 1 }]);
     controller.setWpm(600);
     controller.setMsPerItem(250);
 
-    expect(controller.getSnapshot().snapshot).toMatchObject({
+    expect(controller.getSnapshot()).toMatchObject({
       state: "IDLE",
       currentItem: { value: "replacement" },
       totalItems: 1,
@@ -144,19 +173,20 @@ describe("RSVP controller", () => {
 
     expect(() => controller.load("fatal")).toThrow(fatal);
     expect(controller.getSnapshot()).toMatchObject({
-      snapshot: { state: "ERROR" },
+      state: "ERROR",
       error: fatal,
     });
 
     controller.reset();
     expect(controller.getSnapshot()).toMatchObject({
-      snapshot: { state: "IDLE", totalItems: 0 },
-      error: fatal,
+      state: "IDLE",
+      totalItems: 0,
+      error: null,
     });
     controller.destroy();
   });
 
-  it("keeps errors until clearError and records event-based failures", () => {
+  it("keeps errors across speed changes until clearError", () => {
     const controller = createRsvpController<string>();
     const listener = vi.fn();
     controller.subscribe(listener);
@@ -175,6 +205,25 @@ describe("RSVP controller", () => {
     expect(listener).toHaveBeenCalledTimes(3);
     controller.destroy();
   });
+
+  it.each(["load", "loadTokens"] as const)(
+    "clears errors on successful %s with one notification",
+    (method) => {
+      const controller = createRsvpController<string>();
+      controller.play();
+      expect(controller.getSnapshot().error).toBeInstanceOf(InvalidInputError);
+      const listener = vi.fn();
+      controller.subscribe(listener);
+      if (method === "load") {
+        controller.load("replacement");
+      } else {
+        controller.loadTokens([{ value: "replacement", ovpIndex: 0, delayMultiplier: 1 }]);
+      }
+      expect(controller.getSnapshot().error).toBeNull();
+      expect(listener).toHaveBeenCalledOnce();
+      controller.destroy();
+    },
+  );
 
   it("records synchronous failures and rethrows the original value", () => {
     const controller = createRsvpController<string>();
@@ -233,15 +282,18 @@ describe("RSVP controller", () => {
 
       expect(() => controller.seek(index)).not.toThrow();
 
-      expect(controller.getSnapshot().snapshot).toEqual(before.snapshot);
+      expect(controller.getSnapshot()).toEqual({
+        ...before,
+        error: controller.getSnapshot().error,
+      });
       expect(controller.getSnapshot().error).toBeInstanceOf(IndexOutOfBoundsError);
       expect(listener).toHaveBeenCalledTimes(1);
       controller.clearError();
       controller.play();
       vi.advanceTimersByTime(59);
-      expect(controller.getSnapshot().snapshot.currentIndex).toBe(1);
+      expect(controller.getSnapshot().currentIndex).toBe(1);
       vi.advanceTimersByTime(1);
-      expect(controller.getSnapshot().snapshot.currentIndex).toBe(2);
+      expect(controller.getSnapshot().currentIndex).toBe(2);
       controller.destroy();
     },
   );

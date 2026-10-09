@@ -21,7 +21,7 @@ describe("React 18 compatibility", () => {
     const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();
 
     function Speed(): ReactNode {
-      const wpm = useRsvpSelector(({ snapshot }) => snapshot.wpm);
+      const wpm = useRsvpSelector((snapshot) => snapshot.wpm);
       return <span>{wpm}</span>;
     }
 
@@ -42,7 +42,7 @@ describe("React 18 compatibility", () => {
     const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();
 
     function Word(): ReactNode {
-      return <span>{useRsvpSelector(({ snapshot }) => snapshot.currentItem?.value)}</span>;
+      return <span>{useRsvpSelector((snapshot) => snapshot.currentItem?.value)}</span>;
     }
 
     expect(

@@ -11,7 +11,7 @@ const controller = createRsvpController({ data: initialText, wpm: 300 });
 const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<string>();
 
 function WordDisplay() {
-  const currentItem = useRsvpSelector(({ snapshot }) => snapshot.currentItem);
+  const currentItem = useRsvpSelector((snapshot) => snapshot.currentItem);
   const value = currentItem?.value ?? "Ready";
   const ovpIndex = currentItem?.ovpIndex ?? 2;
 
@@ -25,7 +25,7 @@ function WordDisplay() {
 }
 
 function Progress() {
-  const progress = useRsvpSelector(({ snapshot }) => snapshot.progress);
+  const progress = useRsvpSelector((snapshot) => snapshot.progress);
   const percentage = Math.round(progress * 100);
 
   return (
@@ -40,8 +40,8 @@ function Progress() {
 }
 
 function PlaybackControls() {
-  const state = useRsvpSelector(({ snapshot }) => snapshot.state);
-  const totalItems = useRsvpSelector(({ snapshot }) => snapshot.totalItems);
+  const state = useRsvpSelector((snapshot) => snapshot.state);
+  const totalItems = useRsvpSelector((snapshot) => snapshot.totalItems);
   const { pause, play, stop } = useRsvpActions();
 
   return (
@@ -61,8 +61,8 @@ function PlaybackControls() {
 
 function ReaderSettings() {
   const [source, setSource] = useState(initialText);
-  const state = useRsvpSelector(({ snapshot }) => snapshot.state);
-  const wpm = useRsvpSelector(({ snapshot }) => snapshot.wpm);
+  const state = useRsvpSelector((snapshot) => snapshot.state);
+  const wpm = useRsvpSelector((snapshot) => snapshot.wpm);
   const { load, pause, reset, setWpm } = useRsvpActions();
 
   function loadSource(event: React.SubmitEvent<HTMLFormElement>) {
@@ -111,7 +111,7 @@ function ReaderSettings() {
 }
 
 function Status() {
-  const state = useRsvpSelector(({ snapshot }) => snapshot.state);
+  const state = useRsvpSelector((snapshot) => snapshot.state);
   const error = useRsvpSelector(({ error }) => error);
 
   return (

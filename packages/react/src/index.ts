@@ -32,6 +32,7 @@ export {
 
 export type {
   OvpStrategy,
+  RsvpEventType,
   RsvpItem,
   RsvpEngineOptions,
   RsvpSnapshot,

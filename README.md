@@ -15,7 +15,7 @@ The packages handle playback, timing, and reading state while applications own r
 
 ### [`@rsvp-engine/core`](packages/core/README.md)
 
-A zero-dependency, headless playback engine with typed events and snapshots. It runs without a DOM in browsers, Node.js, Web Workers, and React Native, so playback logic can be reused independently of rendering.
+A zero-dependency, headless playback engine with a single subscription and cached snapshots. It runs without a DOM in browsers, Node.js, Web Workers, and React Native, so playback logic can be reused independently of rendering.
 
 ### [`@rsvp-engine/react`](packages/react/README.md)
 

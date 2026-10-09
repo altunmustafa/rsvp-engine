@@ -1,6 +1,6 @@
 # Core browser reader
 
-A small, framework-free browser example for `@rsvp-engine/core`. It shows how to load text, control playback, update speed, keep the optimal viewing position fixed at the center, and respond to engine events.
+A small, framework-free browser example for `@rsvp-engine/core`. It shows how to load text, control playback, update speed, keep the optimal viewing position fixed at the center, and observe engine state through one subscription.
 
 From the repository root:
 

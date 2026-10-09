@@ -20,7 +20,7 @@ const context = esm.createRsvpContext();
 for (const entry of [esm, cjs]) {
   const controller = entry.createRsvpController();
   controller.setWpm(225);
-  if (controller.getSnapshot().snapshot.wpm !== 225 || "setSpeed" in controller) {
+  if (controller.getSnapshot().wpm !== 225 || "setSpeed" in controller) {
     throw new Error("Published controller must preserve WPM through setWpm only.");
   }
   controller.destroy();

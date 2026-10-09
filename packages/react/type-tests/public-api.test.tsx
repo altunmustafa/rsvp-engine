@@ -1,4 +1,10 @@
-import type { RsvpActions, RsvpController } from "../src";
+import type {
+  RsvpActions,
+  RsvpController,
+  RsvpControllerSnapshot,
+  RsvpEventType,
+  RsvpSnapshot,
+} from "../src";
 import type { ReactNode } from "react";
 
 import { createRsvpContext, createRsvpController } from "../src";
@@ -6,6 +12,16 @@ import { createRsvpContext, createRsvpController } from "../src";
 const numberController = createRsvpController({ data: [1, 2, 3] });
 const stringController = createRsvpController({ data: "one two" });
 const typedController: RsvpController<number> = numberController;
+const coreStore: RsvpSnapshot<number> = typedController.getSnapshot();
+const controllerStore: RsvpControllerSnapshot<number> = coreStore;
+numberController.subscribe((snapshot, eventType) => {
+  const value: number | undefined = snapshot.currentItem?.value;
+  const error: Error | null = snapshot.error;
+  const event: RsvpEventType = eventType;
+  void [value, error, event];
+  // @ts-expect-error The subscriber receives readonly Core state.
+  snapshot.error = null;
+});
 const { RsvpProvider, useRsvpActions, useRsvpController, useRsvpSelector } =
   createRsvpContext<number>();
 
@@ -15,7 +31,7 @@ const invalidProvider = <RsvpProvider controller={stringController} />;
 
 function NumberConsumer(): ReactNode {
   const currentValue: number | undefined = useRsvpSelector(
-    ({ snapshot }) => snapshot.currentItem?.value,
+    (snapshot) => snapshot.currentItem?.value,
   );
   const actions: RsvpActions<number> = useRsvpActions();
   const controller: RsvpController<number> = useRsvpController();
@@ -26,4 +42,4 @@ function NumberConsumer(): ReactNode {
   return currentValue ?? null;
 }
 
-void [typedController, validProvider, invalidProvider, NumberConsumer];
+void [typedController, controllerStore, validProvider, invalidProvider, NumberConsumer];

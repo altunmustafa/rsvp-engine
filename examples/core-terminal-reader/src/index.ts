@@ -25,18 +25,24 @@ function highlightOvp(value: string, ovpIndex: number): string {
   return `${padding}${before}\u001b[90m${ovp}\u001b[39m${after}`;
 }
 
-engine.on("itemChange", ({ item }) => {
-  process.stdout.write(`\r\u001b[2K${highlightOvp(item.value, item.ovpIndex)}`);
-});
-
-engine.on("complete", ({ totalItems }) => {
-  process.stdout.write(`\nComplete: ${totalItems} words\n`);
-  engine.destroy();
-});
-
-engine.on("error", ({ error }) => {
-  process.stderr.write(`\nError: ${error.message}\n`);
-  process.exitCode = 1;
+engine.subscribe((snapshot, eventType) => {
+  const { error } = snapshot;
+  if (eventType === "errorOccurred" && error) {
+    process.stderr.write(`\nError: ${error.message}\n`);
+    process.exitCode = 1;
+  }
+  if (
+    (eventType === "started" || eventType === "advanced" || eventType === "navigated") &&
+    snapshot.currentItem &&
+    snapshot.state === "PLAYING"
+  ) {
+    const item = snapshot.currentItem;
+    process.stdout.write(`\r\u001b[2K${highlightOvp(item.value, item.ovpIndex)}`);
+  }
+  if (eventType === "completed") {
+    process.stdout.write(`\nComplete: ${snapshot.totalItems} words\n`);
+    engine.destroy();
+  }
 });
 
 process.once("SIGINT", () => {

@@ -24,7 +24,7 @@ describe("context-bound React bindings", () => {
       <RsvpProvider controller={controller}>{children}</RsvpProvider>
     );
     const { result } = renderHook(
-      () => ({ actions: useRsvpActions(), wpm: useRsvpSelector(({ snapshot }) => snapshot.wpm) }),
+      () => ({ actions: useRsvpActions(), wpm: useRsvpSelector((snapshot) => snapshot.wpm) }),
       { wrapper: Wrapper },
     );
     const actions = result.current.actions;
@@ -45,7 +45,7 @@ describe("context-bound React bindings", () => {
 
     function Speed(): ReactNode {
       renders++;
-      const wpm = useRsvpSelector(({ snapshot }) => snapshot.wpm);
+      const wpm = useRsvpSelector((snapshot) => snapshot.wpm);
       return <span>{wpm}</span>;
     }
 
@@ -74,7 +74,7 @@ describe("context-bound React bindings", () => {
     const { result } = renderHook(
       () =>
         useRsvpSelector(
-          ({ snapshot }) => ({ wpm: snapshot.wpm }),
+          (snapshot) => ({ wpm: snapshot.wpm }),
           (left, right) => left.wpm === right.wpm,
         ),
       { wrapper: Wrapper },
@@ -130,7 +130,7 @@ describe("context-bound React bindings", () => {
     const second = createRsvpController({ wpm: 600 });
     const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();
     function Speed(): ReactNode {
-      return <span>{useRsvpSelector(({ snapshot }) => snapshot.wpm)}</span>;
+      return <span>{useRsvpSelector((snapshot) => snapshot.wpm)}</span>;
     }
     const rendered = render(
       <RsvpProvider controller={first}>
@@ -173,7 +173,7 @@ describe("context-bound React bindings", () => {
       </StrictMode>
     );
 
-    const { unmount } = renderHook(() => useRsvpSelector(({ snapshot }) => snapshot.state), {
+    const { unmount } = renderHook(() => useRsvpSelector((snapshot) => snapshot.state), {
       wrapper: Wrapper,
     });
     unmount();
@@ -191,7 +191,7 @@ describe("context-bound React bindings", () => {
     const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
       <RsvpProvider controller={controller}>{children}</RsvpProvider>
     );
-    const { unmount } = renderHook(() => useRsvpSelector(({ snapshot }) => snapshot.currentIndex), {
+    const { unmount } = renderHook(() => useRsvpSelector((snapshot) => snapshot.currentIndex), {
       wrapper: Wrapper,
     });
 
@@ -201,7 +201,7 @@ describe("context-bound React bindings", () => {
       vi.advanceTimersByTime(100);
     });
 
-    expect(controller.getSnapshot().snapshot).toMatchObject({
+    expect(controller.getSnapshot()).toMatchObject({
       state: "PLAYING",
       currentIndex: 1,
     });
@@ -218,7 +218,7 @@ describe("context-bound React bindings", () => {
     const { result, unmount } = renderHook(() => useRsvpActions(), { wrapper: Wrapper });
 
     act(() => result.current.load([3, 4, 5]));
-    expect(controller.getSnapshot().snapshot.totalItems).toBe(3);
+    expect(controller.getSnapshot().totalItems).toBe(3);
 
     unmount();
     expect(destroy).not.toHaveBeenCalled();
@@ -239,7 +239,7 @@ describe("context-bound React bindings", () => {
     const controller = createRsvpController({ data: "one two", wpm: 300 });
     const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();
     const View = (): ReactNode => {
-      const wpm = useRsvpSelector(({ snapshot }) => snapshot.wpm);
+      const wpm = useRsvpSelector((snapshot) => snapshot.wpm);
       return <span>{wpm}</span>;
     };
     controller.setWpm(600);

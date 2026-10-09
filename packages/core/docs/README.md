@@ -2,7 +2,7 @@
 
 | Document | Purpose |
 | --- | --- |
-| [API Reference](./API-REFERENCE.md) | Public methods, options, events, and types. |
+| [API Reference](./API-REFERENCE.md) | Public methods, options, subscriptions, and types. |
 | [Architecture](./architecture/README.md) | Component boundaries, constraints, and decisions. |
 | [Architecture Decision Records](./architecture/adr/README.md) | Durable architectural decisions and their consequences. |
 | [State Machine](./STATE-MACHINE.md) | Lifecycle transitions and error policy. |
