@@ -277,6 +277,7 @@ export class RsvpEngine<T = string> {
 
   /**
    * Stops playback and resets the index to 0.
+   * Only available from PLAYING or PAUSED; loaded data is retained.
    */
   public stop(): void {
     this.#assertNotDestroyed();

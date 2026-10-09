@@ -92,7 +92,7 @@ Available on the controller and through `useRsvpActions()`; all return `void`.
 | --- | --- |
 | `play()` | Starts or resumes; a fresh session presents its first item immediately. |
 | `pause()` | Preserves the item and remaining display time. |
-| `stop()` | Stops and returns selection to index `0`, retaining data. |
+| `stop()` | Valid only from `PLAYING` or `PAUSED`; resets index and progress to `0`, retaining data. |
 | `seek(index: number)` | Requires an in-bounds finite integer; enters `PAUSED` from `PAUSED`, `STOPPED`, or `COMPLETED`. |
 | `next()` / `previous()` | Moves one item while `PAUSED`; does nothing at the boundary. |
 | `reset()` | Clears data and recovers `ERROR` to `IDLE`. Only valid from `ERROR`. |

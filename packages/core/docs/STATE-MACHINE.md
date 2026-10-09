@@ -35,6 +35,10 @@ stateDiagram-v2
 | `COMPLETED` | Final item finished its display duration.                   | `length - 1`, progress `1`.       |
 | `ERROR`     | Unexpected runtime failure made playback unsafe.            | Preserved until reset.            |
 
+## Stop behavior
+
+`stop()` is valid only from `PLAYING` or `PAUSED`: it enters `STOPPED`, cancels the pending task, retains loaded tokens, and resets index and progress to zero. Calls from any other state, including repeated calls or calls after completion, emit `InvalidTransitionError` without changing state, position, or progress.
+
 ## Error policy
 
 The low-level `StateMachine.transition()` throws `InvalidTransitionError` for an illegal action. `RsvpEngine` catches invalid user controls, emits an `error` event, and preserves its state. Empty data, invalid seek indices, duplicate play, or pause in IDLE are non-fatal.

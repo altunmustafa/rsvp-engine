@@ -21,15 +21,15 @@ Constructor tokenization failures are thrown so they cannot be lost before event
 
 ### Playback methods
 
-| Method                  | Effect                                                                        |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| `play()`                | Starts or resumes playback. A fresh session emits its first item immediately. |
-| `pause()`               | Cancels the timer and preserves the current item and remaining display time.  |
-| `stop()`                | Cancels playback and resets selection to index `0`.                           |
-| `seek(index)`           | Selects an item and enters `PAUSED`; valid from paused or terminal states.    |
-| `next()` / `previous()` | Navigates while paused.                                                       |
-| `reset()`               | Recovers a fatal `ERROR` state to empty `IDLE`.                               |
-| `destroy()`             | Idempotently cancels timers and removes listeners.                            |
+| Method                  | Effect                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `play()`                | Starts or resumes playback. A fresh session emits its first item immediately.   |
+| `pause()`               | Cancels the timer and preserves the current item and remaining display time.    |
+| `stop()`                | Stops only in `PLAYING` or `PAUSED`; resets index and progress, retaining data. |
+| `seek(index)`           | Selects an item and enters `PAUSED`; valid from paused or terminal states.      |
+| `next()` / `previous()` | Navigates while paused.                                                         |
+| `reset()`               | Recovers a fatal `ERROR` state to empty `IDLE`.                                 |
+| `destroy()`             | Idempotently cancels timers and removes listeners.                              |
 
 Invalid control commands emit `error` and preserve the current state. They do not turn a usable session into a terminal error.
 
