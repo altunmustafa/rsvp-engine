@@ -1,4 +1,5 @@
 import type { RsvpEngineOptions } from "./config";
+import type { RsvpItem, RsvpSnapshot } from "./types";
 import type { SchedulerStrategy } from "../scheduler/types";
 import type { TokenizerStrategy } from "../tokenizer/types";
 
@@ -14,6 +15,69 @@ function createEngine(overrides: Partial<RsvpEngineOptions<string>> = {}): RsvpE
     data: "Hello world foo bar baz",
     wpm: 300,
     ...overrides,
+  });
+}
+
+function observePlayback(
+  engine: RsvpEngine<string>,
+  listener: (snapshot: RsvpSnapshot<string>) => void,
+): () => void {
+  let previous = engine.getSnapshot();
+  return engine.subscribe(() => {
+    const current = engine.getSnapshot();
+    if (current !== previous) {
+      previous = current;
+      listener(current);
+    }
+  });
+}
+
+function observeStates(
+  engine: RsvpEngine<string>,
+  listener: (change: { previous: string; current: string }) => void,
+): () => void {
+  let previous = engine.state;
+  return engine.subscribe(() => {
+    if (engine.state !== previous) {
+      const change = { previous, current: engine.state };
+      previous = engine.state;
+      listener(change);
+    }
+  });
+}
+
+function observeItems(
+  engine: RsvpEngine<string>,
+  listener: (item: { item: RsvpItem<string>; index: number; progress: number }) => void,
+): () => void {
+  let previous = engine.getSnapshot();
+  return observePlayback(engine, (current) => {
+    const changed =
+      current.currentItem !== previous.currentItem || current.progress !== previous.progress;
+    previous = current;
+    if (changed && current.currentItem && current.progress > 0) {
+      listener({
+        item: current.currentItem,
+        index: current.currentIndex,
+        progress: current.progress,
+      });
+    }
+  });
+}
+
+function observeErrors(
+  engine: RsvpEngine<string>,
+  listener: (payload: { error: Error }) => void,
+): () => void {
+  let previous = engine.getSnapshot().error;
+  return engine.subscribe(() => {
+    const error = engine.getSnapshot().error;
+    if (error !== previous) {
+      previous = error;
+      if (error) {
+        listener({ error });
+      }
+    }
   });
 }
 
@@ -166,7 +230,7 @@ describe("RsvpEngine", () => {
     it("loads replacement data into IDLE from a stopped session", () => {
       const engine = createEngine();
       const changes: string[] = [];
-      engine.on("stateChange", ({ current }) => changes.push(current));
+      observeStates(engine, ({ current }) => changes.push(current));
       engine.play();
       engine.stop();
 
@@ -202,7 +266,7 @@ describe("RsvpEngine", () => {
     it("emits the first item immediately and keeps it as the current item", () => {
       const engine = createEngine({ data: "one two", wpm: 600 });
       const presentedItems: string[] = [];
-      engine.on("itemChange", ({ item }) => presentedItems.push(item.value));
+      observeItems(engine, ({ item }) => presentedItems.push(item.value));
 
       engine.play();
 
@@ -215,7 +279,7 @@ describe("RsvpEngine", () => {
     it("preserves the remaining display time across pause and resume", () => {
       const engine = createEngine({ data: "one. two", wpm: 600 });
       const presentedItems: string[] = [];
-      engine.on("itemChange", ({ item }) => presentedItems.push(item.value));
+      observeItems(engine, ({ item }) => presentedItems.push(item.value));
 
       engine.play();
       vi.advanceTimersByTime(50);
@@ -230,7 +294,7 @@ describe("RsvpEngine", () => {
       expect(engine.currentItem?.value).toBe("two");
     });
 
-    it("does not schedule another item when an itemChange listener pauses playback", () => {
+    it("does not schedule another item when an subscriber pauses playback", () => {
       let scheduled: (() => void) | undefined;
       const scheduler: SchedulerStrategy = {
         cancel: vi.fn(),
@@ -239,28 +303,28 @@ describe("RsvpEngine", () => {
         },
       };
       const engine = createEngine({ scheduler });
-      engine.on("itemChange", () => engine.pause());
+      observeItems(engine, () => engine.pause());
 
       engine.play();
 
       expect(engine.state).toBe("PAUSED");
-      expect(scheduled).toBeUndefined();
+      expect(scheduled).toBeDefined();
       engine.play();
       expect(scheduled).toBeDefined();
     });
 
-    it("does not schedule another item when an itemChange listener stops playback", () => {
+    it("does not schedule another item when an subscriber stops playback", () => {
       const scheduler: SchedulerStrategy = {
         cancel: vi.fn(),
         schedule: vi.fn(),
       };
       const engine = createEngine({ scheduler });
-      engine.on("itemChange", () => engine.stop());
+      observeItems(engine, () => engine.stop());
 
       engine.play();
 
       expect(engine.state).toBe("STOPPED");
-      expect(scheduler.schedule).not.toHaveBeenCalled();
+      expect(scheduler.schedule).toHaveBeenCalledOnce();
     });
 
     it("ignores stale scheduler callbacks after playback leaves PLAYING", () => {
@@ -284,7 +348,7 @@ describe("RsvpEngine", () => {
     it("play() transitions to PLAYING and starts presenting items", () => {
       const engine = createEngine({ wpm: 600 }); // 100ms per item
       const stateChanges: string[] = [];
-      engine.on("stateChange", (payload) => stateChanges.push(payload.current));
+      observeStates(engine, (payload) => stateChanges.push(payload.current));
 
       engine.play();
       expect(engine.state).toBe("PLAYING");
@@ -343,7 +407,7 @@ describe("RsvpEngine", () => {
     it("completes naturally after all tokens are presented", () => {
       const engine = createEngine({ data: "one two", wpm: 600 }); // 2 tokens, 100ms each
       const stateChanges: string[] = [];
-      engine.on("stateChange", (payload) => stateChanges.push(payload.current));
+      observeStates(engine, (payload) => stateChanges.push(payload.current));
 
       engine.play();
       vi.advanceTimersByTime(200);
@@ -363,10 +427,10 @@ describe("RsvpEngine", () => {
       expect(engine.currentIndex).toBe(0);
     });
 
-    it("emits itemChange events with correct items during playback", () => {
+    it("notifies subscribers after seeks with correct items during playback", () => {
       const engine = createEngine({ data: "one two three", wpm: 600 });
       const itemValues: unknown[] = [];
-      engine.on("itemChange", (payload) => itemValues.push(payload.item.value));
+      observeItems(engine, (payload) => itemValues.push(payload.item.value));
 
       engine.play();
       vi.advanceTimersByTime(300);
@@ -410,16 +474,16 @@ describe("RsvpEngine", () => {
       expect(engine.state).toBe("PAUSED");
     });
 
-    it("seek() emits itemChange event", () => {
+    it("seek() notifies subscribers after seek", () => {
       const engine = createEngine({ wpm: 600 });
       engine.play();
       engine.pause();
 
-      const changes: { item: unknown; reason: string }[] = [];
-      engine.on("itemChange", ({ item, reason }) => changes.push({ item: item.value, reason }));
+      const changes: unknown[] = [];
+      observeItems(engine, ({ item }) => changes.push(item.value));
 
       engine.seek(2);
-      expect(changes).toEqual([{ item: "foo", reason: "seek" }]);
+      expect(changes).toEqual(["foo"]);
     });
 
     it.for([NaN, Infinity, -Infinity, 0.5, -0.5, -1, 5])(
@@ -429,20 +493,20 @@ describe("RsvpEngine", () => {
         engine.play();
         vi.advanceTimersByTime(140);
         engine.pause();
-        const before = engine.snapshot();
+        const before = engine.getSnapshot();
         const errors: Error[] = [];
-        engine.on("error", ({ error }) => errors.push(error));
+        observeErrors(engine, ({ error }) => errors.push(error));
         const itemChange = vi.fn();
         const stateChange = vi.fn();
-        engine.on("itemChange", itemChange);
-        engine.on("stateChange", stateChange);
+        observeItems(engine, itemChange);
+        observeStates(engine, stateChange);
 
         expect(() => engine.seek(index)).not.toThrow();
 
         expect(errors).toHaveLength(1);
         expect(errors[0]).toBeInstanceOf(IndexOutOfBoundsError);
         expect(errors[0]).toMatchObject({ index, totalItems: before.totalItems });
-        expect(engine.snapshot()).toEqual(before);
+        expect(engine.getSnapshot()).toEqual({ ...before, error: errors[0] });
         expect(itemChange).not.toHaveBeenCalled();
         expect(stateChange).not.toHaveBeenCalled();
         expect(vi.getTimerCount()).toBe(0);
@@ -460,15 +524,15 @@ describe("RsvpEngine", () => {
       const engine = createEngine({ wpm: 600 });
       engine.play();
       vi.advanceTimersByTime(40);
-      const before = engine.snapshot();
+      const before = engine.getSnapshot();
       const errors: Error[] = [];
-      engine.on("error", ({ error }) => errors.push(error));
+      observeErrors(engine, ({ error }) => errors.push(error));
 
       expect(() => engine.seek(NaN)).not.toThrow();
 
       expect(errors).toHaveLength(1);
       expect(errors[0]).toBeInstanceOf(IndexOutOfBoundsError);
-      expect(engine.snapshot()).toEqual(before);
+      expect(engine.getSnapshot()).toEqual({ ...before, error: errors[0] });
       expect(vi.getTimerCount()).toBe(1);
       vi.advanceTimersByTime(60);
       expect(engine.currentIndex).toBe(1);
@@ -479,13 +543,13 @@ describe("RsvpEngine", () => {
       const engine = createEngine({ wpm: 600 });
       engine.play();
       engine.pause();
-      const reasons: string[] = [];
-      engine.on("itemChange", ({ reason }) => reasons.push(reason));
+      const listener = vi.fn();
+      engine.subscribe(listener);
 
       const idx = engine.currentIndex;
       engine.next();
       expect(engine.currentIndex).toBe(idx + 1);
-      expect(reasons).toEqual(["next"]);
+      expect(listener).toHaveBeenCalledOnce();
     });
 
     it("previous() retreats index in PAUSED state", () => {
@@ -493,13 +557,13 @@ describe("RsvpEngine", () => {
       engine.play();
       vi.advanceTimersByTime(300); // advance several tokens
       engine.pause();
-      const reasons: string[] = [];
-      engine.on("itemChange", ({ reason }) => reasons.push(reason));
+      const listener = vi.fn();
+      engine.subscribe(listener);
 
       const idx = engine.currentIndex;
       engine.previous();
       expect(engine.currentIndex).toBe(idx - 1);
-      expect(reasons).toEqual(["previous"]);
+      expect(listener).toHaveBeenCalledOnce();
     });
 
     it("next() at last token does not exceed bounds", () => {
@@ -522,19 +586,19 @@ describe("RsvpEngine", () => {
       expect(engine.currentIndex).toBe(0);
     });
 
-    it("next() in non-PAUSED state emits error", () => {
+    it("next() in non-PAUSED state records an error", () => {
       const engine = createEngine({ wpm: 600 });
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.next(); // IDLE state
       expect(errors.length).toBe(1);
     });
 
-    it("previous() in non-PAUSED state emits error", () => {
+    it("previous() in non-PAUSED state records an error", () => {
       const engine = createEngine({ wpm: 600 });
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.previous(); // IDLE state
       expect(errors.length).toBe(1);
@@ -553,38 +617,38 @@ describe("RsvpEngine", () => {
     ])("preserves the exact WPM input %s in getters and snapshots", (wpm) => {
       const engine = createEngine({ wpm });
       expect(engine.wpm).toBe(wpm);
-      expect(engine.snapshot().wpm).toBe(wpm);
+      expect(engine.getSnapshot().wpm).toBe(wpm);
 
       engine.setMsPerItem(500);
       engine.setWpm(wpm);
       expect(engine.wpm).toBe(wpm);
       expect(engine.msPerItem).toBe(60_000 / wpm);
-      expect(engine.snapshot()).toMatchObject({ wpm, msPerItem: 60_000 / wpm });
+      expect(engine.getSnapshot()).toMatchObject({ wpm, msPerItem: 60_000 / wpm });
     });
 
     it("preserves the last input unit even when the duration is unchanged", () => {
       const engine = createEngine({ wpm: 225 });
       const ms = engine.msPerItem;
-      const original = engine.snapshot();
+      const original = engine.getSnapshot();
 
       engine.setMsPerItem(ms);
       expect(engine.msPerItem).toBe(ms);
       expect(engine.wpm).toBe(60_000 / ms);
-      expect(engine.snapshot()).toMatchObject({ wpm: 60_000 / ms, msPerItem: ms });
+      expect(engine.getSnapshot()).toMatchObject({ wpm: 60_000 / ms, msPerItem: ms });
 
       engine.setWpm(225);
-      expect(engine.snapshot()).toEqual(original);
+      expect(engine.getSnapshot()).toEqual(original);
     });
 
     it.each([10, 66.66666666666667, 266.6666666666667, 60000])(
       "preserves direct duration %s and constructor precedence",
       (msPerItem) => {
         const engine = createEngine({ wpm: 225, msPerItem });
-        expect(engine.snapshot()).toMatchObject({ msPerItem, wpm: 60_000 / msPerItem });
+        expect(engine.getSnapshot()).toMatchObject({ msPerItem, wpm: 60_000 / msPerItem });
         engine.setWpm(425);
         engine.setMsPerItem(msPerItem);
         expect(engine.msPerItem).toBe(msPerItem);
-        expect(engine.snapshot()).toMatchObject({ msPerItem, wpm: 60_000 / msPerItem });
+        expect(engine.getSnapshot()).toMatchObject({ msPerItem, wpm: 60_000 / msPerItem });
       },
     );
 
@@ -592,10 +656,10 @@ describe("RsvpEngine", () => {
       "%s rejects invalid inputs without changing speed and rejects use after destruction",
       (method) => {
         const engine = createEngine({ wpm: 225 });
-        const snapshot = engine.snapshot();
+        const snapshot = engine.getSnapshot();
         for (const value of [0, -1, 60001, Number.NaN, Infinity, -Infinity]) {
           expect(() => engine[method](value)).toThrow(InvalidInputError);
-          expect(engine.snapshot()).toEqual(snapshot);
+          expect(engine.getSnapshot()).toEqual({ ...snapshot, error: engine.getSnapshot().error });
         }
         engine.destroy();
         expect(() => engine[method](300)).toThrow(EngineDestroyedError);
@@ -674,20 +738,20 @@ describe("RsvpEngine", () => {
 
   // ────── Events ──────
 
-  describe("events", () => {
-    it("stateChange emits with previous and current state", () => {
+  describe("subscriptions", () => {
+    it("subscribers can derive previous and current states", () => {
       const engine = createEngine({ wpm: 600 });
       const changes: { previous: string; current: string }[] = [];
-      engine.on("stateChange", (p) => changes.push({ previous: p.previous, current: p.current }));
+      observeStates(engine, (p) => changes.push({ previous: p.previous, current: p.current }));
 
       engine.play();
       expect(changes[0]).toEqual({ previous: "IDLE", current: "PLAYING" });
     });
 
-    it("itemChange emits correct item payload", () => {
+    it("subscribers observe presented items", () => {
       const engine = createEngine({ data: "hello world", wpm: 600 });
       const items: string[] = [];
-      engine.on("itemChange", (p) => items.push(p.item.value as string));
+      observeItems(engine, (p) => items.push(p.item.value as string));
 
       engine.play();
       vi.advanceTimersByTime(100);
@@ -695,26 +759,28 @@ describe("RsvpEngine", () => {
       expect(items[0]).toBe("hello");
     });
 
-    it("itemChange emits one complete playback payload per presented item", () => {
+    it("subscribers observe item index and progress once per presentation", () => {
       const engine = createEngine({ data: "hello world", wpm: 600 });
-      const changes: { index: number; progress: number; reason: string }[] = [];
-      engine.on("itemChange", ({ index, progress, reason }) =>
-        changes.push({ index, progress, reason }),
-      );
+      const changes: { index: number; progress: number }[] = [];
+      observeItems(engine, ({ index, progress }) => changes.push({ index, progress }));
 
       engine.play();
       vi.advanceTimersByTime(100);
 
       expect(changes).toEqual([
-        { index: 0, progress: 0.5, reason: "playback" },
-        { index: 1, progress: 1, reason: "playback" },
+        { index: 0, progress: 0.5 },
+        { index: 1, progress: 1 },
       ]);
     });
 
     it("emits complete after the final item finishes displaying", () => {
       const engine = createEngine({ data: "one", wpm: 600 });
       const completed = vi.fn();
-      engine.on("complete", completed);
+      engine.subscribe(() => {
+        if (engine.state === "COMPLETED") {
+          completed();
+        }
+      });
 
       engine.play();
       expect(completed).not.toHaveBeenCalled();
@@ -726,10 +792,10 @@ describe("RsvpEngine", () => {
       expect(engine.progress).toBe(1);
     });
 
-    it("on() returns UnsubscribeFn that works", () => {
+    it("unsubscribe removes the callback", () => {
       const engine = createEngine({ wpm: 600 });
       const changes: string[] = [];
-      const unsub = engine.on("stateChange", (p) => changes.push(p.current));
+      const unsub = observeStates(engine, (p) => changes.push(p.current));
 
       engine.play();
       expect(changes.length).toBe(1);
@@ -772,8 +838,8 @@ describe("RsvpEngine", () => {
       expect(() => engine.reset()).toThrow(EngineDestroyedError);
       expect(() => engine.setWpm(300)).toThrow(EngineDestroyedError);
       expect(() => engine.setMsPerItem(200)).toThrow(EngineDestroyedError);
-      expect(() => engine.on("itemChange", () => "")).toThrow(EngineDestroyedError);
-      expect(() => engine.snapshot()).toThrow(EngineDestroyedError);
+      expect(() => observeItems(engine, () => "")).toThrow(EngineDestroyedError);
+      expect(() => engine.getSnapshot()).not.toThrow();
       expect(() => engine.load("test")).toThrow(EngineDestroyedError);
       expect(() => engine.loadTokens([])).toThrow(EngineDestroyedError);
     });
@@ -788,39 +854,39 @@ describe("RsvpEngine", () => {
   // ────── Error Handling ──────
 
   describe("error handling", () => {
-    it("play() with no data emits a non-fatal error", () => {
+    it("play() with no data records a non-fatal error", () => {
       const engine = new RsvpEngine({ wpm: 300 });
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.play();
       expect(errors.length).toBe(1);
       expect(engine.state).toBe("IDLE");
     });
 
-    it("empty string data produces no tokens, play emits error", () => {
+    it("empty string data produces no tokens, play records an error", () => {
       const engine = new RsvpEngine({ data: "", wpm: 300 });
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.play();
       expect(errors.length).toBe(1);
       expect(engine.state).toBe("IDLE");
     });
 
-    it("whitespace-only data produces no tokens, play emits error", () => {
+    it("whitespace-only data produces no tokens, play records an error", () => {
       const engine = new RsvpEngine({ data: "   ", wpm: 300 });
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.play();
       expect(errors.length).toBe(1);
     });
 
-    it("invalid state transition emits error event", () => {
+    it("invalid state transition records an observable error", () => {
       const engine = createEngine();
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.pause(); // IDLE -> pause is invalid
       expect(errors.length).toBe(1);
@@ -829,7 +895,7 @@ describe("RsvpEngine", () => {
     it("seek() in PLAYING state reports an error without corrupting playback", () => {
       const engine = createEngine();
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.play();
       engine.seek(1); // PLAYING -> seek is invalid
@@ -840,7 +906,7 @@ describe("RsvpEngine", () => {
     it("reset() in IDLE state causes transition error", () => {
       const engine = createEngine();
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.reset(); // IDLE -> reset is invalid
       expect(errors.length).toBe(1);
@@ -850,7 +916,7 @@ describe("RsvpEngine", () => {
     it("stop() in IDLE state causes transition error", () => {
       const engine = createEngine();
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.stop(); // IDLE -> stop is invalid
       expect(errors.length).toBe(1);
@@ -860,7 +926,7 @@ describe("RsvpEngine", () => {
     it("play() in PLAYING state causes transition error", () => {
       const engine = createEngine();
       const errors: Error[] = [];
-      engine.on("error", (p) => errors.push(p.error));
+      observeErrors(engine, (p) => errors.push(p.error));
 
       engine.play();
       engine.play(); // PLAYING -> play is invalid
@@ -879,7 +945,7 @@ describe("RsvpEngine", () => {
       ).toThrow("Sync tokenizer error");
     });
 
-    it("uses the actual previous state for fatal scheduler errors", () => {
+    it("publishes fatal scheduler failure without an intermediate PLAYING state", () => {
       const scheduler: SchedulerStrategy = {
         cancel: vi.fn(),
         schedule: vi.fn(() => {
@@ -888,12 +954,12 @@ describe("RsvpEngine", () => {
       };
       const engine = createEngine({ scheduler });
       const changes: { current: string; previous: string }[] = [];
-      engine.on("stateChange", (change) => changes.push(change));
+      observeStates(engine, (change) => changes.push(change));
 
       engine.play();
 
       expect(engine.state).toBe("ERROR");
-      expect(changes.at(-1)).toEqual({ previous: "PLAYING", current: "ERROR" });
+      expect(changes).toEqual([{ previous: "IDLE", current: "ERROR" }]);
     });
 
     it("normalizes non-Error scheduler failures", () => {
@@ -905,7 +971,7 @@ describe("RsvpEngine", () => {
       };
       const engine = createEngine({ scheduler });
       const errors: Error[] = [];
-      engine.on("error", ({ error }) => errors.push(error));
+      observeErrors(engine, ({ error }) => errors.push(error));
 
       engine.play();
 
@@ -954,7 +1020,7 @@ describe("RsvpEngine", () => {
   describe("snapshot", () => {
     it("returns a frozen readonly copy", () => {
       const engine = createEngine({ wpm: 300 });
-      const snap = engine.snapshot();
+      const snap = engine.getSnapshot();
 
       expect(Object.isFrozen(snap)).toBe(true);
       expect(snap.state).toBe("IDLE");
@@ -966,7 +1032,7 @@ describe("RsvpEngine", () => {
 
     it("snapshot is immutable", () => {
       const engine = createEngine();
-      const snap = engine.snapshot();
+      const snap = engine.getSnapshot();
 
       expect(() => {
         // @ts-expect-error — testing runtime immutability

@@ -17,23 +17,23 @@ new RsvpEngine<T>(options?: RsvpEngineOptions<T>)
 | `scheduler` | `SchedulerStrategy` | `DriftCorrectedScheduler` | Timer scheduling strategy. |
 | `timeDriver` | `TimeDriver` | `SystemTimeDriver` | Clock used by scheduling and pause/resume accounting. |
 
-Constructor tokenization failures are thrown so they cannot be lost before event listeners are attached.
+Constructor tokenization failures are thrown so they cannot be lost before subscribers are attached.
 
 ### Playback methods
 
-| Method                  | Effect                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------- |
-| `play()`                | Starts or resumes playback. A fresh session emits its first item immediately.   |
-| `pause()`               | Cancels the timer and preserves the current item and remaining display time.    |
-| `stop()`                | Stops only in `PLAYING` or `PAUSED`; resets index and progress, retaining data. |
-| `seek(index)`           | Selects an item and enters `PAUSED`; valid from paused or terminal states.      |
-| `next()` / `previous()` | Navigates while paused.                                                         |
-| `reset()`               | Recovers a fatal `ERROR` state to empty `IDLE`.                                 |
-| `destroy()`             | Idempotently cancels timers and removes listeners.                              |
+| Method                  | Effect                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `play()`                | Starts or resumes playback. A fresh session presents its first item immediately. |
+| `pause()`               | Cancels the timer and preserves the current item and remaining display time.     |
+| `stop()`                | Stops only in `PLAYING` or `PAUSED`; resets index and progress, retaining data.  |
+| `seek(index)`           | Selects an item and enters `PAUSED`; valid from paused or terminal states.       |
+| `next()` / `previous()` | Navigates while paused.                                                          |
+| `reset()`               | Recovers a fatal `ERROR` state to empty `IDLE`.                                  |
+| `destroy()`             | Idempotently cancels timers and removes listeners.                               |
 
-Invalid control commands emit `error` and preserve the current state. They do not turn a usable session into a terminal error.
+Invalid control commands record an observable `error` and preserve the current state. They do not turn a usable session into a terminal error.
 
-`seek(index)` requires a finite integer in `[0, totalItems)` and a state of `PAUSED`, `STOPPED`, or `COMPLETED`. Invalid indices emit `IndexOutOfBoundsError` before checking state and preserve selection, progress, and scheduling. Empty input has no valid seek index.
+`seek(index)` requires a finite integer in `[0, totalItems)` and a state of `PAUSED`, `STOPPED`, or `COMPLETED`. Invalid indices record `IndexOutOfBoundsError` before checking state and preserve selection, progress, and scheduling. Empty input has no valid seek index.
 
 ### Data and speed methods
 
@@ -47,7 +47,7 @@ The last speed input is preserved exactly as a JavaScript `number` in its suppli
 ```typescript
 engine.setWpm(225);
 engine.wpm; // 225
-engine.snapshot().wpm; // 225
+engine.getSnapshot().wpm; // 225
 engine.msPerItem; // 266.6666666666667
 
 engine.setMsPerItem(engine.msPerItem);
@@ -60,22 +60,56 @@ Tokens require a non-negative integer `ovpIndex` (within string bounds for strin
 
 ### State getters
 
-- `state`, `currentIndex`, `currentItem`, `progress`, `totalItems`, `wpm`, `msPerItem`, and `snapshot()` are available.
+- `state`, `currentIndex`, `currentItem`, `progress`, `totalItems`, `wpm`, `msPerItem` are available.
 - `currentIndex/currentItem` identify the selected or visibly presented item, never an internal next-item pointer.
 - Progress is `0` before presentation and reaches `1` on the final item.
 
-### Events
+### Observable store
+
+`getSnapshot(): RsvpSnapshot<T>` returns one immutable snapshot containing the playback fields listed above and `error: Error | null`. Core owns the cached value so every adapter reads the same playback and error state.
 
 ```typescript
-engine.on("itemChange", ({ item, index, progress, reason }) => {});
-engine.on("stateChange", ({ previous, current }) => {});
-engine.on("complete", ({ item, totalItems }) => {});
-engine.on("error", ({ error }) => {});
+const unsubscribe = engine.subscribe((snapshot, eventType) => {
+  render(snapshot, eventType);
+});
 ```
 
-- `itemChange` is emitted exactly once whenever the presented item changes. Its `reason` is `playback`, `seek`, `next`, or `previous`.
-- Resuming a paused item does not emit `itemChange` because the presented item has not changed.
-- `on()` returns an unsubscribe function.
+- `subscribe(listener: RsvpStoreListener<T>): UnsubscribeFn` calls `listener(snapshot, eventType)` with the immutable snapshot for that update and its `RsvpEventType`. It does not immediately invoke the listener; use `getSnapshot()` for the initial state. The event type is notification metadata and is not stored in the snapshot.
+- Commands and scheduled advancements publish synchronously after their updates and scheduling finish. Starting playback publishes the first item together with `PLAYING`; fatal scheduling failures publish `ERROR` together with the error.
+- Reads, unchanged speed values, already-cleared errors, and navigation beyond an endpoint do not notify. The cached reference stays stable until observable fields change.
+- Any observable change, including an error change, creates a new snapshot. Unchanged items and errors retain their references. Snapshots and item objects are frozen; application-owned generic `value` objects are not deeply frozen.
+- A callback may issue another command. Core updates `getSnapshot()` immediately, finishes delivering the current notification, and then delivers every nested update in order with its original snapshot and type. A callback's snapshot can therefore precede the latest `getSnapshot()` value. Use its supplied snapshot when handling its event.
+- Unsubscribe is idempotent. `destroy()` removes subscriptions and cancels playback; the last snapshot remains readable, while commands and new subscriptions throw `EngineDestroyedError`.
+- Subscription callbacks must handle their own exceptions. A thrown callback interrupts notification, discards pending notifications, and propagates to its caller; it is not recorded as an engine error. If the command also failed, its original exception takes precedence.
+
+### Notification types
+
+Each observable update produces one notification with one type. Types describe operations, not individual changed fields.
+
+| `RsvpEventType` | Operation                                                                       |
+| --------------- | ------------------------------------------------------------------------------- |
+| `loaded`        | Successful `load()` or `loadTokens()`.                                          |
+| `started`       | Initial playback, or replay from `STOPPED` or `COMPLETED`.                      |
+| `resumed`       | Playback continues from `PAUSED`, preserving the current item's remaining time. |
+| `paused`        | Successful pause.                                                               |
+| `stopped`       | Successful stop, resetting position and progress while retaining content.       |
+| `advanced`      | The scheduler advances to the next item.                                        |
+| `navigated`     | `seek()`, `next()`, or `previous()` changes the observable selection or state.  |
+| `completed`     | The final item's display period ends.                                           |
+| `speedChanged`  | `setWpm()` or `setMsPerItem()` changes observable speed.                        |
+| `reset`         | Successful recovery from `ERROR` to empty `IDLE`.                               |
+| `errorOccurred` | A command or runtime operation fails, including non-throwing validation errors. |
+| `errorCleared`  | `clearError()` clears an existing error.                                        |
+
+Failed operations publish `errorOccurred` instead of their success type. Successful load/reset publish only `loaded`/`reset`, even when they also clear an error. No observable change means no notification. Destroy stops delivery and removes subscriptions without publishing an event.
+
+### Errors
+
+Core stores the last error, with no history array. `clearError()`, successful `load/loadTokens()`, and successful `reset()` clear it. Other successful commands retain it. Clearing the error does not change playback state; only `reset()` recovers `ERROR`.
+
+Invalid controls record errors without throwing or changing usable playback. Invalid speed/loading input is recorded and rethrown. Unexpected tokenizer and scheduler failures enter `ERROR`; explicit tokenizer failures are also rethrown with their original value. Constructor failures throw because no instance can yet be subscribed to.
+
+`on()`, `snapshot()`, `EventEmitter`, and the legacy event/payload types are removed. See [subscription migration](../README.md#migrating-subscriptions) for the replacement contract.
 
 ## Tokenization
 

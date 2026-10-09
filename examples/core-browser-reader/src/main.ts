@@ -1,4 +1,4 @@
-import { RsvpEngine } from "@rsvp-engine/core";
+import { RsvpEngine, type RsvpEventType, type RsvpSnapshot } from "@rsvp-engine/core";
 
 import "./styles.css";
 
@@ -33,21 +33,24 @@ function showProgress(value: number): void {
   domElements.progressText.value = percentage;
 }
 
-const unsubscribe = [
-  engine.on("itemChange", ({ item, progress }) => {
-    showWord(item);
-    showProgress(progress);
-  }),
-  engine.on("stateChange", ({ current }) => {
-    domElements.status.textContent = `State: ${current}`;
-  }),
-  engine.on("complete", ({ totalItems }) => {
-    domElements.status.textContent = `Complete: ${totalItems} words`;
-  }),
-  engine.on("error", ({ error }) => {
-    domElements.status.textContent = `Error: ${error.message}`;
-  }),
-];
+function renderPlayback(snapshot: RsvpSnapshot<string>, eventType: RsvpEventType): void {
+  const { error } = snapshot;
+  if (eventType === "started" || eventType === "advanced" || eventType === "navigated") {
+    if (snapshot.currentItem) {
+      showWord(snapshot.currentItem);
+    }
+  } else if (eventType === "loaded" || eventType === "stopped" || eventType === "reset") {
+    showWord(placeholderItem);
+  }
+  showProgress(snapshot.progress);
+  domElements.status.textContent = error
+    ? `Error: ${error.message}`
+    : snapshot.state === "COMPLETED"
+      ? `Complete: ${snapshot.totalItems} words`
+      : `State: ${snapshot.state}`;
+}
+
+const unsubscribe = engine.subscribe(renderPlayback);
 
 document.querySelector<HTMLButtonElement>("#load")!.addEventListener("click", () => {
   if (engine.state === "PLAYING") {
@@ -55,9 +58,6 @@ document.querySelector<HTMLButtonElement>("#load")!.addEventListener("click", ()
   }
 
   engine.load(domElements.textInput.value);
-  showWord(placeholderItem);
-  showProgress(0);
-  domElements.status.textContent = "State: IDLE";
 });
 
 domElements.wpmInput.addEventListener("input", () => {
@@ -72,13 +72,9 @@ document
   .addEventListener("click", () => engine.pause());
 document.querySelector<HTMLButtonElement>("#stop")!.addEventListener("click", () => {
   engine.stop();
-  showWord(placeholderItem);
-  showProgress(0);
 });
 
 window.addEventListener("beforeunload", () => {
-  for (const removeListener of unsubscribe) {
-    removeListener();
-  }
+  unsubscribe();
   engine.destroy();
 });

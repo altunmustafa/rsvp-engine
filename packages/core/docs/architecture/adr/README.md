@@ -11,3 +11,5 @@ Core ADRs use the Michael Nygard sections `Status`, `Context`, `Decision`, and `
 | [ADR-0005](./0005-unicode-segmentation-fallbacks.md) | Accepted | Prefer platform Unicode segmentation with dependency-free fallbacks. |
 | [ADR-0006](./0006-pause-resume-remaining-time.md) | Accepted | Preserve the current item's remaining time across pause and resume. |
 | [ADR-0007](./0007-preserve-speed-input-unit.md) | Accepted | Preserve speed inputs in their supplied unit and derive the other representation. |
+| [ADR-0008](./0008-unified-observable-store.md) | Superseded by ADR-0009 | Own cached playback/error state and one subscription in Core. |
+| [ADR-0009](./0009-typed-store-notifications.md) | Accepted | Publish one snapshot and operation type; preserve nested notifications in order. |

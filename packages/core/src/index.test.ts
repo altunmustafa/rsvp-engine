@@ -21,8 +21,20 @@ describe("Public API integration", () => {
     const states: string[] = [];
     const presentedItems: string[] = [];
 
-    engine.on("stateChange", ({ current }) => states.push(current));
-    engine.on("itemChange", ({ item }) => presentedItems.push(item.value));
+    let previous = engine.getSnapshot();
+    engine.subscribe(() => {
+      const current = engine.getSnapshot();
+      if (current.state !== previous.state) {
+        states.push(current.state);
+      }
+      if (
+        current.progress > 0 &&
+        (current.currentItem !== previous.currentItem || current.progress !== previous.progress)
+      ) {
+        presentedItems.push(current.currentItem!.value);
+      }
+      previous = current;
+    });
 
     // Initial state
     expect(engine.state).toBe("IDLE");
@@ -95,7 +107,7 @@ describe("Public API integration", () => {
 
     expect(() => {
       engine.pause(); // Invalid transition from IDLE
-    }).not.toThrow(); // The engine itself catches and emits error
+    }).not.toThrow(); // Invalid controls record an observable error.
 
     expect(engine.state).toBe("IDLE");
 

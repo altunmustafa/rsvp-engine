@@ -18,7 +18,7 @@ createRsvpController
 
 ## `createRsvpController<T>(options?)`
 
-Creates the single owner of one Core engine. It manages input, playback, timing, cached snapshots, errors, subscriptions, and destruction.
+Creates the single owner of one Core engine. It delegates commands, cached snapshots, errors, and subscriptions to Core and retains the construction-time server snapshot.
 
 ```ts
 const controller = createRsvpController({
@@ -53,10 +53,10 @@ Changing the `controller` prop moves selector subscriptions to the new controlle
 
 ### `useRsvpSelector(selector, equalityFn?)`
 
-Selects reactive data from `{ snapshot, error }`:
+Selects reactive data from the flat `RsvpSnapshot<T>`, including `error`:
 
 ```tsx
-const progress = useRsvpSelector(({ snapshot }) => snapshot.progress);
+const progress = useRsvpSelector((snapshot) => snapshot.progress);
 ```
 
 Controller updates run the selector again through React's official `useSyncExternalStoreWithSelector` implementation. The component rerenders only when the selected result differs. The default comparison is `Object.is`.
@@ -65,7 +65,7 @@ Selectors that create objects can provide an equality function:
 
 ```tsx
 const status = useRsvpSelector(
-  ({ snapshot }) => ({ state: snapshot.state, wpm: snapshot.wpm }),
+  (snapshot) => ({ state: snapshot.state, wpm: snapshot.wpm }),
   (left, right) => left.state === right.state && left.wpm === right.wpm,
 );
 ```
@@ -104,6 +104,14 @@ const controller = useRsvpController();
 
 This is a low-level escape hatch for integrations, debugging, or building specialized hooks. Prefer `useRsvpSelector` for reactive reads and `useRsvpActions` for commands.
 
+### Direct subscriptions
+
+Controller subscribers receive `(snapshot, eventType)` directly from Core. `RsvpEventType` describes the operation behind each update; selectors continue to read only the snapshot. See the [Core notification types](../../core/docs/API-REFERENCE.md#notification-types) for event meanings and delivery rules.
+
+### Error state
+
+Core owns `error: Error | null` in the same cached store read by the controller. `clearError()`, successful `load/loadTokens()`, and successful `reset()` clear it; other commands retain it. Clearing the error does not recover `ERROR`. Existing React selectors and actions retain their signatures.
+
 ### Lifecycle integration
 
 Provider and consumer unmounts detach React subscriptions without changing playback state or controller lifetime. Applications can pause playback at the lifecycle boundary where a reader session becomes inactive, such as when its route or screen is left. The external owner calls `destroy()` when the controller lifetime ends.
@@ -111,7 +119,7 @@ Provider and consumer unmounts detach React subscriptions without changing playb
 ## Public types
 
 - `RsvpController<T>` and `RsvpControllerOptions<T>`
-- `RsvpControllerSnapshot<T>` and `RsvpStoreListener`
+- `RsvpControllerSnapshot<T>`, `RsvpStoreListener<T>`, and `RsvpEventType`
 - `RsvpActions<T>`
 - `RsvpProviderProps<T>` and `RsvpContextBundle<T>`
 - `RsvpSelector<T, Selected>`, `RsvpEqualityFn<Selected>`, and `UseRsvpSelector<T>`

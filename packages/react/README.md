@@ -21,7 +21,7 @@ const controller = createRsvpController({ data: "Read this text", wpm: 300 });
 const { RsvpProvider, useRsvpSelector, useRsvpActions } = createRsvpContext<string>();
 
 function Word() {
-  const word = useRsvpSelector(({ snapshot }) => snapshot.currentItem?.value);
+  const word = useRsvpSelector((snapshot) => snapshot.currentItem?.value);
   return <strong>{word}</strong>;
 }
 
@@ -54,7 +54,7 @@ function App() {
 | API | Behavior |
 | --- | --- |
 | `RsvpProvider` | Accepts `controller: RsvpController<T>` and optional React `children`. Replacing the controller moves selector subscriptions to the new instance. |
-| `useRsvpSelector(selector, equalityFn?)` | Selects from `{ snapshot, error }`. Rerenders only when the selected value changes; comparison defaults to `Object.is`. |
+| `useRsvpSelector(selector, equalityFn?)` | Selects from the flat `RsvpSnapshot<T>`, including `error`. Rerenders only when the selected value changes; comparison defaults to `Object.is`. |
 | `useRsvpActions()` | Returns a frozen command object, stable while the controller stays the same. Does not subscribe to playback. Excludes `destroy`. |
 | `useRsvpController()` | Returns the provided controller without subscribing. Use for imperative integrations; reading `getSnapshot()` through it does not make a component reactive. |
 
@@ -62,7 +62,7 @@ Selectors must be pure. When returning an object, provide an equality function t
 
 ```tsx
 const status = useRsvpSelector(
-  ({ snapshot }) => ({ state: snapshot.state, wpm: snapshot.wpm }),
+  (snapshot) => ({ state: snapshot.state, wpm: snapshot.wpm }),
   (left, right) => left.state === right.state && left.wpm === right.wpm,
 );
 ```
@@ -71,7 +71,7 @@ const status = useRsvpSelector(
 
 ### `createRsvpController<T = string>(options?)`
 
-Creates and owns one Core engine. All options are optional; construction failures throw.
+Creates and owns one Core engine, delegates its commands and observable store, and preserves the construction-time server snapshot. All options are optional; construction failures throw.
 
 | Option | Type | Behavior |
 | --- | --- | --- |
@@ -112,12 +112,12 @@ Speed commands accept finite fractional values within the exported limits. The s
 
 | Method | Behavior |
 | --- | --- |
-| `getSnapshot()` | Cached live `{ snapshot, error }`; reference stays stable until observable state changes. |
+| `getSnapshot()` | Cached live `RsvpSnapshot<T>`; reference stays stable until observable state changes. |
 | `getServerSnapshot()` | Immutable construction-time snapshot for server rendering. |
-| `subscribe(listener: () => void)` | Observes changes; returns an unsubscribe function. |
+| `subscribe(listener: RsvpStoreListener<T>)` | Receives `(snapshot, eventType)`; returns an unsubscribe function. |
 | `destroy()` | Permanently releases timers and subscriptions; idempotent. |
 
-The nested `snapshot` has readonly fields:
+The snapshot has readonly fields:
 
 | Field               | Meaning                                                                          |
 | ------------------- | -------------------------------------------------------------------------------- |
@@ -127,12 +127,13 @@ The nested `snapshot` has readonly fields:
 | `progress`          | `0` before presentation; reaches `1` on the final item.                          |
 | `totalItems`        | Loaded token count.                                                              |
 | `wpm` / `msPerItem` | Base reading rate and display duration.                                          |
+| `error`             | Last engine error, or `null`.                                                    |
 
 The final item still needs its display period after progress reaches `1`. Use `state === "COMPLETED"` to detect completion.
 
 ### Errors
 
-Select `error` with `useRsvpSelector(({ error }) => error)`. It is an `Error | null` and persists across successful commands until `clearError()`. Clearing it does not recover an engine in `ERROR`; use `reset()`.
+Select `error` with `useRsvpSelector(({ error }) => error)`. It is an `Error | null` and is owned by Core. It clears on `clearError()`, successful `load/loadTokens()`, or successful `reset()`; other commands retain it. Clearing it does not recover an engine in `ERROR`; use `reset()`.
 
 Invalid transitions and navigation report observable errors without necessarily throwing. Synchronous failures, such as invalid speed input, are recorded and rethrown. Handle both observable errors and thrown exceptions. Ordinary invalid commands preserve usable state; fatal failures enter `ERROR`.
 
@@ -164,4 +165,4 @@ Concrete tokenizer and scheduler classes are available from `@rsvp-engine/core`.
 - Constants: `DEFAULT_WPM`, `MIN_WPM`, `MAX_WPM`, `MIN_MS_PER_ITEM`, `MAX_MS_PER_ITEM`.
 - Error classes: `EngineDestroyedError`, `IndexOutOfBoundsError`, `InvalidInputError`, `InvalidTransitionError`.
 - React types: `RsvpController<T>`, `RsvpControllerOptions<T>`, `RsvpActions<T>`, `RsvpControllerSnapshot<T>`, `RsvpStoreListener`, `RsvpProviderProps<T>`, `RsvpContextBundle<T>`, `RsvpSelector<T, Selected>`, `RsvpEqualityFn<Selected>`, `UseRsvpSelector<T>`.
-- Core types: `RsvpEngineOptions`, `RsvpItem`, `RsvpSnapshot`, `RsvpState`, `Token`, `TokenizerStrategy`, `OvpStrategy`, `SchedulerStrategy`, `TimeDriver`, `UnsubscribeFn`.
+- Core types: `RsvpEngineOptions`, `RsvpEventType`, `RsvpItem`, `RsvpSnapshot`, `RsvpState`, `Token`, `TokenizerStrategy`, `OvpStrategy`, `SchedulerStrategy`, `TimeDriver`, `UnsubscribeFn`.

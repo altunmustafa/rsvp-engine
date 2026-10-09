@@ -1,16 +1,16 @@
-import type { RsvpEngineOptions, RsvpSnapshot, Token, UnsubscribeFn } from "@rsvp-engine/core";
+import type {
+  RsvpEngineOptions,
+  RsvpSnapshot,
+  RsvpStoreListener,
+  Token,
+  UnsubscribeFn,
+} from "@rsvp-engine/core";
 import type { ReactElement, ReactNode } from "react";
 
-/** Callback invoked after the controller's observable snapshot changes. */
-export type RsvpStoreListener = () => void;
+export type { RsvpStoreListener } from "@rsvp-engine/core";
 
 /** Immutable observable state exposed by an RSVP controller. */
-export interface RsvpControllerSnapshot<T = string> {
-  /** The latest immutable Core snapshot. */
-  readonly snapshot: RsvpSnapshot<T>;
-  /** The most recently observed error, or `null` after explicit clearing. */
-  readonly error: Error | null;
-}
+export type RsvpControllerSnapshot<T = string> = RsvpSnapshot<T>;
 
 /** Commands that mutate an RSVP controller. */
 export interface RsvpActions<T = string> {
@@ -35,7 +35,7 @@ export interface RsvpController<T = string> extends RsvpActions<T> {
   /** Reads the immutable construction-time snapshot used for server rendering. */
   readonly getServerSnapshot: () => RsvpControllerSnapshot<T>;
   /** Subscribes to meaningful observable changes. */
-  readonly subscribe: (listener: RsvpStoreListener) => UnsubscribeFn;
+  readonly subscribe: (listener: RsvpStoreListener<T>) => UnsubscribeFn;
   /** Permanently releases the owned engine and all subscriptions. */
   readonly destroy: () => void;
 }

@@ -1,4 +1,4 @@
-import { RsvpEngine } from "@rsvp-engine/core";
+import { RsvpEngine, type RsvpEventType, type RsvpSnapshot } from "@rsvp-engine/core";
 
 import { extractReadableArticle, fetchHtmlSource } from "./extract";
 import "./styles.css";
@@ -52,21 +52,24 @@ function setPlaybackDisabled(disabled: boolean): void {
   domElements.stopButton.disabled = disabled;
 }
 
-const unsubscribe = [
-  engine.on("itemChange", ({ item, progress }) => {
-    showWord(item);
-    showProgress(progress);
-  }),
-  engine.on("stateChange", ({ current }) => {
-    domElements.status.textContent = `State: ${current}`;
-  }),
-  engine.on("complete", ({ totalItems }) => {
-    domElements.status.textContent = `Complete: ${totalItems} words`;
-  }),
-  engine.on("error", ({ error }) => {
-    domElements.status.textContent = `Error: ${error.message}`;
-  }),
-];
+function renderPlayback(snapshot: RsvpSnapshot<string>, eventType: RsvpEventType): void {
+  const { error } = snapshot;
+  if (eventType === "started" || eventType === "advanced" || eventType === "navigated") {
+    if (snapshot.currentItem) {
+      showWord(snapshot.currentItem);
+    }
+  } else if (eventType === "loaded" || eventType === "stopped" || eventType === "reset") {
+    showWord(placeholderItem);
+  }
+  showProgress(snapshot.progress);
+  domElements.status.textContent = error
+    ? `Error: ${error.message}`
+    : snapshot.state === "COMPLETED"
+      ? `Complete: ${snapshot.totalItems} words`
+      : `State: ${snapshot.state}`;
+}
+
+const unsubscribe = engine.subscribe(renderPlayback);
 
 async function fetchSource(event: SubmitEvent): Promise<void> {
   event.preventDefault();
@@ -126,8 +129,6 @@ function parseAndLoadSource(event: SubmitEvent): void {
     domElements.metadata.value = [article.title, article.byline, article.lang]
       .filter((value) => value)
       .join(" · ");
-    showWord(placeholderItem);
-    showProgress(0);
     setPlaybackDisabled(false);
     domElements.status.textContent = `Loaded ${article.text.length} characters.`;
   } catch (error: unknown) {
@@ -154,14 +155,10 @@ domElements.playButton.addEventListener("click", () => engine.play());
 domElements.pauseButton.addEventListener("click", () => engine.pause());
 domElements.stopButton.addEventListener("click", () => {
   engine.stop();
-  showWord(placeholderItem);
-  showProgress(0);
 });
 
 window.addEventListener("beforeunload", () => {
   fetchController?.abort();
-  for (const removeListener of unsubscribe) {
-    removeListener();
-  }
+  unsubscribe();
   engine.destroy();
 });

@@ -2,7 +2,7 @@
 
 Durable architectural decisions are recorded in the [ADR index](./adr/README.md).
 
-The package is a synchronous, event-driven Rapid Serial Visual Presentation (RSVP) playback engine. Host applications own rendering, storage, visibility handling, and asynchronous data acquisition.
+The package is a synchronous, observable Rapid Serial Visual Presentation (RSVP) playback engine. Host applications own rendering, storage, visibility handling, and asynchronous data acquisition.
 
 ```mermaid
 flowchart LR
@@ -12,7 +12,7 @@ flowchart LR
     Tokenizer --> OVP["OvpStrategy"]
     Engine --> Scheduler["SchedulerStrategy"]
     Scheduler --> Driver["TimeDriver"]
-    Engine -->|"typed events"| Host
+    Engine -->|"cached snapshot and change notification"| Host
 ```
 
 ## Invariants
@@ -26,7 +26,7 @@ flowchart LR
 
 ## Playback model
 
-`currentIndex` is the presented item, not the next scheduling cursor. A fresh `play()` emits index zero immediately, then schedules advancement using that item's multiplier. Pause stores the deadline delta; resume schedules exactly that remaining duration. Completion occurs only after the last item's display duration expires.
+`currentIndex` is the presented item, not the next scheduling cursor. A fresh `play()` presents index zero immediately, then schedules advancement using that item's multiplier. Pause stores the deadline delta; resume schedules exactly that remaining duration. Completion occurs only after the last item's display duration expires.
 
 Invalid commands are reported without changing state. `ERROR` is reserved for unexpected runtime failures such as a scheduler exception. This separates caller mistakes from a broken playback session.
 

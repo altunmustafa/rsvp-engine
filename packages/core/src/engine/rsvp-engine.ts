@@ -1,12 +1,16 @@
 import type { RsvpEngineOptions } from "./config";
-import type { RsvpItem, RsvpSnapshot } from "./types";
-import type { EventCallback, RsvpEventMap, RsvpEventType, UnsubscribeFn } from "../events/types";
+import type {
+  RsvpEventType,
+  RsvpItem,
+  RsvpSnapshot,
+  RsvpStoreListener,
+  UnsubscribeFn,
+} from "./types";
 import type { SchedulerStrategy, TimeDriver } from "../scheduler/types";
 import type { RsvpState } from "../state/types";
 import type { Token, TokenizerStrategy } from "../tokenizer/types";
 
 import { EngineDestroyedError, IndexOutOfBoundsError, InvalidInputError } from "../errors";
-import { EventEmitter } from "../events/event-emitter";
 import { DriftCorrectedScheduler } from "../scheduler/drift-corrected-scheduler";
 import { SystemTimeDriver } from "../scheduler/system-time-driver";
 import { StateMachine } from "../state/state-machine";
@@ -20,13 +24,18 @@ interface SpeedSetting {
   readonly value: number;
 }
 
+interface StoreNotification<T> {
+  readonly snapshot: RsvpSnapshot<T>;
+  readonly eventType: RsvpEventType;
+}
+
 /**
- * Headless RSVP Engine — orchestrates state machine, scheduler, tokenizer, and event emitter.
- * @typeParam T - The type of items being presented (defaults to `string`).
+ * Headless playback engine with a synchronous observable store.
+ * @typeParam T - The type of items being presented (defaults to string).
  */
 export class RsvpEngine<T = string> {
-  readonly #stateMachine: StateMachine;
-  readonly #emitter: EventEmitter<T>;
+  readonly #stateMachine = new StateMachine();
+  readonly #listeners = new Set<RsvpStoreListener<T>>();
   readonly #scheduler: SchedulerStrategy;
   readonly #timeDriver: TimeDriver;
   readonly #tokenizer: TokenizerStrategy<T>;
@@ -35,111 +44,92 @@ export class RsvpEngine<T = string> {
   #hasPresentedCurrent = false;
   #deadline: number | null = null;
   #remainingDelay: number | null = null;
+  #scheduleRevision = 0;
   #speed: SpeedSetting = { unit: "wpm", value: DEFAULT_WPM };
+  #error: Error | null = null;
+  #snapshot: RsvpSnapshot<T>;
   #destroyed = false;
+  #notifying = false;
+  readonly #pendingNotifications: StoreNotification<T>[] = [];
 
   constructor(options: RsvpEngineOptions<T> = {}) {
-    this.#stateMachine = new StateMachine();
-    this.#emitter = new EventEmitter<T>();
-
     this.#timeDriver = options.timeDriver ?? new SystemTimeDriver();
     this.#scheduler = options.scheduler ?? new DriftCorrectedScheduler(this.#timeDriver);
     this.#tokenizer = options.tokenizer ?? new DefaultTokenizer<T>();
-
-    // msPerItem takes precedence over wpm
+    this.#snapshot = this.#createSnapshot();
     if (options.msPerItem !== undefined) {
       this.setMsPerItem(options.msPerItem);
     } else if (options.wpm !== undefined) {
       this.setWpm(options.wpm);
     }
-
-    // Constructor failures must remain observable because listeners cannot be attached yet.
     if (options.data !== undefined) {
       this.load(options.data);
     }
   }
 
-  // ────────── Tokenization & Loading ──────────
-
-  /**
-   * Tokenizes and loads raw data into the engine using the configured tokenizer.
-   */
+  /** Tokenizes and loads data; successful loading clears the last error. */
   public load(data: T | T[]): void {
-    this.#assertNotDestroyed();
-    this.#assertCanLoad();
-    try {
-      this.loadTokens(this.#tokenizer.tokenize(data));
-    } catch (error) {
-      if (error instanceof InvalidInputError) {
+    this.#execute(() => {
+      this.#assertCanLoad();
+      let tokens: Token<T>[];
+      try {
+        tokens = this.#tokenizer.tokenize(data);
+      } catch (error) {
+        if (!(error instanceof InvalidInputError)) {
+          this.#enterFatalError(this.#toError(error));
+        }
         throw error;
       }
-      this.#enterFatalError(this.#toError(error));
-      throw error;
-    }
+      this.#loadTokens(tokens);
+      return "loaded";
+    });
   }
 
-  /**
-   * Directly loads pre-tokenized items into the engine.
-   * Useful when tokenization is performed externally (e.g. AI or asynchronous tokenizers).
-   */
+  /** Loads pre-tokenized items; successful loading clears the last error. */
   public loadTokens(tokens: Token<T>[]): void {
-    this.#assertNotDestroyed();
+    this.#execute(() => {
+      this.#loadTokens(tokens);
+      return "loaded";
+    });
+  }
+
+  #loadTokens(tokens: Token<T>[]): void {
     this.#assertCanLoad();
     validateTokens(tokens);
-    const previousState = this.#stateMachine.state;
     this.#stateMachine.transition("load");
-    this.#scheduler.cancel();
-    this.#setTokens(tokens);
+    this.#cancelAdvance();
+    this.#tokens = tokens.map((token, index) =>
+      Object.freeze({
+        value: token.value,
+        index,
+        ovpIndex: token.ovpIndex,
+        delayMultiplier: token.delayMultiplier,
+      }),
+    );
     this.#currentIndex = 0;
     this.#hasPresentedCurrent = false;
     this.#deadline = null;
     this.#remainingDelay = null;
-    if (previousState !== "IDLE") {
-      this.#emitter.emit("stateChange", { previous: previousState, current: "IDLE" });
-    }
+    this.#error = null;
   }
 
   #assertCanLoad(): void {
-    if (this.#stateMachine.state === "PLAYING" || this.#stateMachine.state === "ERROR") {
-      throw new InvalidInputError(`Cannot load data while engine is ${this.#stateMachine.state}.`);
+    if (this.state === "PLAYING" || this.state === "ERROR") {
+      throw new InvalidInputError(`Cannot load data while engine is ${this.state}.`);
     }
   }
-
-  #setTokens(tokens: Token<T>[]): void {
-    this.#tokens = tokens.map((token, index) => ({
-      value: token.value,
-      index,
-      ovpIndex: token.ovpIndex,
-      delayMultiplier: token.delayMultiplier,
-    }));
-  }
-
-  // ────────── Error handling ──────────
 
   #enterFatalError(error: Error): void {
-    const previousState = this.#stateMachine.state;
-    try {
-      this.#stateMachine.transition("error");
-    } catch {
-      this.#reportError(error);
-      return;
-    }
-    this.#scheduler.cancel();
+    this.#stateMachine.transition("error");
+    this.#cancelAdvance();
     this.#deadline = null;
     this.#remainingDelay = null;
-    this.#reportError(error);
-    this.#emitter.emit("stateChange", { previous: previousState, current: "ERROR" });
-  }
-
-  #reportError(error: Error): void {
-    this.#emitter.emit("error", { error });
+    this.#error = error;
   }
 
   #toError(error: unknown): Error {
     return error instanceof Error ? error : new Error(String(error));
   }
-
-  // ────────── Destroyed guard ──────────
 
   #assertNotDestroyed(): void {
     if (this.#destroyed) {
@@ -147,381 +137,277 @@ export class RsvpEngine<T = string> {
     }
   }
 
-  // ────────── Tick loop ──────────
-
-  readonly #advance = (): void => {
-    this.#deadline = null;
-    this.#remainingDelay = null;
-    if (this.#stateMachine.state !== "PLAYING") {
-      return;
+  #execute(action: () => RsvpEventType): void {
+    this.#assertNotDestroyed();
+    let eventType: RsvpEventType;
+    try {
+      eventType = action();
+    } catch (error) {
+      this.#error = this.#toError(error);
+      try {
+        this.#publish("errorOccurred");
+      } catch {
+        // A subscriber failure must not replace the original command failure.
+      }
+      throw error;
     }
-
-    if (this.#currentIndex >= this.#tokens.length - 1) {
-      this.#completePlayback();
-      return;
-    }
-
-    this.#currentIndex++;
-    this.#presentCurrent();
-  };
-
-  #presentCurrent(): void {
-    const item = this.#tokens[this.#currentIndex];
-    this.#hasPresentedCurrent = true;
-
-    this.#emitter.emit("itemChange", {
-      item,
-      index: this.#currentIndex,
-      progress: this.progress,
-      reason: "playback",
-    });
-    if (this.#stateMachine.state !== "PLAYING") {
-      return;
-    }
-
-    this.#scheduleAdvance(this.msPerItem * item.delayMultiplier);
+    this.#publish(eventType);
   }
 
-  #scheduleAdvance(delay: number): void {
+  #transition(action: "play" | "pause" | "stop" | "seek" | "reset"): boolean {
+    try {
+      this.#stateMachine.transition(action);
+      return true;
+    } catch (error) {
+      this.#error = this.#toError(error);
+      return false;
+    }
+  }
+
+  #advance(): void {
+    if (this.#destroyed || this.state !== "PLAYING") {
+      return;
+    }
+    this.#execute(() => {
+      this.#deadline = null;
+      this.#remainingDelay = null;
+      if (this.#currentIndex === this.#tokens.length - 1) {
+        this.#cancelAdvance();
+        this.#stateMachine.transition("complete");
+        return "completed";
+      } else {
+        this.#currentIndex++;
+        return this.#presentCurrent() ? "advanced" : "errorOccurred";
+      }
+    });
+  }
+
+  #presentCurrent(): boolean {
+    this.#hasPresentedCurrent = true;
+    return this.#scheduleAdvance(this.msPerItem * this.#tokens[this.#currentIndex].delayMultiplier);
+  }
+
+  #scheduleAdvance(delay: number): boolean {
+    const revision = ++this.#scheduleRevision;
     this.#remainingDelay = null;
     this.#deadline = this.#timeDriver.now() + delay;
     try {
-      this.#scheduler.schedule(this.#advance, delay);
+      this.#scheduler.schedule(() => {
+        if (revision === this.#scheduleRevision) {
+          this.#advance();
+        }
+      }, delay);
+      return true;
     } catch (error) {
       this.#enterFatalError(this.#toError(error));
+      return false;
     }
   }
 
-  #completePlayback(): void {
+  #cancelAdvance(): void {
+    this.#scheduleRevision++;
     this.#scheduler.cancel();
-    const previousState = this.#stateMachine.state;
-    this.#stateMachine.transition("complete");
-    const item = this.#tokens[this.#currentIndex];
-    this.#emitter.emit("stateChange", { previous: previousState, current: "COMPLETED" });
-    this.#emitter.emit("complete", { item, totalItems: this.#tokens.length });
   }
 
-  // ────────── Playback Control ──────────
-
-  /**
-   * Starts or resumes playback.
-   * From STOPPED/COMPLETED: resets index to 0 and starts from beginning.
-   * From PAUSED: resumes from current position.
-   */
+  /** Starts playback, resumes the preserved remainder, or replays a stopped/completed session. */
   public play(): void {
-    this.#assertNotDestroyed();
-    this.#startPlayback();
-  }
-
-  #startPlayback(): void {
-    // Validate we have tokens
-    if (this.#tokens.length === 0) {
-      this.#reportError(new InvalidInputError("Cannot play: no tokens loaded."));
-      return;
-    }
-
-    const previousState = this.#stateMachine.state;
-
-    // Reset index if coming from STOPPED or COMPLETED
-    if (previousState === "STOPPED" || previousState === "COMPLETED") {
-      this.#currentIndex = 0;
-    }
-
-    try {
-      this.#stateMachine.transition("play");
-    } catch (err) {
-      this.#reportError(this.#toError(err));
-      return;
-    }
-
-    this.#emitter.emit("stateChange", {
-      previous: previousState,
-      current: "PLAYING",
+    this.#execute(() => {
+      if (this.#tokens.length === 0) {
+        this.#error = new InvalidInputError("Cannot play: no tokens loaded.");
+        return "errorOccurred";
+      }
+      const previousState = this.state;
+      if (!this.#transition("play")) {
+        return "errorOccurred";
+      }
+      if (previousState === "STOPPED" || previousState === "COMPLETED") {
+        this.#currentIndex = 0;
+      }
+      if (previousState === "PAUSED" && this.#hasPresentedCurrent) {
+        const item = this.#tokens[this.#currentIndex];
+        return this.#scheduleAdvance(this.#remainingDelay ?? this.msPerItem * item.delayMultiplier)
+          ? "resumed"
+          : "errorOccurred";
+      } else {
+        return this.#presentCurrent() ? "started" : "errorOccurred";
+      }
     });
-
-    if (previousState === "PAUSED" && this.#hasPresentedCurrent) {
-      const item = this.#tokens[this.#currentIndex];
-      this.#scheduleAdvance(this.#remainingDelay ?? this.msPerItem * item.delayMultiplier);
-      return;
-    }
-
-    this.#hasPresentedCurrent = false;
-    this.#presentCurrent();
   }
 
-  /**
-   * Pauses playback, preserving the current index.
-   */
+  /** Pauses playback and preserves the current item's remaining display time. */
   public pause(): void {
-    this.#assertNotDestroyed();
-
-    const previousState = this.#stateMachine.state;
-
-    try {
-      this.#stateMachine.transition("pause");
-    } catch (err) {
-      this.#reportError(this.#toError(err));
-      return;
-    }
-
-    this.#remainingDelay =
-      this.#deadline === null ? null : Math.max(0, this.#deadline - this.#timeDriver.now());
-    this.#scheduler.cancel();
-    this.#deadline = null;
-
-    this.#emitter.emit("stateChange", {
-      previous: previousState,
-      current: "PAUSED",
+    this.#execute(() => {
+      if (!this.#transition("pause")) {
+        return "errorOccurred";
+      }
+      this.#remainingDelay =
+        this.#deadline === null ? null : Math.max(0, this.#deadline - this.#timeDriver.now());
+      this.#cancelAdvance();
+      this.#deadline = null;
+      return "paused";
     });
   }
 
-  /**
-   * Stops playback and resets the index to 0.
-   * Only available from PLAYING or PAUSED; loaded data is retained.
-   */
+  /** Stops PLAYING/PAUSED playback and resets the position, retaining loaded items. */
   public stop(): void {
-    this.#assertNotDestroyed();
-
-    const previousState = this.#stateMachine.state;
-
-    try {
-      this.#stateMachine.transition("stop");
-    } catch (err) {
-      this.#reportError(this.#toError(err));
-      return;
-    }
-
-    this.#scheduler.cancel();
-    this.#currentIndex = 0;
-    this.#hasPresentedCurrent = false;
-    this.#deadline = null;
-    this.#remainingDelay = null;
-
-    this.#emitter.emit("stateChange", {
-      previous: previousState,
-      current: "STOPPED",
+    this.#execute(() => {
+      if (!this.#transition("stop")) {
+        return "errorOccurred";
+      }
+      this.#cancelAdvance();
+      this.#currentIndex = 0;
+      this.#hasPresentedCurrent = false;
+      this.#deadline = null;
+      this.#remainingDelay = null;
+      return "stopped";
     });
   }
 
-  /**
-   * Jumps to a specific token index. Transitions to PAUSED state.
-   * Only available from PAUSED, STOPPED, or COMPLETED states.
-   * The index must be a finite integer within the loaded token bounds.
-   */
+  /** Selects a finite integer index in PAUSED, STOPPED, or COMPLETED and enters PAUSED. */
   public seek(index: number): void {
-    this.#assertNotDestroyed();
+    this.#execute(() => {
+      if (!Number.isInteger(index) || index < 0 || index >= this.#tokens.length) {
+        this.#error = new IndexOutOfBoundsError(index, this.#tokens.length);
+        return "errorOccurred";
+      }
+      if (!this.#transition("seek")) {
+        return "errorOccurred";
+      }
+      this.#selectItem(index);
+      return "navigated";
+    });
+  }
 
-    if (!Number.isInteger(index) || index < 0 || index >= this.#tokens.length) {
-      this.#reportError(new IndexOutOfBoundsError(index, this.#tokens.length));
-      return;
-    }
-
-    const previousState = this.#stateMachine.state;
-
-    try {
-      this.#stateMachine.transition("seek");
-    } catch (err) {
-      this.#reportError(this.#toError(err));
-      return;
-    }
-
+  #selectItem(index: number): void {
     this.#currentIndex = index;
     this.#hasPresentedCurrent = true;
     this.#remainingDelay = this.msPerItem * this.#tokens[index].delayMultiplier;
-
-    if (previousState !== "PAUSED") {
-      this.#emitter.emit("stateChange", {
-        previous: previousState,
-        current: "PAUSED",
-      });
-    }
-
-    this.#emitter.emit("itemChange", {
-      item: this.#tokens[index],
-      index,
-      progress: this.progress,
-      reason: "seek",
-    });
   }
 
-  /**
-   * Advances to the next token. Only available from PAUSED state.
-   */
+  /** Advances one item while PAUSED; does nothing at the final item. */
   public next(): void {
-    this.#assertNotDestroyed();
-
-    if (this.#stateMachine.state !== "PAUSED") {
-      this.#emitter.emit("error", {
-        error: new InvalidInputError("next() is only available in PAUSED state."),
-      });
-      return;
-    }
-
-    if (this.#currentIndex < this.#tokens.length - 1) {
-      this.#currentIndex++;
-      this.#hasPresentedCurrent = true;
-      this.#remainingDelay = this.msPerItem * this.#tokens[this.#currentIndex].delayMultiplier;
-      this.#emitter.emit("itemChange", {
-        item: this.#tokens[this.#currentIndex],
-        index: this.#currentIndex,
-        progress: this.progress,
-        reason: "next",
-      });
-    }
+    this.#navigate(1, "next");
   }
 
-  /**
-   * Retreats to the previous token. Only available from PAUSED state.
-   */
+  /** Retreats one item while PAUSED; does nothing at the first item. */
   public previous(): void {
-    this.#assertNotDestroyed();
-
-    if (this.#stateMachine.state !== "PAUSED") {
-      this.#emitter.emit("error", {
-        error: new InvalidInputError("previous() is only available in PAUSED state."),
-      });
-      return;
-    }
-
-    if (this.#currentIndex > 0) {
-      this.#currentIndex--;
-      this.#hasPresentedCurrent = true;
-      this.#remainingDelay = this.msPerItem * this.#tokens[this.#currentIndex].delayMultiplier;
-      this.#emitter.emit("itemChange", {
-        item: this.#tokens[this.#currentIndex],
-        index: this.#currentIndex,
-        progress: this.progress,
-        reason: "previous",
-      });
-    }
+    this.#navigate(-1, "previous");
   }
 
-  /**
-   * Resets engine to IDLE state, clearing all data.
-   * Only valid from ERROR state.
-   */
-  public reset(): void {
-    this.#assertNotDestroyed();
-
-    const previousState = this.#stateMachine.state;
-
-    try {
-      this.#stateMachine.transition("reset");
-    } catch (err) {
-      this.#reportError(this.#toError(err));
-      return;
-    }
-
-    this.#scheduler.cancel();
-    this.#tokens = [];
-    this.#currentIndex = 0;
-    this.#hasPresentedCurrent = false;
-    this.#deadline = null;
-    this.#remainingDelay = null;
-
-    this.#emitter.emit("stateChange", {
-      previous: previousState,
-      current: "IDLE",
+  #navigate(offset: number, command: string): void {
+    this.#execute(() => {
+      if (this.state !== "PAUSED") {
+        this.#error = new InvalidInputError(`${command}() is only available in PAUSED state.`);
+        return "errorOccurred";
+      }
+      const index = this.#currentIndex + offset;
+      if (index >= 0 && index < this.#tokens.length) {
+        this.#selectItem(index);
+      }
+      return "navigated";
     });
   }
 
-  /**
-   * Clears all timers, removes listeners, and disposes the engine.
-   * Required for SPA component unmount cleanup.
-   */
+  /** Recovers from ERROR to IDLE, clearing data and the last error. */
+  public reset(): void {
+    this.#execute(() => {
+      if (!this.#transition("reset")) {
+        return "errorOccurred";
+      }
+      this.#cancelAdvance();
+      this.#tokens = [];
+      this.#currentIndex = 0;
+      this.#hasPresentedCurrent = false;
+      this.#deadline = null;
+      this.#remainingDelay = null;
+      this.#error = null;
+      return "reset";
+    });
+  }
+
+  /** Clears the last error without changing playback or recovering from ERROR. */
+  public clearError(): void {
+    this.#execute(() => {
+      this.#error = null;
+      return "errorCleared";
+    });
+  }
+
+  /** Cancels playback and subscriptions. The last cached snapshot remains readable. */
   public destroy(): void {
     if (this.#destroyed) {
-      return; // idempotent
+      return;
     }
-    this.#scheduler.cancel();
+    this.#cancelAdvance();
     this.#deadline = null;
     this.#remainingDelay = null;
-    this.#emitter.removeAllListeners();
+    this.#listeners.clear();
     this.#destroyed = true;
   }
 
-  // ────────── Speed Control ──────────
-
-  /**
-   * Sets WPM for subsequently scheduled display periods, preserving the input exactly.
-   * The corresponding ms-per-item interval is derived without additional rounding.
-   */
+  /** Sets exact WPM for subsequent display periods; the active period is preserved. */
   public setWpm(wpm: number): void {
-    this.#assertNotDestroyed();
-    validateWpm(wpm);
-    this.#speed = { unit: "wpm", value: wpm };
+    this.#execute(() => {
+      validateWpm(wpm);
+      this.#speed = { unit: "wpm", value: wpm };
+      return "speedChanged";
+    });
   }
 
-  /**
-   * Sets the interval for subsequently scheduled display periods, preserving the input exactly.
-   * The corresponding WPM is derived without additional rounding.
-   */
+  /** Sets exact milliseconds per item for subsequent display periods. */
   public setMsPerItem(ms: number): void {
-    this.#assertNotDestroyed();
-    validateMsPerItem(ms);
-    this.#speed = { unit: "msPerItem", value: ms };
+    this.#execute(() => {
+      validateMsPerItem(ms);
+      this.#speed = { unit: "msPerItem", value: ms };
+      return "speedChanged";
+    });
   }
 
-  // ────────── State & Snapshot Getters ──────────
-
-  /** Current engine state. */
+  /** Current playback state. */
   public get state(): RsvpState {
     return this.#stateMachine.state;
   }
-
-  /** Exact WPM input, or the WPM derived from the last ms-per-item input. */
+  /** Exact WPM input or the value derived from milliseconds per item. */
   public get wpm(): number {
     return this.#speed.unit === "wpm" ? this.#speed.value : 60_000 / this.#speed.value;
   }
-
-  /** Exact ms-per-item input, or the interval derived from the last WPM input. */
+  /** Exact interval input or the value derived from WPM. */
   public get msPerItem(): number {
     return this.#speed.unit === "msPerItem" ? this.#speed.value : 60_000 / this.#speed.value;
   }
-
-  /** Current token index (0-based). */
+  /** Selected item's zero-based index. */
   public get currentIndex(): number {
     return this.#currentIndex;
   }
-
-  /** Current token/item being displayed, or null if none. */
+  /** Selected item, or null for empty data. */
   public get currentItem(): RsvpItem<T> | null {
     return this.#tokens[this.#currentIndex] ?? null;
   }
-
-  /** Playback progress (0–1). */
+  /** Fraction of items presented; completion follows the final display period. */
   public get progress(): number {
     if (this.#tokens.length === 0) {
       return 0;
     }
     return this.#hasPresentedCurrent ? (this.#currentIndex + 1) / this.#tokens.length : 0;
   }
-
-  /** Total number of tokens/items. */
+  /** Number of loaded items. */
   public get totalItems(): number {
     return this.#tokens.length;
   }
 
-  // ────────── Event System ──────────
+  /** Reads cached immutable playback and error state, including after destroy. */
+  readonly getSnapshot = (): RsvpSnapshot<T> => this.#snapshot;
 
-  /**
-   * Subscribes to an engine event. Returns an unsubscribe function.
-   */
-  public on<K extends RsvpEventType>(
-    event: K,
-    callback: EventCallback<RsvpEventMap<T>[K]>,
-  ): UnsubscribeFn {
+  /** Subscribes to synchronous changes; subscribing does not invoke the callback. */
+  readonly subscribe = (listener: RsvpStoreListener<T>): UnsubscribeFn => {
     this.#assertNotDestroyed();
-    return this.#emitter.on(event, callback);
-  }
+    this.#listeners.add(listener);
+    return () => {
+      this.#listeners.delete(listener);
+    };
+  };
 
-  // ────────── Snapshot ──────────
-
-  /**
-   * Returns a frozen, readonly snapshot of the full engine state.
-   */
-  public snapshot(): RsvpSnapshot<T> {
-    this.#assertNotDestroyed();
+  #createSnapshot(): RsvpSnapshot<T> {
     return Object.freeze({
       state: this.state,
       currentIndex: this.#currentIndex,
@@ -530,6 +416,48 @@ export class RsvpEngine<T = string> {
       totalItems: this.totalItems,
       wpm: this.wpm,
       msPerItem: this.msPerItem,
+      error: this.#error,
     });
+  }
+
+  #publish(eventType: RsvpEventType): void {
+    const previous = this.#snapshot;
+    const changed =
+      previous.state !== this.state ||
+      previous.currentIndex !== this.#currentIndex ||
+      previous.currentItem !== this.currentItem ||
+      previous.progress !== this.progress ||
+      previous.totalItems !== this.totalItems ||
+      previous.wpm !== this.wpm ||
+      previous.msPerItem !== this.msPerItem ||
+      previous.error !== this.#error;
+    if (!changed) {
+      return;
+    }
+    this.#snapshot = this.#createSnapshot();
+    if (this.#notifying) {
+      this.#pendingNotifications.push({ snapshot: this.#snapshot, eventType });
+      return;
+    }
+    this.#notifying = true;
+    try {
+      this.#notify(this.#snapshot, eventType);
+      for (let index = 0; index < this.#pendingNotifications.length && !this.#destroyed; index++) {
+        const notification = this.#pendingNotifications[index];
+        this.#notify(notification.snapshot, notification.eventType);
+      }
+    } finally {
+      this.#pendingNotifications.length = 0;
+      this.#notifying = false;
+    }
+  }
+
+  #notify(snapshot: RsvpSnapshot<T>, eventType: RsvpEventType): void {
+    for (const listener of Array.from(this.#listeners)) {
+      if (this.#destroyed) {
+        break;
+      }
+      listener(snapshot, eventType);
+    }
   }
 }

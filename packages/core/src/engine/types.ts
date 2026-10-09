@@ -28,4 +28,30 @@ export interface RsvpSnapshot<T = string> {
   readonly wpm: number;
   /** Exact ms-per-item input, or the interval derived from the last WPM input. */
   readonly msPerItem: number;
+  /** Last engine error; cleared explicitly or by successful loading/reset. */
+  readonly error: Error | null;
 }
+
+/** The single event that produced an observable engine update. */
+export type RsvpEventType =
+  | "loaded"
+  | "started"
+  | "resumed"
+  | "paused"
+  | "stopped"
+  | "advanced"
+  | "navigated"
+  | "completed"
+  | "speedChanged"
+  | "reset"
+  | "errorOccurred"
+  | "errorCleared";
+
+/** Receives the immutable snapshot and the event that produced it. */
+export type RsvpStoreListener<T = string> = (
+  snapshot: RsvpSnapshot<T>,
+  eventType: RsvpEventType,
+) => void;
+
+/** Removes a store subscription. Safe to call more than once. */
+export type UnsubscribeFn = () => void;

@@ -29,4 +29,4 @@ Package verification includes the [TypeScript consumer fixture](../../fixtures/t
 - Cover valid state transitions and invalid-transition behavior.
 - Use fake timers for scheduling tests, including delayed callbacks and drift recovery.
 - Cover tokenizer boundaries such as empty input, whitespace, punctuation, and non-string tokens.
-- Restore timers and mocks and remove event listeners after each test.
+- Restore timers and mocks and remove subscriptions after each test.

@@ -4,7 +4,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0003](./0003-delegate-core-observable-store.md).
 
 ## Context
 
