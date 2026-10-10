@@ -39,42 +39,104 @@ const unsubscribe = engine.subscribe((snapshot, eventType) => {
 engine.play();
 ```
 
-Core owns the immutable snapshot, including its `error` field. Commands and scheduled advancements publish one consistent update after playback and scheduling are ready. Reading `getSnapshot()` does not allocate a new snapshot; its reference stays stable until observable state changes. Call `unsubscribe()` to detach the listener and `engine.destroy()` when the reader's owner releases it.
+Call `unsubscribe()` to detach the listener and `engine.destroy()` when the reader's owner releases it. The engine owns playback; applications own rendering, input acquisition, and storage.
 
-Asynchronous tokenization stays outside the synchronous engine:
+## Configuration and commands
 
-```typescript
-const tokens = await tokenizeWithYourService(text);
-engine.loadTokens(tokens);
-```
+All constructor options are optional. `data: T | T[]` supplies input; `wpm` defaults to `DEFAULT_WPM`. `msPerItem` takes precedence over `wpm`. Inject `tokenizer`, `scheduler`, or `timeDriver` to replace the defaults.
 
-## Speed control
+Speed inputs must be finite and within the exported `MIN_WPM`/`MAX_WPM` or `MIN_MS_PER_ITEM`/`MAX_MS_PER_ITEM` limits. Fractional values are supported. The supplied unit is preserved exactly; the other is derived as `60_000 / value` without rounding. Changes affect future periods, preserving the running or paused item's remaining time.
 
-Use `engine.setWpm(225)` to set the reading rate or `engine.setMsPerItem(250)` to set the base display duration. The last supplied value is preserved exactly in its unit, including in snapshots; the other unit is derived without additional rounding. Changes affect subsequently scheduled display periods.
+| Command | Behavior |
+| --- | --- |
+| `play()` | Starts from `IDLE`, resumes `PAUSED`, or replays `STOPPED`/`COMPLETED` from index `0`. Requires nonempty input. |
+| `pause()` | Valid only in `PLAYING`; retains the item and its remaining display time. |
+| `stop()` | Valid only in `PLAYING`/`PAUSED`; resets index and progress to `0`, retaining data. |
+| `seek(index)` | Selects an in-bounds finite integer index from `PAUSED`, `STOPPED`, or `COMPLETED`, entering `PAUSED`. |
+| `next()` / `previous()` | Moves one item while `PAUSED`; does nothing at an endpoint. |
+| `load(data)` / `loadTokens(tokens)` | Replaces input and returns to `IDLE`; rejected in `PLAYING` or `ERROR`. |
+| `setWpm(wpm)` / `setMsPerItem(ms)` | Changes the base rate or display interval. |
+| `clearError()` | Clears error information without changing playback state. |
+| `reset()` | Valid only in `ERROR`; clears data and returns to empty `IDLE`. |
+| `destroy()` | Permanently cancels playback and subscriptions; safe to repeat. |
+
+Invalid seek indices preserve position, progress, and scheduling. Empty input has no valid seek index. Pause or stop before replacing playing data; reset before replacing data in `ERROR`.
+
+## Snapshots and subscriptions
+
+`getSnapshot()` reads the cached, immutable `RsvpSnapshot<T>`. Its reference stays stable until observable state changes. `subscribe((snapshot, eventType) => ...)` delivers changes synchronously after playback and scheduling are ready; it does not call the listener on subscription, so read the initial snapshot explicitly.
+
+| Field | Meaning |
+| --- | --- |
+| `state` | `IDLE`, `PLAYING`, `PAUSED`, `STOPPED`, `COMPLETED`, or fatal `ERROR`. |
+| `currentIndex` / `currentItem` | Selected or presented index and item; the item is `null` for empty input. |
+| `progress` / `totalItems` | Presented-token fraction and token count, not elapsed time or linguistic word count. |
+| `wpm` / `msPerItem` | Base rate and interval before the item's `durationMultiplier`. |
+| `timing` | Frozen duration sample described below. |
+| `error` | Last error, or `null`. |
+
+Progress starts at `0` and reaches `1` when the final item is presented. That item still needs its display period; detect completion with `state === "COMPLETED"`.
+
+Each update carries one `RsvpEventType`, describing its operation rather than individual fields:
+
+| Type                             | Operation                                               |
+| -------------------------------- | ------------------------------------------------------- |
+| `loaded` / `reset`               | Replace input or recover from a fatal error.            |
+| `started` / `resumed`            | Start/replay or continue a paused item.                 |
+| `paused` / `stopped`             | Pause or return to the beginning.                       |
+| `advanced` / `navigated`         | Advance during playback or select an item manually.     |
+| `completed`                      | Finish the final item's display period.                 |
+| `speedChanged`                   | Change observable speed.                                |
+| `errorOccurred` / `errorCleared` | Record a failure or explicitly clear error information. |
+
+No-ops do not notify. Failed commands use `errorOccurred`; successful load/reset clear errors in their own notification. Nested commands queue notifications in order; use the callback's supplied snapshot for its event. Listeners must handle their own exceptions, which otherwise interrupt delivery and propagate.
+
+Invalid controls record an error without throwing or changing usable playback. Invalid speed/loading inputs are recorded and still throw; unexpected tokenizer or scheduler failures enter `ERROR`. Constructor failures throw. Errors clear on `clearError()`, successful loading, or successful reset; clearing error information alone does not recover `ERROR`.
+
+After destruction, the last snapshot remains readable; commands and new subscriptions throw `EngineDestroyedError`.
 
 ## Duration estimates
 
-Read `engine.getSnapshot().timing` for `totalDurationMs`, nullable `remainingDurationMs`, and `sampledAtMs`. Samples arrive through the existing subscription on playback and speed changes; Core adds no countdown timer. Loading prepares O(n) suffix sums, making subsequent estimates O(1). See [duration semantics](./docs/API-REFERENCE.md#duration-estimates) for pause/resume and application countdowns.
+Read `getSnapshot().timing`:
 
-## Stopping playback
+| Field                 | Meaning                                                                        |
+| --------------------- | ------------------------------------------------------------------------------ |
+| `totalDurationMs`     | Fresh playback estimate at the selected speed, including all item multipliers. |
+| `remainingDurationMs` | Retained current-item remainder plus future periods; `null` in fatal `ERROR`.  |
+| `sampledAtMs`         | Timestamp in the engine's `TimeDriver` clock, not necessarily Unix time.       |
 
-`stop()` is valid only in `PLAYING` or `PAUSED`; it cancels playback, resets index and progress to zero, and retains loaded data. Other calls record `InvalidTransitionError` without changing playback.
+Samples update on loading, playback/navigation changes, and effective speed changes. Reads, no-ops, and nonfatal error changes do not resample. Pause freezes the remainder; navigation gives the selected item a full period. Before playback and after stop, remaining equals total; empty input and completion have zero remaining time. Speed increases can make remaining exceed total because the active item's older period is retained. Estimates exclude pauses and future host delays.
 
-## Seeking
+Core adds no countdown timer. For a live countdown, share the engine's `TimeDriver`, subtract `now() - sampledAtMs` only while `PLAYING`, and clamp to zero. Rebase on each new sample; use engine state for completion. Loading prepares O(n) suffix sums; subsequent estimates take O(1).
 
-`seek(index)` requires a finite integer within the loaded token bounds and a state of `PAUSED`, `STOPPED`, or `COMPLETED`. It selects an item in `PAUSED` without starting playback. Invalid indices report `IndexOutOfBoundsError` and preserve playback state, position, progress, and scheduling. Empty input has no valid seek index.
+## Tokenization and custom strategies
 
-## Migrating subscriptions
+`DefaultTokenizer` uses `Intl.Segmenter` when available, falling back to whitespace boundaries. Array elements are individual tokens unless `nestedTokenize: true`; non-string values are individual items. `DefaultOvpStrategy` selects a grapheme-aware UTF-16 offset within a string token, not its location in the source passage.
 
-Replace `on(...)` listeners with `subscribe((snapshot, eventType) => ...)`, and replace `snapshot()` with `getSnapshot()`. Both expose a flat `RsvpSnapshot<T>`, including `error`. Each notification includes one `RsvpEventType` describing the operation that produced the update; one operation can change several snapshot fields. The event emitter, legacy event payload types, and `itemChange.reason` are removed.
+Tokens contain `value: T`, a non-negative integer `ovpIndex` within string bounds, and a positive finite `durationMultiplier`. Display duration is `msPerItem * durationMultiplier`. Configure punctuation with `sentenceDurationMultiplier`, `clauseDurationMultiplier`, and `dashDurationMultiplier`; inject `ovpStrategy` to change the viewing position.
 
-Use `started`, `advanced`, and `navigated` to display the current item; use `loaded`, `stopped`, and `reset` to restore a placeholder. `resumed` preserves the displayed item, and `completed` follows the final item's display period. See the [event type reference](./docs/API-REFERENCE.md#notification-types) for the full contract.
+| Strategy | Responsibility and contract |
+| --- | --- |
+| `TokenizerStrategy<T>` | Converts input synchronously: `tokenize(input: T \| T[]): Token<T>[]`. Prepare asynchronous tokens outside Core and pass them to `loadTokens()`. |
+| `OvpStrategy` | Chooses the viewing offset: `calculate(text: string): number`. |
+| `SchedulerStrategy` | Runs delayed work with `schedule(task, delayMs)` and `cancel()`. Optional `getDeadline(): number \| null` supplies the effective deadline in the engine clock; otherwise accounting is nominal. |
+| `TimeDriver` | Supplies `now()`, `setTimeout(callback, ms)`, and `clearTimeout(handle)`. Use a coherent clock with custom scheduling. |
 
-Core retains the last error until `clearError()`, a successful `load/loadTokens()`, or a successful `reset()`. Clearing the error does not recover the `ERROR` state. Invalid speed and loading inputs are recorded and still throw; subscribers should handle their own exceptions.
+The default `DriftCorrectedScheduler` corrects ordinary lag and rebases after severe lag. `SystemTimeDriver` uses `performance.now()` when available, otherwise `Date.now()`, and requires host timers. Resume of an expired item advances or completes immediately instead of scheduling a zero delay.
 
-## Migrating duration multipliers
+## Migration
 
-Rename the multiplier fields in custom tokens, tokenizer output, item reads, and `DefaultTokenizer` options:
+### Core 1 → 2
+
+Apply both migrations below when upgrading from Core 1 to Core 2; old APIs have no compatibility aliases. New integrations use the API described above.
+
+#### Migrating subscriptions
+
+Replace `on(...)` with `subscribe((snapshot, eventType) => ...)`, and `snapshot()` with `getSnapshot()`. `error` is part of the flat snapshot and clears on successful load/reset as well as `clearError()`. `EventEmitter`, event maps, legacy payload types, and `itemChange.reason` are removed. Use the notification types above; callbacks receive a complete snapshot instead of separate event payloads.
+
+#### Migrating duration multipliers
+
+Update custom tokens, tokenizer output, item reads, and `DefaultTokenizer` options:
 
 | Previous name                                        | Replacement                  |
 | ---------------------------------------------------- | ---------------------------- |
@@ -85,7 +147,9 @@ Rename the multiplier fields in custom tokens, tokenizer output, item reads, and
 
 The old names are removed without aliases. Multipliers remain positive finite numbers; an item's display duration is `msPerItem * durationMultiplier`. Defaults and playback pacing are unchanged.
 
-## Migrating API names
+### Core 0 → 1
+
+#### Migrating API names
 
 Acronyms in class and type names use ordinary PascalCase. The previous names are removed without compatibility aliases:
 
@@ -96,15 +160,13 @@ Acronyms in class and type names use ordinary PascalCase. The previous names are
 | `RSVPItem`           | `RsvpItem`           |
 | `RSVPSnapshot`       | `RsvpSnapshot`       |
 | `RSVPState`          | `RsvpState`          |
+| `RSVPEventType`      | `RsvpEventType`      |
+| `RSVPEventMap`       | `RsvpEventMap`       |
 | `OVPStrategy`        | `OvpStrategy`        |
 | `DefaultOVPStrategy` | `DefaultOvpStrategy` |
 | `setSpeed(wpm)`      | `setWpm(wpm)`        |
 
-Update imports, type annotations, constructor calls, and speed commands. `setMsPerItem`, uppercase constants such as `DEFAULT_WPM`, and state values such as `"PLAYING"` retain their names and behavior.
-
-## Contributing
-
-See the [contributor guidelines](./CONTRIBUTING.md) to develop and verify changes locally.
+Update imports, type annotations, constructor calls, and speed commands. `setMsPerItem`, uppercase constants such as `DEFAULT_WPM`, and state values such as `"PLAYING"` retain their names and behavior. A direct upgrade from Core 0 to Core 2 also requires the Core 2 migrations; event maps and legacy payload types are removed there.
 
 ## License
 
