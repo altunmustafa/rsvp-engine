@@ -98,7 +98,6 @@ describe("subscription event types", () => {
     const listener = vi.fn();
     engine.subscribe(listener);
     engine.pause();
-    engine.stop();
     engine.seek(-1);
     engine.next();
     engine.previous();
@@ -106,7 +105,6 @@ describe("subscription event types", () => {
     engine.play();
     engine.play();
     expect(listener.mock.calls.map((call) => call[1])).toEqual([
-      "errorOccurred",
       "errorOccurred",
       "errorOccurred",
       "errorOccurred",

@@ -43,6 +43,8 @@ describe("StateMachine", () => {
     const validTransitions: { from: RsvpState; action: StateMachineAction; to: RsvpState }[] = [
       { from: "IDLE", action: "play", to: "PLAYING" },
       { from: "IDLE", action: "load", to: "IDLE" },
+      { from: "IDLE", action: "stop", to: "IDLE" },
+      { from: "IDLE", action: "seek", to: "PAUSED" },
       { from: "IDLE", action: "error", to: "ERROR" },
 
       { from: "PLAYING", action: "pause", to: "PAUSED" },
@@ -59,11 +61,13 @@ describe("StateMachine", () => {
       { from: "STOPPED", action: "play", to: "PLAYING" },
       { from: "STOPPED", action: "load", to: "IDLE" },
       { from: "STOPPED", action: "seek", to: "PAUSED" },
+      { from: "STOPPED", action: "stop", to: "STOPPED" },
       { from: "STOPPED", action: "error", to: "ERROR" },
 
       { from: "COMPLETED", action: "play", to: "PLAYING" },
       { from: "COMPLETED", action: "load", to: "IDLE" },
       { from: "COMPLETED", action: "seek", to: "PAUSED" },
+      { from: "COMPLETED", action: "stop", to: "STOPPED" },
       { from: "COMPLETED", action: "error", to: "ERROR" },
 
       { from: "ERROR", action: "reset", to: "IDLE" },
@@ -81,8 +85,6 @@ describe("StateMachine", () => {
   describe("Invalid transitions", () => {
     const invalidTransitions: { from: RsvpState; action: StateMachineAction }[] = [
       { from: "IDLE", action: "pause" },
-      { from: "IDLE", action: "stop" },
-      { from: "IDLE", action: "seek" },
       { from: "IDLE", action: "complete" },
       { from: "IDLE", action: "reset" },
 
@@ -96,12 +98,10 @@ describe("StateMachine", () => {
       { from: "PAUSED", action: "reset" },
 
       { from: "STOPPED", action: "pause" },
-      { from: "STOPPED", action: "stop" },
       { from: "STOPPED", action: "complete" },
       { from: "STOPPED", action: "reset" },
 
       { from: "COMPLETED", action: "pause" },
-      { from: "COMPLETED", action: "stop" },
       { from: "COMPLETED", action: "complete" },
       { from: "COMPLETED", action: "reset" },
 

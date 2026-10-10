@@ -51,8 +51,8 @@ Speed inputs must be finite and within the exported `MIN_WPM`/`MAX_WPM` or `MIN_
 | --- | --- |
 | `play()` | Starts from `IDLE`, resumes `PAUSED`, or replays `STOPPED`/`COMPLETED` from index `0`. Requires nonempty input. |
 | `pause()` | Valid only in `PLAYING`; retains the item and its remaining display time. |
-| `stop()` | Valid only in `PLAYING`/`PAUSED`; resets index and progress to `0`, retaining data. |
-| `seek(index)` | Selects an in-bounds finite integer index from `PAUSED`, `STOPPED`, or `COMPLETED`, entering `PAUSED`. |
+| `stop()` | Returns `PLAYING`/`PAUSED`/`COMPLETED` to `STOPPED` at index and progress `0`, retaining data. No-op in `IDLE`/`STOPPED`; invalid in `ERROR`. |
+| `seek(index)` | Selects an in-bounds finite integer index from `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED`, entering `PAUSED` without playback. |
 | `next()` / `previous()` | Moves one item while `PAUSED`; does nothing at an endpoint. |
 | `load(data)` / `loadTokens(tokens)` | Replaces input and returns to `IDLE`; rejected in `PLAYING` or `ERROR`. |
 | `setWpm(wpm)` / `setMsPerItem(ms)` | Changes the base rate or display interval. |
@@ -60,7 +60,7 @@ Speed inputs must be finite and within the exported `MIN_WPM`/`MAX_WPM` or `MIN_
 | `reset()` | Valid only in `ERROR`; clears data and returns to empty `IDLE`. |
 | `destroy()` | Permanently cancels playback and subscriptions; safe to repeat. |
 
-Invalid seek indices preserve position, progress, and scheduling. Empty input has no valid seek index. Pause or stop before replacing playing data; reset before replacing data in `ERROR`.
+Stop retains items without retokenizing, restores full remaining duration, and preserves existing errors. Repeated Stop and Stop in `IDLE`, including empty input, preserve the cached snapshot and do not notify. Initial seek gives the selected item its full display period without scheduling; `play()` continues from that position. Invalid seek indices preserve position, progress, and scheduling. Empty input has no valid seek index. Pause before seeking during playback; pause or stop before replacing playing data; reset before replacing data in `ERROR`.
 
 ## Snapshots and subscriptions
 
@@ -75,7 +75,7 @@ Invalid seek indices preserve position, progress, and scheduling. Empty input ha
 | `timing` | Frozen duration sample described below. |
 | `error` | Last error, or `null`. |
 
-Progress starts at `0` and reaches `1` when the final item is presented. That item still needs its display period; detect completion with `state === "COMPLETED"`.
+Progress is `0` in `IDLE` and `STOPPED`, and counts the selected item after navigation, including initial seek. It reaches `1` when the final item is selected or presented. That item still needs its display period; detect completion with `state === "COMPLETED"`.
 
 Each update carries one `RsvpEventType`, describing its operation rather than individual fields:
 
@@ -105,7 +105,7 @@ Read `getSnapshot().timing`:
 | `remainingDurationMs` | Retained current-item remainder plus future periods; `null` in fatal `ERROR`.  |
 | `sampledAtMs`         | Timestamp in the engine's `TimeDriver` clock, not necessarily Unix time.       |
 
-Samples update on loading, playback/navigation changes, and effective speed changes. Reads, no-ops, and nonfatal error changes do not resample. Pause freezes the remainder; navigation gives the selected item a full period. Before playback and after stop, remaining equals total; empty input and completion have zero remaining time. Speed increases can make remaining exceed total because the active item's older period is retained. Estimates exclude pauses and future host delays.
+Samples update on loading, playback/navigation changes, and effective speed changes. Reads, no-ops, and nonfatal error changes do not resample. Pause freezes the remainder; navigation gives the selected item a full period. In `IDLE` and `STOPPED`, remaining equals total; empty input and completion have zero remaining time. Speed increases can make remaining exceed total because the active item's older period is retained. Estimates exclude pauses and future host delays.
 
 Core adds no countdown timer. For a live countdown, share the engine's `TimeDriver`, subtract `now() - sampledAtMs` only while `PLAYING`, and clamp to zero. Rebase on each new sample; use engine state for completion. Loading prepares O(n) suffix sums; subsequent estimates take O(1).
 

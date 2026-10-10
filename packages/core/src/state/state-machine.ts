@@ -9,6 +9,8 @@ export class StateMachine {
     IDLE: {
       load: "IDLE",
       play: "PLAYING",
+      stop: "IDLE",
+      seek: "PAUSED",
       error: "ERROR",
     },
     PLAYING: {
@@ -27,12 +29,14 @@ export class StateMachine {
     STOPPED: {
       load: "IDLE",
       play: "PLAYING",
+      stop: "STOPPED",
       seek: "PAUSED",
       error: "ERROR",
     },
     COMPLETED: {
       load: "IDLE",
       play: "PLAYING",
+      stop: "STOPPED",
       seek: "PAUSED",
       error: "ERROR",
     },

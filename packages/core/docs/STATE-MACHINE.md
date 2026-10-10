@@ -4,6 +4,8 @@
 stateDiagram-v2
     [*] --> IDLE
     IDLE --> PLAYING: play
+    IDLE --> IDLE: stop
+    IDLE --> PAUSED: seek
     PLAYING --> PAUSED: pause
     PLAYING --> STOPPED: stop
     PLAYING --> COMPLETED: final duration expires
@@ -11,8 +13,10 @@ stateDiagram-v2
     PAUSED --> STOPPED: stop
     PAUSED --> PAUSED: seek
     STOPPED --> PLAYING: play
+    STOPPED --> STOPPED: stop
     STOPPED --> PAUSED: seek
     COMPLETED --> PLAYING: play
+    COMPLETED --> STOPPED: stop
     COMPLETED --> PAUSED: seek
     PAUSED --> IDLE: load
     STOPPED --> IDLE: load
@@ -41,7 +45,17 @@ Pause preserves the current item's remaining display time using the scheduler's 
 
 ## Stop behavior
 
-`stop()` is valid only from `PLAYING` or `PAUSED`: it enters `STOPPED`, cancels the pending task, retains loaded tokens, and resets index and progress to zero. Calls from any other state, including repeated calls or calls after completion, record `InvalidTransitionError` without changing state, position, or progress.
+`stop()` retains loaded items and never starts playback or retokenizes input:
+
+| Starting state | Result |
+| --- | --- |
+| `IDLE`, including empty input | No-op; retains the ready state and cached snapshot. |
+| `PLAYING` or `PAUSED` | Cancels playback and enters `STOPPED` at index `0`, progress `0`, and full remaining duration. |
+| `STOPPED` | No-op; repeated calls retain the cached snapshot. |
+| `COMPLETED` | Enters `STOPPED` at index `0`, progress `0`, and full remaining duration. |
+| `ERROR` | Records `InvalidTransitionError`; fatal state and loaded items remain. Recovery still requires `reset()`. |
+
+Successful Stop retains any existing error. No-op calls do not notify or resample timing; an observable Stop publishes one `stopped` update. See [ADR-0011](./architecture/adr/0011-retained-session-controls.md).
 
 ## Error policy
 
@@ -49,7 +63,9 @@ The low-level `StateMachine.transition()` throws `InvalidTransitionError` for an
 
 Unexpected tokenizer or scheduler failures are fatal. Explicit `load()` failures are rethrown after entering `ERROR`; constructor tokenization failures are thrown because no listener can exist yet.
 
-`seek()` accepts only finite integers in `[0, totalItems)`. Invalid indices report `IndexOutOfBoundsError` before checking state and preserve selection, progress, and scheduling, including a paused item's remaining display time. Empty input has no valid seek index. Valid seek states remain `PAUSED`, `STOPPED`, and `COMPLETED`.
+`seek()` accepts only finite integers in `[0, totalItems)`. Invalid indices report `IndexOutOfBoundsError` before checking state and preserve selection, progress, and scheduling, including a paused item's remaining display time. Empty input has no valid seek index. Valid seek states are `IDLE`, `PAUSED`, `STOPPED`, and `COMPLETED`.
+
+A valid seek enters `PAUSED`, selects the item with its full display period, and schedules nothing. This also permits choosing an initial position before the first playback. Progress counts the selected item, even when playback has not started. `play()` continues from that item; `next()` and `previous()` remain available only while `PAUSED`. Seek is invalid in `PLAYING` and `ERROR`.
 
 ## Invariants
 
