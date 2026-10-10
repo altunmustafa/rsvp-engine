@@ -1,5 +1,7 @@
+import type { TimeDriver } from "@rsvp-engine/react";
+
 import { createRsvpContext, createRsvpController } from "@rsvp-engine/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import "./styles.css";
@@ -7,7 +9,12 @@ import "./styles.css";
 const initialText =
   "Speed reading reduces eye movement by displaying words sequentially at a fixed focal point.";
 
-const controller = createRsvpController({ data: initialText, wpm: 300 });
+const timeDriver: TimeDriver = {
+  now: () => performance.now(),
+  setTimeout: (callback, ms) => window.setTimeout(callback, ms),
+  clearTimeout: (handle) => window.clearTimeout(handle as number),
+};
+const controller = createRsvpController({ data: initialText, wpm: 300, timeDriver });
 const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<string>();
 
 function WordDisplay() {
@@ -36,6 +43,47 @@ function Progress() {
       </progress>
       <output htmlFor="reader-progress">{percentage}%</output>
     </div>
+  );
+}
+
+function formatDuration(durationMs: number | null): string {
+  if (durationMs === null) {
+    return "—";
+  }
+  const seconds = Math.ceil(durationMs / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function Timing() {
+  const state = useRsvpSelector((snapshot) => snapshot.state);
+  const timing = useRsvpSelector((snapshot) => snapshot.timing);
+  const [nowMs, setNowMs] = useState(() => timeDriver.now());
+
+  useEffect(() => {
+    if (state !== "PLAYING") {
+      return;
+    }
+    const interval = window.setInterval(() => setNowMs(timeDriver.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [state]);
+
+  const elapsedMs = state === "PLAYING" ? Math.max(0, nowMs - timing.sampledAtMs) : 0;
+  const remainingMs =
+    timing.remainingDurationMs === null
+      ? null
+      : Math.max(0, timing.remainingDurationMs - elapsedMs);
+
+  return (
+    <dl className="timing">
+      <div>
+        <dt>Total time</dt>
+        <dd>{formatDuration(timing.totalDurationMs)}</dd>
+      </div>
+      <div>
+        <dt>Remaining time</dt>
+        <dd>{formatDuration(remainingMs)}</dd>
+      </div>
+    </dl>
   );
 }
 
@@ -137,6 +185,7 @@ function App() {
           <h2 id="reader-heading">Reader</h2>
           <WordDisplay />
           <Progress />
+          <Timing />
           <PlaybackControls />
           <Status />
         </section>

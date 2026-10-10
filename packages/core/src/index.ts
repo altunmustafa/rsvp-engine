@@ -14,6 +14,7 @@ export type {
   RsvpItem,
   RsvpSnapshot,
   RsvpStoreListener,
+  RsvpTiming,
   UnsubscribeFn,
 } from "./engine/types";
 export type { RsvpState } from "./state/types";

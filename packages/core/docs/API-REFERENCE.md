@@ -56,7 +56,9 @@ engine.wpm; // 224.99999999999997: now derived from the explicit interval
 
 Derived values retain normal floating-point precision without additional rounding. Strict equality between WPM and `60_000 / msPerItem` is not guaranteed after setting WPM. A snapshot does not record the source unit and is not a lossless speed-restoration format: passing both snapshot fields back as constructor options selects `msPerItem`.
 
-Tokens require a non-negative integer `ovpIndex` (within string bounds for string values) and a positive finite `delayMultiplier`.
+Tokens require a non-negative integer `ovpIndex` (within string bounds for string values) and a positive finite `durationMultiplier`.
+
+`durationMultiplier` scales `msPerItem` to produce the item's display duration. `Token` and `RsvpItem` use the same field. See [multiplier migration](../README.md#migrating-duration-multipliers) for the removed token and tokenizer option names.
 
 ### State getters
 
@@ -64,9 +66,29 @@ Tokens require a non-negative integer `ovpIndex` (within string bounds for strin
 - `currentIndex/currentItem` identify the selected or visibly presented item, never an internal next-item pointer.
 - Progress is `0` before presentation and reaches `1` on the final item.
 
+### Duration estimates
+
+`getSnapshot().timing` returns a cached, frozen `RsvpTiming` sample. It travels in the existing subscription snapshot; reading it neither recalculates durations nor starts a countdown timer.
+
+| Field                 | Meaning                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| `totalDurationMs`     | Full content duration at the current base speed, including token duration multipliers.    |
+| `remainingDurationMs` | Current item's retained display time plus future item durations; `null` in fatal `ERROR`. |
+| `sampledAtMs`         | Sample timestamp from the engine's `TimeDriver`, not necessarily Unix time.               |
+
+Samples update after loading, playback state or item changes, and effective speed changes, once scheduling has finished. No-op commands and nonfatal error changes retain the previous sample. Seeking to the same paused item restores its full display period and notifies if that changes its retained duration.
+
+Before playback and after stop, remaining duration equals total duration. Empty content has zero duration. Pause freezes the current remainder; resume preserves it. Navigation starts the selected item's full period. Completion sets remaining duration to zero; progress reaching `1` still leaves the final item's display period to run.
+
+Speed changes update future item estimates without replacing the current item's running or paused remainder. Consequently, remaining duration can exceed total duration after a speed increase. Estimates exclude pauses and future host delays; total duration is an estimate for a fresh playback, not elapsed time plus remaining time.
+
+Loading builds duration-multiplier suffix sums in O(n) time and storage. Subsequent duration calculations, including speed changes and item advancement, are O(1).
+
+An application may display a countdown by sharing the engine's `TimeDriver` and subtracting `now() - sampledAtMs` from the sample only while `PLAYING`, clamping the result to zero. Rebase on each new sample and freeze the display while paused. Use engine state to detect completion. Calendar-time conversion and countdown refreshes belong to the application.
+
 ### Observable store
 
-`getSnapshot(): RsvpSnapshot<T>` returns one immutable snapshot containing the playback fields listed above and `error: Error | null`. Core owns the cached value so every adapter reads the same playback and error state.
+`getSnapshot(): RsvpSnapshot<T>` returns one immutable snapshot containing the playback fields listed above, `timing: RsvpTiming`, and `error: Error | null`. Core owns the cached value so every adapter reads the same playback and error state.
 
 ```typescript
 const unsubscribe = engine.subscribe((snapshot, eventType) => {
@@ -90,10 +112,10 @@ Each observable update produces one notification with one type. Types describe o
 | --------------- | ------------------------------------------------------------------------------- |
 | `loaded`        | Successful `load()` or `loadTokens()`.                                          |
 | `started`       | Initial playback, or replay from `STOPPED` or `COMPLETED`.                      |
-| `resumed`       | Playback continues from `PAUSED`, preserving the current item's remaining time. |
+| `resumed`       | Playback continues from `PAUSED` with a positive current-item remainder.        |
 | `paused`        | Successful pause.                                                               |
 | `stopped`       | Successful stop, resetting position and progress while retaining content.       |
-| `advanced`      | The scheduler advances to the next item.                                        |
+| `advanced`      | Playback advances to the next item, including resume of an expired item.        |
 | `navigated`     | `seek()`, `next()`, or `previous()` changes the observable selection or state.  |
 | `completed`     | The final item's display period ends.                                           |
 | `speedChanged`  | `setWpm()` or `setMsPerItem()` changes observable speed.                        |
@@ -115,7 +137,7 @@ Invalid controls record errors without throwing or changing usable playback. Inv
 
 `DefaultTokenizer` uses `Intl.Segmenter` for word boundaries when the runtime provides it and falls back to whitespace segmentation. `DefaultOvpStrategy` produces grapheme-aware JavaScript string offsets so consumers can safely use `slice()`.
 
-Supported options are `sentenceDelay`, `clauseDelay`, `dashDelay`, `nestedTokenize`, and `ovpStrategy`. Delay values must be positive and finite. Custom OVP strategies implement `OvpStrategy` and can be injected without replacing the tokenizer:
+Supported options are `sentenceDurationMultiplier`, `clauseDurationMultiplier`, `dashDurationMultiplier`, `nestedTokenize`, and `ovpStrategy`. Duration multipliers must be positive and finite. Custom OVP strategies implement `OvpStrategy` and can be injected without replacing the tokenizer:
 
 ```typescript
 class LastCharacterOvpStrategy implements OvpStrategy {
@@ -132,6 +154,10 @@ const tokenizer = new DefaultTokenizer({
 ## Scheduling
 
 `DriftCorrectedScheduler.schedule(task, delayMs)` accepts positive finite delays. Ordinary timer lag is deducted from the next interval. Lag of at least one full interval rebases the timeline instead of emitting zero-delay catch-up bursts. `cancel()` clears the pending task and timeline.
+
+Schedulers may implement `getDeadline(): number | null` to expose the pending task's effective deadline in the engine's `TimeDriver` clock. The default scheduler includes drift correction and returns `null` after cancellation or task execution. Core rejects non-finite deadlines as fatal failures. Schedulers that omit the method or return `null` use nominal deadline accounting.
+
+Pause preserves the effective deadline's remainder. If that remainder is already zero, resume advances immediately or completes the final item without scheduling a zero delay. It publishes one `advanced` or `completed` update instead of `resumed`.
 
 `SystemTimeDriver` prefers the host's monotonic `performance.now()` clock and falls back to ECMAScript's `Date.now()`. The default driver requires host-provided `setTimeout` and `clearTimeout` functions and fails fast when they are absent. Timerless environments can provide their own `TimeDriver` through dependency injection.
 

@@ -12,7 +12,7 @@ export interface RsvpItem<T = string> {
   /** Optimal Viewing Position character index within the value. */
   readonly ovpIndex: number;
   /** Multiplier applied to msPerItem for this token (e.g. 2.0 for sentence-ending punctuation). */
-  readonly delayMultiplier: number;
+  readonly durationMultiplier: number;
 }
 
 /**
@@ -30,6 +30,18 @@ export interface RsvpSnapshot<T = string> {
   readonly msPerItem: number;
   /** Last engine error; cleared explicitly or by successful loading/reset. */
   readonly error: Error | null;
+  /** Cached duration estimates sampled on playback and effective speed changes. */
+  readonly timing: RsvpTiming;
+}
+
+/** Immutable duration estimates in milliseconds, sampled using the engine's TimeDriver. */
+export interface RsvpTiming {
+  /** Full playback estimate at the selected speed, excluding pauses and future host lag. */
+  readonly totalDurationMs: number;
+  /** Current-item remainder plus future periods; null in the fatal ERROR state. */
+  readonly remainingDurationMs: number | null;
+  /** Timestamp in the engine's clock, not necessarily a Unix timestamp. */
+  readonly sampledAtMs: number;
 }
 
 /** The single event that produced an observable engine update. */

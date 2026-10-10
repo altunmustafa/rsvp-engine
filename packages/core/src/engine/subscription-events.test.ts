@@ -56,7 +56,7 @@ describe("subscription event types", () => {
       if (method === "load") {
         engine.load("new");
       } else {
-        engine.loadTokens([{ value: "new", ovpIndex: 0, delayMultiplier: 1 }]);
+        engine.loadTokens([{ value: "new", ovpIndex: 0, durationMultiplier: 1 }]);
       }
       expect(listener.mock.calls).toEqual([[engine.getSnapshot(), "loaded"]]);
       expect(engine.getSnapshot().error).toBeNull();

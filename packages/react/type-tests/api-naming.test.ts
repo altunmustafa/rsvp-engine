@@ -32,14 +32,4 @@ export function checkSpeedCommands(
     void engine.getSnapshot();
   })();
   engine.clearError();
-  // @ts-expect-error The event subscription API is removed.
-  engine.on("error", () => undefined);
-  // @ts-expect-error Read the cached store instead.
-  engine.snapshot();
-  // @ts-expect-error The old Core command is removed, not retained as an alias.
-  engine.setSpeed(225);
-  // @ts-expect-error The old controller command is removed.
-  controller.setSpeed(225);
-  // @ts-expect-error The old action is removed.
-  actions.setSpeed(225);
 }

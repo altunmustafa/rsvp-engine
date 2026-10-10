@@ -148,7 +148,9 @@ describe("RsvpEngine", () => {
 
     it("uses custom tokenizer (TokenizerStrategy)", () => {
       const customTokenizer: TokenizerStrategy<string> = {
-        tokenize: vi.fn().mockReturnValue([{ value: "custom", ovpIndex: 0, delayMultiplier: 1.0 }]),
+        tokenize: vi
+          .fn()
+          .mockReturnValue([{ value: "custom", ovpIndex: 0, durationMultiplier: 1.0 }]),
       };
       const engine = new RsvpEngine({ data: "anything", tokenizer: customTokenizer, wpm: 300 });
       expect(customTokenizer.tokenize).toHaveBeenCalledWith("anything");
@@ -159,7 +161,7 @@ describe("RsvpEngine", () => {
       const customStrategy: TokenizerStrategy<string> = {
         tokenize: vi
           .fn()
-          .mockReturnValue([{ value: "from-class", ovpIndex: 2, delayMultiplier: 1.5 }]),
+          .mockReturnValue([{ value: "from-class", ovpIndex: 2, durationMultiplier: 1.5 }]),
       };
       const engine = new RsvpEngine({ data: "sample", tokenizer: customStrategy, wpm: 300 });
       expect(customStrategy.tokenize).toHaveBeenCalledWith("sample");
@@ -205,12 +207,17 @@ describe("RsvpEngine", () => {
       expect(engine.totalItems).toBe(0);
 
       engine.loadTokens([
-        { value: "external-1", ovpIndex: 0, delayMultiplier: 1.0 },
-        { value: "external-2", ovpIndex: 1, delayMultiplier: 1.5 },
+        { value: "external-1", ovpIndex: 0, durationMultiplier: 1.0 },
+        { value: "external-2", ovpIndex: 1, durationMultiplier: 1.5 },
       ]);
 
       expect(engine.totalItems).toBe(2);
-      expect(engine.currentItem).toMatchObject({ value: "external-1", ovpIndex: 0 });
+      expect(engine.currentItem).toEqual({
+        value: "external-1",
+        index: 0,
+        ovpIndex: 0,
+        durationMultiplier: 1,
+      });
     });
 
     it("load() throws EngineDestroyedError on destroyed engine", () => {
@@ -223,7 +230,7 @@ describe("RsvpEngine", () => {
       const engine = new RsvpEngine({ wpm: 300 });
       engine.destroy();
       expect(() =>
-        engine.loadTokens([{ value: "token", ovpIndex: 0, delayMultiplier: 1.0 }]),
+        engine.loadTokens([{ value: "token", ovpIndex: 0, durationMultiplier: 1.0 }]),
       ).toThrow(EngineDestroyedError);
     });
 
@@ -251,7 +258,7 @@ describe("RsvpEngine", () => {
 
     it("preserves invalid tokenizer output as an input error", () => {
       const tokenizer: TokenizerStrategy<string> = {
-        tokenize: () => [{ value: "bad", ovpIndex: 0, delayMultiplier: 0 }],
+        tokenize: () => [{ value: "bad", ovpIndex: 0, durationMultiplier: 0 }],
       };
       const engine = new RsvpEngine({ tokenizer });
 
@@ -1001,15 +1008,15 @@ describe("RsvpEngine", () => {
 
       expect(() => engine.loadTokens(null as never)).toThrow(InvalidInputError);
       expect(() => engine.loadTokens([null] as never)).toThrow(InvalidInputError);
-      expect(() => engine.loadTokens([{ value: "bad", ovpIndex: 0, delayMultiplier: 0 }])).toThrow(
-        InvalidInputError,
-      );
-      expect(() => engine.loadTokens([{ value: "bad", ovpIndex: -1, delayMultiplier: 1 }])).toThrow(
-        InvalidInputError,
-      );
-      expect(() => engine.loadTokens([{ value: "bad", ovpIndex: 4, delayMultiplier: 1 }])).toThrow(
-        InvalidInputError,
-      );
+      expect(() =>
+        engine.loadTokens([{ value: "bad", ovpIndex: 0, durationMultiplier: 0 }]),
+      ).toThrow(InvalidInputError);
+      expect(() =>
+        engine.loadTokens([{ value: "bad", ovpIndex: -1, durationMultiplier: 1 }]),
+      ).toThrow(InvalidInputError);
+      expect(() =>
+        engine.loadTokens([{ value: "bad", ovpIndex: 4, durationMultiplier: 1 }]),
+      ).toThrow(InvalidInputError);
       expect(engine.state).toBe("IDLE");
       expect(engine.totalItems).toBe(0);
     });

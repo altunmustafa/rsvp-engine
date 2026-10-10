@@ -10,11 +10,13 @@ Terms used by `@rsvp-engine/core` and its documentation.
 
 **OVP (Optimal Viewing Position):** The character index used as a word's visual alignment point.
 
-**Tokenizer:** Converts input into `Token` objects and may assign punctuation delays and OVP indices.
+**Tokenizer:** Converts input into `Token` objects and may assign punctuation duration multipliers and OVP indices.
 
 **Drift-corrected scheduler:** Adjusts later timer delays to compensate for ordinary event-loop lateness.
 
 **`msPerItem`:** The base display duration of an item, in milliseconds.
+
+**`durationMultiplier`:** A positive finite factor applied to `msPerItem` to determine an item's display duration.
 
 **WPM (Words per minute):** The configured reading rate. An explicit WPM input is preserved exactly; when the speed is set in `msPerItem`, WPM is derived as `60_000 / msPerItem`.
 

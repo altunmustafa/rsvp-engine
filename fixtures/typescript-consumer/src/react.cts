@@ -4,9 +4,10 @@ const controller = createRsvpController<number>();
 controller.subscribe((snapshot, eventType) => {
   const event: RsvpEventType = eventType;
   const value: number | undefined = snapshot.currentItem?.value;
-  void [value, event];
+  const remaining: number | null = snapshot.timing.remainingDurationMs;
+  void [value, event, remaining];
 })();
-controller.loadTokens([{ value: 42, ovpIndex: 0, delayMultiplier: 1 }]);
+controller.loadTokens([{ value: 42, ovpIndex: 0, durationMultiplier: 1 }]);
 const { useRsvpSelector, useRsvpController } = createRsvpContext<number>();
 const value: number | undefined = useRsvpSelector((snapshot) => snapshot.currentItem?.value);
 void value;

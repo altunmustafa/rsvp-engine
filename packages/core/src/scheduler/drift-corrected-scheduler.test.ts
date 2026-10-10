@@ -149,4 +149,31 @@ describe("DriftCorrectedScheduler", () => {
     expect(() => scheduler.schedule(vi.fn(), 0)).toThrow(RangeError);
     expect(() => scheduler.schedule(vi.fn(), Number.NaN)).toThrow(RangeError);
   });
+
+  it("reports the effective deadline through correction, readability floor, and cancellation", () => {
+    let now = 0;
+    let pending: (() => void) | undefined;
+    const driver: TimeDriver = {
+      now: () => now,
+      setTimeout: (callback) => {
+        pending = callback;
+        return callback;
+      },
+      clearTimeout: () => {
+        pending = undefined;
+      },
+    };
+    const scheduler = new DriftCorrectedScheduler(driver);
+    expect(scheduler.getDeadline()).toBeNull();
+    scheduler.schedule(() => scheduler.schedule(vi.fn(), 100), 100);
+    expect(scheduler.getDeadline()).toBe(100);
+    now = 180;
+    pending!();
+    expect(scheduler.getDeadline()).toBe(230);
+    pending!();
+    expect(scheduler.getDeadline()).toBeNull();
+    scheduler.schedule(vi.fn(), 100);
+    scheduler.cancel();
+    expect(scheduler.getDeadline()).toBeNull();
+  });
 });

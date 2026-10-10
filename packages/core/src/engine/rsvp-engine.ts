@@ -4,6 +4,7 @@ import type {
   RsvpItem,
   RsvpSnapshot,
   RsvpStoreListener,
+  RsvpTiming,
   UnsubscribeFn,
 } from "./types";
 import type { SchedulerStrategy, TimeDriver } from "../scheduler/types";
@@ -40,10 +41,15 @@ export class RsvpEngine<T = string> {
   readonly #timeDriver: TimeDriver;
   readonly #tokenizer: TokenizerStrategy<T>;
   #tokens: RsvpItem<T>[] = [];
+  // Each index stores the duration multiplier sum from that item through the final item.
+  #suffixMultiplierSums = new Float64Array(1);
+  #timing: RsvpTiming;
+  #itemDurationChanged = false;
   #currentIndex = 0;
   #hasPresentedCurrent = false;
-  #deadline: number | null = null;
-  #remainingDelay: number | null = null;
+  #currentItemDeadlineMs: number | null = null;
+  #currentItemRemainingMs: number | null = null;
+  // Invalidates stale callbacks after cancellation or rescheduling, even if the scheduler still invokes them.
   #scheduleRevision = 0;
   #speed: SpeedSetting = { unit: "wpm", value: DEFAULT_WPM };
   #error: Error | null = null;
@@ -54,6 +60,11 @@ export class RsvpEngine<T = string> {
 
   constructor(options: RsvpEngineOptions<T> = {}) {
     this.#timeDriver = options.timeDriver ?? new SystemTimeDriver();
+    this.#timing = Object.freeze({
+      totalDurationMs: 0,
+      remainingDurationMs: 0,
+      sampledAtMs: this.#timeDriver.now(),
+    });
     this.#scheduler = options.scheduler ?? new DriftCorrectedScheduler(this.#timeDriver);
     this.#tokenizer = options.tokenizer ?? new DefaultTokenizer<T>();
     this.#snapshot = this.#createSnapshot();
@@ -103,13 +114,18 @@ export class RsvpEngine<T = string> {
         value: token.value,
         index,
         ovpIndex: token.ovpIndex,
-        delayMultiplier: token.delayMultiplier,
+        durationMultiplier: token.durationMultiplier,
       }),
     );
+    this.#suffixMultiplierSums = new Float64Array(tokens.length + 1);
+    for (let index = tokens.length - 1; index >= 0; index--) {
+      this.#suffixMultiplierSums[index] =
+        this.#suffixMultiplierSums[index + 1] + this.#tokens[index].durationMultiplier;
+    }
     this.#currentIndex = 0;
     this.#hasPresentedCurrent = false;
-    this.#deadline = null;
-    this.#remainingDelay = null;
+    this.#currentItemDeadlineMs = null;
+    this.#currentItemRemainingMs = null;
     this.#error = null;
   }
 
@@ -122,8 +138,8 @@ export class RsvpEngine<T = string> {
   #enterFatalError(error: Error): void {
     this.#stateMachine.transition("error");
     this.#cancelAdvance();
-    this.#deadline = null;
-    this.#remainingDelay = null;
+    this.#currentItemDeadlineMs = null;
+    this.#currentItemRemainingMs = null;
     this.#error = error;
   }
 
@@ -168,35 +184,43 @@ export class RsvpEngine<T = string> {
     if (this.#destroyed || this.state !== "PLAYING") {
       return;
     }
-    this.#execute(() => {
-      this.#deadline = null;
-      this.#remainingDelay = null;
-      if (this.#currentIndex === this.#tokens.length - 1) {
-        this.#cancelAdvance();
-        this.#stateMachine.transition("complete");
-        return "completed";
-      } else {
-        this.#currentIndex++;
-        return this.#presentCurrent() ? "advanced" : "errorOccurred";
-      }
-    });
+    this.#execute(() => this.#advanceCurrent());
+  }
+
+  #advanceCurrent(): RsvpEventType {
+    this.#currentItemDeadlineMs = null;
+    this.#currentItemRemainingMs = null;
+    if (this.#currentIndex === this.#tokens.length - 1) {
+      this.#cancelAdvance();
+      this.#stateMachine.transition("complete");
+      return "completed";
+    }
+    this.#currentIndex++;
+    return this.#presentCurrent() ? "advanced" : "errorOccurred";
   }
 
   #presentCurrent(): boolean {
     this.#hasPresentedCurrent = true;
-    return this.#scheduleAdvance(this.msPerItem * this.#tokens[this.#currentIndex].delayMultiplier);
+    return this.#scheduleAdvance(
+      this.msPerItem * this.#tokens[this.#currentIndex].durationMultiplier,
+    );
   }
 
   #scheduleAdvance(delay: number): boolean {
     const revision = ++this.#scheduleRevision;
-    this.#remainingDelay = null;
-    this.#deadline = this.#timeDriver.now() + delay;
+    this.#currentItemRemainingMs = null;
+    this.#currentItemDeadlineMs = this.#timeDriver.now() + delay;
     try {
       this.#scheduler.schedule(() => {
         if (revision === this.#scheduleRevision) {
           this.#advance();
         }
       }, delay);
+      const deadline = this.#scheduler.getDeadline?.() ?? this.#currentItemDeadlineMs;
+      if (!Number.isFinite(deadline)) {
+        throw new RangeError("Scheduler deadline must be finite.");
+      }
+      this.#currentItemDeadlineMs = deadline;
       return true;
     } catch (error) {
       this.#enterFatalError(this.#toError(error));
@@ -225,7 +249,12 @@ export class RsvpEngine<T = string> {
       }
       if (previousState === "PAUSED" && this.#hasPresentedCurrent) {
         const item = this.#tokens[this.#currentIndex];
-        return this.#scheduleAdvance(this.#remainingDelay ?? this.msPerItem * item.delayMultiplier)
+        if (this.#currentItemRemainingMs === 0) {
+          return this.#advanceCurrent();
+        }
+        return this.#scheduleAdvance(
+          this.#currentItemRemainingMs ?? this.msPerItem * item.durationMultiplier,
+        )
           ? "resumed"
           : "errorOccurred";
       } else {
@@ -240,10 +269,12 @@ export class RsvpEngine<T = string> {
       if (!this.#transition("pause")) {
         return "errorOccurred";
       }
-      this.#remainingDelay =
-        this.#deadline === null ? null : Math.max(0, this.#deadline - this.#timeDriver.now());
+      this.#currentItemRemainingMs =
+        this.#currentItemDeadlineMs === null
+          ? null
+          : Math.max(0, this.#currentItemDeadlineMs - this.#timeDriver.now());
       this.#cancelAdvance();
-      this.#deadline = null;
+      this.#currentItemDeadlineMs = null;
       return "paused";
     });
   }
@@ -257,8 +288,8 @@ export class RsvpEngine<T = string> {
       this.#cancelAdvance();
       this.#currentIndex = 0;
       this.#hasPresentedCurrent = false;
-      this.#deadline = null;
-      this.#remainingDelay = null;
+      this.#currentItemDeadlineMs = null;
+      this.#currentItemRemainingMs = null;
       return "stopped";
     });
   }
@@ -279,9 +310,11 @@ export class RsvpEngine<T = string> {
   }
 
   #selectItem(index: number): void {
+    const itemDurationMs = this.msPerItem * this.#tokens[index].durationMultiplier;
+    this.#itemDurationChanged = this.#currentItemRemainingMs !== itemDurationMs;
     this.#currentIndex = index;
     this.#hasPresentedCurrent = true;
-    this.#remainingDelay = this.msPerItem * this.#tokens[index].delayMultiplier;
+    this.#currentItemRemainingMs = itemDurationMs;
   }
 
   /** Advances one item while PAUSED; does nothing at the final item. */
@@ -316,10 +349,11 @@ export class RsvpEngine<T = string> {
       }
       this.#cancelAdvance();
       this.#tokens = [];
+      this.#suffixMultiplierSums = new Float64Array(1);
       this.#currentIndex = 0;
       this.#hasPresentedCurrent = false;
-      this.#deadline = null;
-      this.#remainingDelay = null;
+      this.#currentItemDeadlineMs = null;
+      this.#currentItemRemainingMs = null;
       this.#error = null;
       return "reset";
     });
@@ -339,8 +373,8 @@ export class RsvpEngine<T = string> {
       return;
     }
     this.#cancelAdvance();
-    this.#deadline = null;
-    this.#remainingDelay = null;
+    this.#currentItemDeadlineMs = null;
+    this.#currentItemRemainingMs = null;
     this.#listeners.clear();
     this.#destroyed = true;
   }
@@ -417,11 +451,21 @@ export class RsvpEngine<T = string> {
       wpm: this.wpm,
       msPerItem: this.msPerItem,
       error: this.#error,
+      timing: this.#timing,
     });
   }
 
   #publish(eventType: RsvpEventType): void {
     const previous = this.#snapshot;
+    if (
+      previous.state !== this.state ||
+      previous.currentItem !== this.currentItem ||
+      previous.msPerItem !== this.msPerItem ||
+      this.#itemDurationChanged
+    ) {
+      this.#refreshTiming();
+    }
+    this.#itemDurationChanged = false;
     const changed =
       previous.state !== this.state ||
       previous.currentIndex !== this.#currentIndex ||
@@ -430,7 +474,8 @@ export class RsvpEngine<T = string> {
       previous.totalItems !== this.totalItems ||
       previous.wpm !== this.wpm ||
       previous.msPerItem !== this.msPerItem ||
-      previous.error !== this.#error;
+      previous.error !== this.#error ||
+      previous.timing !== this.#timing;
     if (!changed) {
       return;
     }
@@ -449,6 +494,31 @@ export class RsvpEngine<T = string> {
     } finally {
       this.#pendingNotifications.length = 0;
       this.#notifying = false;
+    }
+  }
+
+  #refreshTiming(): void {
+    const sampledAtMs = this.#timeDriver.now();
+    const totalDurationMs = this.#suffixMultiplierSums[0] * this.msPerItem;
+    let remainingDurationMs: number | null = totalDurationMs;
+    if (this.state === "ERROR") {
+      remainingDurationMs = null;
+    } else if (this.state === "COMPLETED") {
+      remainingDurationMs = 0;
+    } else if (this.#hasPresentedCurrent && this.currentItem !== null) {
+      const currentRemainder =
+        this.#currentItemDeadlineMs === null
+          ? (this.#currentItemRemainingMs ?? this.msPerItem * this.currentItem.durationMultiplier)
+          : Math.max(0, this.#currentItemDeadlineMs - sampledAtMs);
+      remainingDurationMs =
+        currentRemainder + this.#suffixMultiplierSums[this.#currentIndex + 1] * this.msPerItem;
+    }
+    if (
+      this.#timing.totalDurationMs !== totalDurationMs ||
+      this.#timing.remainingDurationMs !== remainingDurationMs ||
+      this.#timing.sampledAtMs !== sampledAtMs
+    ) {
+      this.#timing = Object.freeze({ totalDurationMs, remainingDurationMs, sampledAtMs });
     }
   }
 

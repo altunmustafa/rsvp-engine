@@ -135,7 +135,7 @@ describe("Core observable store", () => {
       if (method === "load") {
         engine.load("replacement");
       } else {
-        engine.loadTokens([{ value: "replacement", ovpIndex: 0, delayMultiplier: 1 }]);
+        engine.loadTokens([{ value: "replacement", ovpIndex: 0, durationMultiplier: 1 }]);
       }
       expect(listener).toHaveBeenCalledOnce();
       expect(engine.getSnapshot()).toMatchObject({

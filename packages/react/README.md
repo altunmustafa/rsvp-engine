@@ -106,7 +106,7 @@ Pause or stop before loading during playback; reset after a fatal error before l
 
 Invalid seek indices record `IndexOutOfBoundsError` before checking state and preserve position, progress, and scheduling. Empty input has no valid seek index.
 
-Speed commands accept finite fractional values within the exported limits. The supplied unit is preserved exactly; the other is derived as `60_000 / value` with normal floating-point precision. Changes affect future display periods, preserving a running timer or paused item's remaining duration. Each token's `delayMultiplier` scales its display duration.
+Speed commands accept finite fractional values within the exported limits. The supplied unit is preserved exactly; the other is derived as `60_000 / value` with normal floating-point precision. Changes affect future display periods, preserving a running timer or paused item's remaining duration. Each token's `durationMultiplier` scales its display duration.
 
 ### Snapshots and subscriptions
 
@@ -119,17 +119,20 @@ Speed commands accept finite fractional values within the exported limits. The s
 
 The snapshot has readonly fields:
 
-| Field               | Meaning                                                                          |
-| ------------------- | -------------------------------------------------------------------------------- |
-| `state`             | `"IDLE" \| "PLAYING" \| "PAUSED" \| "STOPPED" \| "COMPLETED" \| "ERROR"`.        |
-| `currentIndex`      | Zero-based selected or presented index; `0` when empty.                          |
-| `currentItem`       | `RsvpItem<T> \| null`, with `value`, `index`, `ovpIndex`, and `delayMultiplier`. |
-| `progress`          | `0` before presentation; reaches `1` on the final item.                          |
-| `totalItems`        | Loaded token count.                                                              |
-| `wpm` / `msPerItem` | Base reading rate and display duration.                                          |
-| `error`             | Last engine error, or `null`.                                                    |
+| Field               | Meaning                                                                             |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `state`             | `"IDLE" \| "PLAYING" \| "PAUSED" \| "STOPPED" \| "COMPLETED" \| "ERROR"`.           |
+| `currentIndex`      | Zero-based selected or presented index; `0` when empty.                             |
+| `currentItem`       | `RsvpItem<T> \| null`, with `value`, `index`, `ovpIndex`, and `durationMultiplier`. |
+| `progress`          | `0` before presentation; reaches `1` on the final item.                             |
+| `totalItems`        | Loaded token count.                                                                 |
+| `wpm` / `msPerItem` | Base reading rate and display duration.                                             |
+| `timing`            | Frozen `RsvpTiming` sample with total duration, remaining duration, and timestamp.  |
+| `error`             | Last engine error, or `null`.                                                       |
 
 The final item still needs its display period after progress reaches `1`. Use `state === "COMPLETED"` to detect completion.
+
+Select duration samples with `useRsvpSelector((snapshot) => snapshot.timing)`. React exposes Core's samples directly and adds no countdown timer. The server snapshot retains its construction-time sample. See [Core duration semantics](../core/docs/API-REFERENCE.md#duration-estimates), including nullable remaining duration and shared-clock countdowns.
 
 ### Errors
 
@@ -147,22 +150,24 @@ For SSR, create controllers per request with matching initial data on the server
 
 ## Custom items and strategies
 
-Use the same item type for `createRsvpController<T>()` and `createRsvpContext<T>()`. A `Token<T>` contains `value: T`, `ovpIndex: number`, and `delayMultiplier: number`. The OVP is a non-negative integer UTF-16 offset, no greater than string length, suitable for `slice()`. The delay multiplier must be positive and finite.
+Use the same item type for `createRsvpController<T>()` and `createRsvpContext<T>()`. A `Token<T>` contains `value: T`, `ovpIndex: number`, and `durationMultiplier: number`. The OVP is a non-negative integer UTF-16 offset, no greater than string length, suitable for `slice()`. The duration multiplier must be positive and finite.
 
 Prepare asynchronous input outside the controller, then pass tokens to `loadTokens`. Inject strategies through controller options:
 
 | Type | Contract |
 | --- | --- |
 | `TokenizerStrategy<T>` | `tokenize(input: T \| T[]): Token<T>[]` |
-| `SchedulerStrategy` | `schedule(task: () => void, delayMs: number): void`; `cancel(): void` |
+| `SchedulerStrategy` | `schedule(task: () => void, delayMs: number): void`; `cancel(): void`; optional `getDeadline(): number \| null` in the engine clock. |
 | `TimeDriver` | `now(): number`; `setTimeout(callback: () => void, ms: number): unknown`; `clearTimeout(handle: unknown): void` |
 | `OvpStrategy` | `calculate(text: string): number`, returning the preferred UTF-16 offset. Inject through a compatible tokenizer. |
 
 Concrete tokenizer and scheduler classes are available from `@rsvp-engine/core`.
+
+Custom tokens and item reads use `durationMultiplier` instead of `delayMultiplier`. Punctuation multiplier options are also renamed; see [Core multiplier migration](../core/README.md#migrating-duration-multipliers).
 
 ## Additional exports
 
 - Constants: `DEFAULT_WPM`, `MIN_WPM`, `MAX_WPM`, `MIN_MS_PER_ITEM`, `MAX_MS_PER_ITEM`.
 - Error classes: `EngineDestroyedError`, `IndexOutOfBoundsError`, `InvalidInputError`, `InvalidTransitionError`.
 - React types: `RsvpController<T>`, `RsvpControllerOptions<T>`, `RsvpActions<T>`, `RsvpControllerSnapshot<T>`, `RsvpStoreListener`, `RsvpProviderProps<T>`, `RsvpContextBundle<T>`, `RsvpSelector<T, Selected>`, `RsvpEqualityFn<Selected>`, `UseRsvpSelector<T>`.
-- Core types: `RsvpEngineOptions`, `RsvpEventType`, `RsvpItem`, `RsvpSnapshot`, `RsvpState`, `Token`, `TokenizerStrategy`, `OvpStrategy`, `SchedulerStrategy`, `TimeDriver`, `UnsubscribeFn`.
+- Core types: `RsvpEngineOptions`, `RsvpEventType`, `RsvpItem`, `RsvpSnapshot`, `RsvpTiming`, `RsvpState`, `Token`, `TokenizerStrategy`, `OvpStrategy`, `SchedulerStrategy`, `TimeDriver`, `UnsubscribeFn`.

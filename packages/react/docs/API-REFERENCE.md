@@ -72,6 +72,8 @@ const status = useRsvpSelector(
 
 Selectors must be pure because React may evaluate them more than once.
 
+Select `snapshot.timing` for the frozen `RsvpTiming` sample, or `snapshot.timing.remainingDurationMs` for a nullable remaining duration. The controller delegates samples to Core without adding a timer; its server snapshot retains the construction-time sample. See [Core duration estimates](../../core/docs/API-REFERENCE.md#duration-estimates) for sampling, clock, and countdown semantics.
+
 ### `useRsvpActions()`
 
 Returns a stable, frozen object containing:

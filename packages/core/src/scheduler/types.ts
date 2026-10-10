@@ -20,4 +20,6 @@ export interface SchedulerStrategy {
   schedule(task: () => void, delayMs: number): void;
   /** Cancels any currently pending scheduled task and resets the session timeline. */
   cancel(): void;
+  /** Effective pending deadline in the engine's clock; omit to use nominal timing. */
+  getDeadline?(): number | null;
 }
