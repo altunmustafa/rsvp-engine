@@ -90,9 +90,9 @@ const { play, pause } = useRsvpActions();
 
 Lifecycle ownership remains explicit, so `destroy` is intentionally absent.
 
-`seek()` requires a finite integer in `[0, totalItems)` and `PAUSED`, `STOPPED`, or `COMPLETED`. Invalid indices record `IndexOutOfBoundsError` before checking state without throwing or changing selection, progress, or scheduling. Empty input has no valid seek index.
+`seek()` requires a finite integer in `[0, totalItems)` and `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED`. It enters `PAUSED` without scheduling, gives the selected item a full display period, and allows choosing a position before the first playback. Progress counts that selected item; `play()` continues from it. Invalid indices record `IndexOutOfBoundsError` before checking state without throwing or changing selection, progress, or scheduling. Empty input has no valid seek index. Pause active playback before seeking.
 
-`stop()` is valid only in `PLAYING` or `PAUSED`. Invalid calls record `InvalidTransitionError` in the controller's observable `error`.
+`stop()` returns `PLAYING`, `PAUSED`, or `COMPLETED` to `STOPPED`, resetting index and progress to zero and restoring full remaining duration while retaining items. It never retokenizes or starts playback. Stop in `IDLE`, including empty input, and repeated Stop in `STOPPED` preserve the cached snapshot without notifying or resampling timing. Existing errors remain. Stop in fatal `ERROR` records `InvalidTransitionError`; recovery still requires `reset()`. See the [Core Stop state matrix](../../core/docs/STATE-MACHINE.md#stop-behavior).
 
 The same speed commands are available on the controller. `setWpm(225)` preserves `225` exactly in `snapshot.wpm`; `setMsPerItem(ms)` preserves the interval and derives WPM from it. Fractional inputs are supported. Repeating an unchanged value does not notify subscribers. Switching input units can change the derived WPM even when the interval is unchanged, which is an observable snapshot update. See [Core speed semantics](https://github.com/altunmustafa/rsvp-engine/blob/main/packages/core/docs/API-REFERENCE.md#data-and-speed-methods).
 

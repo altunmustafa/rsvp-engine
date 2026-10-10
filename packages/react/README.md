@@ -39,7 +39,7 @@ function Controls() {
       <button onClick={pause} disabled={state !== "PLAYING"}>
         Pause
       </button>
-      <button onClick={stop} disabled={state !== "PLAYING" && state !== "PAUSED"}>
+      <button onClick={stop} disabled={state === "ERROR"}>
         Stop
       </button>
     </>
@@ -101,8 +101,8 @@ Available on the controller and through `useRsvpActions()`; all return `void`.
 | --- | --- |
 | `play()` | Starts from nonempty `IDLE`, resumes `PAUSED`, or replays `STOPPED`/`COMPLETED` from index `0`. |
 | `pause()` | Valid only in `PLAYING`; preserves the item and remaining display time. |
-| `stop()` | Valid only from `PLAYING` or `PAUSED`; resets index and progress to `0`, retaining data. |
-| `seek(index: number)` | Requires an in-bounds finite integer; enters `PAUSED` from `PAUSED`, `STOPPED`, or `COMPLETED`. |
+| `stop()` | Returns `PLAYING`/`PAUSED`/`COMPLETED` to `STOPPED` at index and progress `0`, retaining data. No-op in `IDLE`/`STOPPED`; invalid in `ERROR`. |
+| `seek(index: number)` | Requires an in-bounds finite integer; enters `PAUSED` from `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED` without playback. |
 | `next()` / `previous()` | Moves one item while `PAUSED`; does nothing at the boundary. |
 | `reset()` | Clears data and recovers `ERROR` to `IDLE`. Only valid from `ERROR`. |
 | `load(data: T \| T[])` | Replaces input through the tokenizer; rejected while `PLAYING` or `ERROR`. |
@@ -113,7 +113,7 @@ Available on the controller and through `useRsvpActions()`; all return `void`.
 
 Pause or stop before loading during playback; reset after a fatal error before loading again. Loading leaves the engine in `IDLE`.
 
-Invalid seek indices record `IndexOutOfBoundsError` before checking state and preserve position, progress, and scheduling. Empty input has no valid seek index.
+Stop retains items without retokenizing, restores full remaining duration, and preserves existing errors. Repeated Stop and Stop in `IDLE`, including empty input, preserve the cached snapshot and do not notify. Initial seek gives the selected item its full display period without scheduling; `play()` continues from that position. Invalid seek indices record `IndexOutOfBoundsError` before checking state and preserve position, progress, and scheduling. Empty input has no valid seek index. Pause active playback before seeking.
 
 Speed commands accept finite fractional values within the exported limits. The supplied unit is preserved exactly; the other is derived as `60_000 / value` with normal floating-point precision. Changes affect future display periods, preserving a running timer or paused item's remaining duration. Each token's `durationMultiplier` scales its display duration.
 
@@ -128,16 +128,16 @@ Speed commands accept finite fractional values within the exported limits. The s
 
 The snapshot has readonly fields:
 
-| Field               | Meaning                                                                             |
-| ------------------- | ----------------------------------------------------------------------------------- |
-| `state`             | `"IDLE" \| "PLAYING" \| "PAUSED" \| "STOPPED" \| "COMPLETED" \| "ERROR"`.           |
-| `currentIndex`      | Zero-based selected or presented index; `0` when empty.                             |
-| `currentItem`       | `RsvpItem<T> \| null`, with `value`, `index`, `ovpIndex`, and `durationMultiplier`. |
-| `progress`          | `0` before presentation; reaches `1` on the final item.                             |
-| `totalItems`        | Loaded token count.                                                                 |
-| `wpm` / `msPerItem` | Base reading rate and display duration.                                             |
-| `timing`            | Frozen `RsvpTiming` sample with total duration, remaining duration, and timestamp.  |
-| `error`             | Last engine error, or `null`.                                                       |
+| Field               | Meaning                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| `state`             | `"IDLE" \| "PLAYING" \| "PAUSED" \| "STOPPED" \| "COMPLETED" \| "ERROR"`.                  |
+| `currentIndex`      | Zero-based selected or presented index; `0` when empty.                                    |
+| `currentItem`       | `RsvpItem<T> \| null`, with `value`, `index`, `ovpIndex`, and `durationMultiplier`.        |
+| `progress`          | `0` in `IDLE`/`STOPPED`; counts the selected item after navigation; `1` on the final item. |
+| `totalItems`        | Loaded token count.                                                                        |
+| `wpm` / `msPerItem` | Base reading rate and display duration.                                                    |
+| `timing`            | Frozen `RsvpTiming` sample with total duration, remaining duration, and timestamp.         |
+| `error`             | Last engine error, or `null`.                                                              |
 
 The final item still needs its display period after progress reaches `1`. Use `state === "COMPLETED"` to detect completion.
 
@@ -153,7 +153,7 @@ Select timing with `useRsvpSelector((snapshot) => snapshot.timing)`:
 | `remainingDurationMs` | Retained current-item remainder plus future periods; `null` in fatal `ERROR`. |
 | `sampledAtMs`         | Timestamp in the controller's `TimeDriver` clock, not necessarily Unix time.  |
 
-Samples update on loading, playback/navigation changes, and effective speed changes. Reads, no-ops, and nonfatal error changes do not resample. Pause freezes the remainder; navigation gives the selected item a full period. Before playback and after stop, remaining equals total; empty input and completion have zero remaining time. Speed increases can make remaining exceed total because the active item's older period is retained. Estimates exclude pauses and future host delays.
+Samples update on loading, playback/navigation changes, and effective speed changes. Reads, no-ops, and nonfatal error changes do not resample. Pause freezes the remainder; navigation gives the selected item a full period. In `IDLE` and `STOPPED`, remaining equals total; empty input and completion have zero remaining time. Speed increases can make remaining exceed total because the active item's older period is retained. Estimates exclude pauses and future host delays.
 
 Neither Core nor React adds a countdown timer. For a live countdown, share the controller's `TimeDriver`, subtract `now() - sampledAtMs` only while `PLAYING`, and clamp to zero. Rebase on each new sample and clean up UI timers on pause/unmount. Loading prepares O(n) suffix sums; subsequent estimates take O(1).
 

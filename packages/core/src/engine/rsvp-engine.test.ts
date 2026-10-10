@@ -920,14 +920,14 @@ describe("RsvpEngine", () => {
       expect(engine.state).toBe("IDLE");
     });
 
-    it("stop() in IDLE state causes transition error", () => {
+    it("stop() in IDLE preserves the ready snapshot without an error", () => {
       const engine = createEngine();
-      const errors: Error[] = [];
-      observeErrors(engine, (p) => errors.push(p.error));
+      const initial = engine.getSnapshot();
 
-      engine.stop(); // IDLE -> stop is invalid
-      expect(errors.length).toBe(1);
-      expect(engine.state).toBe("IDLE");
+      engine.stop();
+      expect(engine.getSnapshot()).toBe(initial);
+      expect(engine.getSnapshot().error).toBeNull();
+      engine.destroy();
     });
 
     it("play() in PLAYING state causes transition error", () => {

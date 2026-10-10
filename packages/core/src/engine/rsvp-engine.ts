@@ -279,11 +279,15 @@ export class RsvpEngine<T = string> {
     });
   }
 
-  /** Stops PLAYING/PAUSED playback and resets the position, retaining loaded items. */
+  /** Returns playback to the beginning, retaining items; no-op in IDLE/STOPPED, invalid in ERROR. */
   public stop(): void {
     this.#execute(() => {
+      const previousState = this.state;
       if (!this.#transition("stop")) {
         return "errorOccurred";
+      }
+      if (previousState === "IDLE" || previousState === "STOPPED") {
+        return "stopped";
       }
       this.#cancelAdvance();
       this.#currentIndex = 0;
@@ -294,7 +298,7 @@ export class RsvpEngine<T = string> {
     });
   }
 
-  /** Selects a finite integer index in PAUSED, STOPPED, or COMPLETED and enters PAUSED. */
+  /** Selects a finite integer index in IDLE, PAUSED, STOPPED, or COMPLETED and enters PAUSED. */
   public seek(index: number): void {
     this.#execute(() => {
       if (!Number.isInteger(index) || index < 0 || index >= this.#tokens.length) {

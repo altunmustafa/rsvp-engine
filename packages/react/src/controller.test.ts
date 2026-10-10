@@ -94,6 +94,54 @@ describe("RSVP controller", () => {
     controller.destroy();
   });
 
+  it("selects before playback and stops completed sessions without replacing retained items", () => {
+    const controller = createRsvpController({ data: "one two.", wpm: 600 });
+    const server = controller.getServerSnapshot();
+    const listener = vi.fn();
+    controller.subscribe(listener);
+    controller.stop();
+    expect(controller.getSnapshot()).toBe(server);
+    expect(listener).not.toHaveBeenCalled();
+
+    controller.seek(1);
+    const selected = controller.getSnapshot();
+    expect(selected).toMatchObject({
+      state: "PAUSED",
+      currentIndex: 1,
+      progress: 1,
+      error: null,
+      timing: { totalDurationMs: 300, remainingDurationMs: 200 },
+    });
+    expect(listener).toHaveBeenLastCalledWith(selected, "navigated");
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(500);
+    expect(controller.getSnapshot()).toBe(selected);
+
+    controller.play();
+    vi.advanceTimersByTime(200);
+    expect(controller.getSnapshot().state).toBe("COMPLETED");
+    controller.stop();
+    const stopped = controller.getSnapshot();
+    expect(stopped).toMatchObject({
+      state: "STOPPED",
+      currentIndex: 0,
+      progress: 0,
+      totalItems: 2,
+      error: null,
+      timing: { totalDurationMs: 300, remainingDurationMs: 300 },
+    });
+    expect(stopped.currentItem).toBe(server.currentItem);
+    expect(listener).toHaveBeenLastCalledWith(stopped, "stopped");
+    listener.mockClear();
+    vi.advanceTimersByTime(500);
+    controller.stop();
+    expect(controller.getSnapshot()).toBe(stopped);
+    expect(controller.getServerSnapshot()).toBe(server);
+    expect(listener).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+    controller.destroy();
+  });
+
   it("notifies once for silent mutations and skips unchanged snapshots", () => {
     const controller = createRsvpController<string>();
     const listener = vi.fn();

@@ -14,3 +14,4 @@ Core ADRs use the Michael Nygard sections `Status`, `Context`, `Decision`, and `
 | [ADR-0008](./0008-unified-observable-store.md) | Superseded by ADR-0009 | Own cached playback/error state and one subscription in Core. |
 | [ADR-0009](./0009-typed-store-notifications.md) | Accepted | Publish one snapshot and operation type; preserve nested notifications in order. |
 | [ADR-0010](./0010-event-sampled-playback-timing.md) | Accepted | Sample playback durations in the existing store using constant-time calculations. |
+| [ADR-0011](./0011-retained-session-controls.md) | Accepted | Retain items across idempotent Stop and allow initial navigation without playback. |

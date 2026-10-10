@@ -21,19 +21,21 @@ Constructor tokenization failures are thrown so they cannot be lost before subsc
 
 ### Playback methods
 
-| Method                  | Effect                                                                           |
-| ----------------------- | -------------------------------------------------------------------------------- |
-| `play()`                | Starts or resumes playback. A fresh session presents its first item immediately. |
-| `pause()`               | Cancels the timer and preserves the current item and remaining display time.     |
-| `stop()`                | Stops only in `PLAYING` or `PAUSED`; resets index and progress, retaining data.  |
-| `seek(index)`           | Selects an item and enters `PAUSED`; valid from paused or terminal states.       |
-| `next()` / `previous()` | Navigates while paused.                                                          |
-| `reset()`               | Recovers a fatal `ERROR` state to empty `IDLE`.                                  |
-| `destroy()`             | Idempotently cancels timers and removes listeners.                               |
+| Method | Effect |
+| --- | --- |
+| `play()` | Starts or resumes playback. A fresh session presents its first item immediately. |
+| `pause()` | Cancels the timer and preserves the current item and remaining display time. |
+| `stop()` | Returns `PLAYING`, `PAUSED`, or `COMPLETED` to the beginning; no-op in `IDLE`/`STOPPED`. |
+| `seek(index)` | Selects an item without playback and enters `PAUSED` from `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED`. |
+| `next()` / `previous()` | Navigates while paused. |
+| `reset()` | Recovers a fatal `ERROR` state to empty `IDLE`. |
+| `destroy()` | Idempotently cancels timers and removes listeners. |
 
 Invalid control commands record an observable `error` and preserve the current state. They do not turn a usable session into a terminal error.
 
-`seek(index)` requires a finite integer in `[0, totalItems)` and a state of `PAUSED`, `STOPPED`, or `COMPLETED`. Invalid indices record `IndexOutOfBoundsError` before checking state and preserve selection, progress, and scheduling. Empty input has no valid seek index.
+`stop()` retains loaded items without retokenizing. From `PLAYING`, `PAUSED`, or `COMPLETED`, it enters `STOPPED` with index and progress zero and remaining duration equal to total duration. Repeated calls and calls in `IDLE`, including empty input, preserve the cached snapshot and timing without notifying. Existing errors are retained. Stop is invalid in fatal `ERROR`; use `reset()` to recover. See the [Stop state matrix](./STATE-MACHINE.md#stop-behavior).
+
+`seek(index)` requires a finite integer in `[0, totalItems)` and a state of `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED`. It enters `PAUSED` without scheduling playback, giving the selected item a full display period. `play()` continues from that position. Invalid indices record `IndexOutOfBoundsError` before checking state and preserve selection, progress, and scheduling. Empty input has no valid seek index. Pause active playback explicitly before seeking.
 
 ### Data and speed methods
 
@@ -64,7 +66,7 @@ Tokens require a non-negative integer `ovpIndex` (within string bounds for strin
 
 - `state`, `currentIndex`, `currentItem`, `progress`, `totalItems`, `wpm`, `msPerItem` are available.
 - `currentIndex/currentItem` identify the selected or visibly presented item, never an internal next-item pointer.
-- Progress is `0` before presentation and reaches `1` on the final item.
+- Progress is `0` in `IDLE` and `STOPPED`, counts the selected item after navigation, and reaches `1` on the final item. Selecting an initial position can therefore produce nonzero progress before playback starts.
 
 ### Duration estimates
 
@@ -78,7 +80,7 @@ Tokens require a non-negative integer `ovpIndex` (within string bounds for strin
 
 Samples update after loading, playback state or item changes, and effective speed changes, once scheduling has finished. No-op commands and nonfatal error changes retain the previous sample. Seeking to the same paused item restores its full display period and notifies if that changes its retained duration.
 
-Before playback and after stop, remaining duration equals total duration. Empty content has zero duration. Pause freezes the current remainder; resume preserves it. Navigation starts the selected item's full period. Completion sets remaining duration to zero; progress reaching `1` still leaves the final item's display period to run.
+In `IDLE` and `STOPPED`, remaining duration equals total duration. Empty content has zero duration. Pause freezes the current remainder; resume preserves it. Navigation, including initial seek, gives the selected item its full period. Completion sets remaining duration to zero; progress reaching `1` still leaves the final item's display period to run.
 
 Speed changes update future item estimates without replacing the current item's running or paused remainder. Consequently, remaining duration can exceed total duration after a speed increase. Estimates exclude pauses and future host delays; total duration is an estimate for a fresh playback, not elapsed time plus remaining time.
 
