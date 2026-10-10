@@ -1,6 +1,6 @@
 {
   "name": "@rsvp-engine/react",
-  "version": "0.1.2",
+  "version": "1.0.0",
   "description": "Headless React bindings for @rsvp-engine/core",
   "keywords": [
     "rsvp",
