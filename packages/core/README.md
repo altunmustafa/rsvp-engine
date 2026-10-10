@@ -52,6 +52,10 @@ engine.loadTokens(tokens);
 
 Use `engine.setWpm(225)` to set the reading rate or `engine.setMsPerItem(250)` to set the base display duration. The last supplied value is preserved exactly in its unit, including in snapshots; the other unit is derived without additional rounding. Changes affect subsequently scheduled display periods.
 
+## Duration estimates
+
+Read `engine.getSnapshot().timing` for `totalDurationMs`, nullable `remainingDurationMs`, and `sampledAtMs`. Samples arrive through the existing subscription on playback and speed changes; Core adds no countdown timer. Loading prepares O(n) suffix sums, making subsequent estimates O(1). See [duration semantics](./docs/API-REFERENCE.md#duration-estimates) for pause/resume and application countdowns.
+
 ## Stopping playback
 
 `stop()` is valid only in `PLAYING` or `PAUSED`; it cancels playback, resets index and progress to zero, and retains loaded data. Other calls record `InvalidTransitionError` without changing playback.
@@ -67,6 +71,19 @@ Replace `on(...)` listeners with `subscribe((snapshot, eventType) => ...)`, and 
 Use `started`, `advanced`, and `navigated` to display the current item; use `loaded`, `stopped`, and `reset` to restore a placeholder. `resumed` preserves the displayed item, and `completed` follows the final item's display period. See the [event type reference](./docs/API-REFERENCE.md#notification-types) for the full contract.
 
 Core retains the last error until `clearError()`, a successful `load/loadTokens()`, or a successful `reset()`. Clearing the error does not recover the `ERROR` state. Invalid speed and loading inputs are recorded and still throw; subscribers should handle their own exceptions.
+
+## Migrating duration multipliers
+
+Rename the multiplier fields in custom tokens, tokenizer output, item reads, and `DefaultTokenizer` options:
+
+| Previous name                                        | Replacement                  |
+| ---------------------------------------------------- | ---------------------------- |
+| `Token.delayMultiplier` / `RsvpItem.delayMultiplier` | `durationMultiplier`         |
+| `sentenceDelay`                                      | `sentenceDurationMultiplier` |
+| `clauseDelay`                                        | `clauseDurationMultiplier`   |
+| `dashDelay`                                          | `dashDurationMultiplier`     |
+
+The old names are removed without aliases. Multipliers remain positive finite numbers; an item's display duration is `msPerItem * durationMultiplier`. Defaults and playback pacing are unchanged.
 
 ## Migrating API names
 

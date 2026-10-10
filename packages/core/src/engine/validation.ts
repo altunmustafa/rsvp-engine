@@ -19,8 +19,8 @@ export function validateTokens<T>(tokens: Token<T>[]): void {
     if (typeof token.value === "string" && token.ovpIndex > token.value.length) {
       throw new InvalidInputError(`Token ${index} has an out-of-range ovpIndex.`);
     }
-    if (!Number.isFinite(token.delayMultiplier) || token.delayMultiplier <= 0) {
-      throw new InvalidInputError(`Token ${index} has an invalid delayMultiplier.`);
+    if (!Number.isFinite(token.durationMultiplier) || token.durationMultiplier <= 0) {
+      throw new InvalidInputError(`Token ${index} has an invalid durationMultiplier.`);
     }
   }
 }

@@ -10,8 +10,13 @@ import { validateMsPerItem, validateTokens, validateWpm } from "./validation";
 describe("validateTokens", () => {
   it("accepts valid tokens", () => {
     expect(() =>
-      validateTokens([{ value: "word", ovpIndex: 1, delayMultiplier: 1 }]),
+      validateTokens([{ value: "word", ovpIndex: 1, durationMultiplier: 1 }]),
     ).not.toThrow();
+  });
+
+  it("rejects tokens that provide only the removed delayMultiplier field", () => {
+    const token = { value: "word", ovpIndex: 1, delayMultiplier: 1 } as unknown as Token<string>;
+    expect(() => validateTokens([token])).toThrow("Token 0 has an invalid durationMultiplier.");
   });
 
   it("rejects a non-array value", () => {
@@ -27,20 +32,20 @@ describe("validateTokens", () => {
   });
 
   it.each([-1, 1.5])("rejects invalid ovpIndex %s", (ovpIndex) => {
-    expect(() => validateTokens([{ value: "word", ovpIndex, delayMultiplier: 1 }])).toThrow(
+    expect(() => validateTokens([{ value: "word", ovpIndex, durationMultiplier: 1 }])).toThrow(
       "Token 0 has an invalid ovpIndex.",
     );
   });
 
   it("rejects a string ovpIndex beyond the string length", () => {
-    expect(() => validateTokens([{ value: "word", ovpIndex: 5, delayMultiplier: 1 }])).toThrow(
+    expect(() => validateTokens([{ value: "word", ovpIndex: 5, durationMultiplier: 1 }])).toThrow(
       "Token 0 has an out-of-range ovpIndex.",
     );
   });
 
-  it.each([0, Number.NaN])("rejects invalid delayMultiplier %s", (delayMultiplier) => {
-    expect(() => validateTokens([{ value: "word", ovpIndex: 1, delayMultiplier }])).toThrow(
-      "Token 0 has an invalid delayMultiplier.",
+  it.each([0, Number.NaN])("rejects invalid durationMultiplier %s", (durationMultiplier) => {
+    expect(() => validateTokens([{ value: "word", ovpIndex: 1, durationMultiplier }])).toThrow(
+      "Token 0 has an invalid durationMultiplier.",
     );
   });
 });

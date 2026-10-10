@@ -27,6 +27,7 @@ export class DriftCorrectedScheduler implements SchedulerStrategy {
   readonly #timeDriver: TimeDriver;
   #timeoutHandle: unknown = null;
   #expectedTime: number | null = null;
+  #deadline: number | null = null;
 
   /**
    * Creates a new instance of `DriftCorrectedScheduler`.
@@ -72,8 +73,10 @@ export class DriftCorrectedScheduler implements SchedulerStrategy {
       }
     }
 
+    this.#deadline = now + actualDelay;
     this.#timeoutHandle = this.#timeDriver.setTimeout(() => {
       this.#timeoutHandle = null;
+      this.#deadline = null;
       task();
     }, actualDelay);
   }
@@ -87,6 +90,12 @@ export class DriftCorrectedScheduler implements SchedulerStrategy {
   public cancel(): void {
     this.#clearTimer();
     this.#expectedTime = null;
+    this.#deadline = null;
+  }
+
+  /** Returns the pending deadline after drift correction and the readability floor. */
+  public getDeadline(): number | null {
+    return this.#deadline;
   }
 
   #clearTimer(): void {

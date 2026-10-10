@@ -33,6 +33,31 @@ describe("RSVP controller", () => {
     controller.destroy();
   });
 
+  it("publishes sampled timing without timers, keeps no-op snapshots stable, and freezes paused time", () => {
+    const controller = createRsvpController({ data: "one two.", wpm: 600 });
+    const server = controller.getServerSnapshot();
+    expect(server.timing.remainingDurationMs).toBe(300);
+    controller.play();
+    const playing = controller.getSnapshot();
+    vi.advanceTimersByTime(40);
+    expect(controller.getSnapshot()).toBe(playing);
+    controller.setWpm(600);
+    expect(controller.getSnapshot()).toBe(playing);
+    controller.setWpm(300);
+    expect(controller.getSnapshot().timing.remainingDurationMs).toBe(460);
+    expect(vi.getTimerCount()).toBe(1);
+    controller.pause();
+    const paused = controller.getSnapshot();
+    vi.advanceTimersByTime(1000);
+    expect(controller.getSnapshot()).toBe(paused);
+    expect(controller.getServerSnapshot()).toBe(server);
+    controller.play();
+    vi.advanceTimersByTime(60);
+    expect(controller.getSnapshot().timing.remainingDurationMs).toBe(400);
+    controller.destroy();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("returns cached immutable client and construction-time server snapshots", () => {
     const controller = createRsvpController({ data: "one two", wpm: 300 });
     const initial = controller.getSnapshot();
@@ -142,8 +167,8 @@ describe("RSVP controller", () => {
       tokenize: vi
         .fn()
         .mockImplementationOnce(() => [
-          { value: "one", ovpIndex: 0, delayMultiplier: 1 },
-          { value: "two", ovpIndex: 0, delayMultiplier: 1 },
+          { value: "one", ovpIndex: 0, durationMultiplier: 1 },
+          { value: "two", ovpIndex: 0, durationMultiplier: 1 },
         ])
         .mockImplementationOnce(() => {
           throw fatal;
@@ -160,7 +185,7 @@ describe("RSVP controller", () => {
     expect(controller.getSnapshot().currentIndex).toBe(0);
     controller.seek(1);
     controller.stop();
-    controller.loadTokens([{ value: "replacement", ovpIndex: 0, delayMultiplier: 1 }]);
+    controller.loadTokens([{ value: "replacement", ovpIndex: 0, durationMultiplier: 1 }]);
     controller.setWpm(600);
     controller.setMsPerItem(250);
 
@@ -217,7 +242,7 @@ describe("RSVP controller", () => {
       if (method === "load") {
         controller.load("replacement");
       } else {
-        controller.loadTokens([{ value: "replacement", ovpIndex: 0, delayMultiplier: 1 }]);
+        controller.loadTokens([{ value: "replacement", ovpIndex: 0, durationMultiplier: 1 }]);
       }
       expect(controller.getSnapshot().error).toBeNull();
       expect(listener).toHaveBeenCalledOnce();

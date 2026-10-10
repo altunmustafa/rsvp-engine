@@ -35,6 +35,10 @@ stateDiagram-v2
 | `COMPLETED` | Final item finished its display duration.                   | `length - 1`, progress `1`.       |
 | `ERROR`     | Unexpected runtime failure made playback unsafe.            | Preserved until reset.            |
 
+## Pause and resume
+
+Pause preserves the current item's remaining display time using the scheduler's effective deadline, when available. Resume schedules that remainder. If it has already expired, resume advances to the next item or enters `COMPLETED` for the final item, publishing one `advanced` or `completed` notification. See [duration estimates](./API-REFERENCE.md#duration-estimates).
+
 ## Stop behavior
 
 `stop()` is valid only from `PLAYING` or `PAUSED`: it enters `STOPPED`, cancels the pending task, retains loaded tokens, and resets index and progress to zero. Calls from any other state, including repeated calls or calls after completion, record `InvalidTransitionError` without changing state, position, or progress.

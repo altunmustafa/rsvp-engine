@@ -4,7 +4,8 @@
 export interface Token<T> {
   readonly value: T;
   readonly ovpIndex: number;
-  readonly delayMultiplier: number;
+  /** Positive finite factor applied to msPerItem to determine display duration. */
+  readonly durationMultiplier: number;
 }
 
 /**

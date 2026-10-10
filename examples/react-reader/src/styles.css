@@ -127,6 +127,18 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+.timing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  margin-block: 1rem 0;
+}
+
+.timing dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .controls {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

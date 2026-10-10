@@ -7,6 +7,8 @@ controller.subscribe((snapshot, eventType) => {
 })();
 const { useRsvpSelector, useRsvpActions } = createRsvpContext<string>();
 const speed: number = useRsvpSelector((snapshot) => snapshot.wpm);
+const remaining: number | null = useRsvpSelector((snapshot) => snapshot.timing.remainingDurationMs);
+void remaining;
 useRsvpActions().setWpm(speed);
 // @ts-expect-error Selector result types must not degrade to any.
 const invalid: string = useRsvpSelector((snapshot) => snapshot.wpm);

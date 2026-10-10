@@ -26,7 +26,9 @@ flowchart LR
 
 ## Playback model
 
-`currentIndex` is the presented item, not the next scheduling cursor. A fresh `play()` presents index zero immediately, then schedules advancement using that item's multiplier. Pause stores the deadline delta; resume schedules exactly that remaining duration. Completion occurs only after the last item's display duration expires.
+`currentIndex` is the presented item, not the next scheduling cursor. A fresh `play()` presents index zero immediately, then schedules advancement using that item's multiplier. Pause stores the effective deadline delta; resume schedules that remaining duration or advances immediately when it has expired. Completion occurs only after the last item's display duration expires.
+
+Cached duration samples use duration-multiplier suffix sums: O(n) preparation on loading, then O(1) calculations on playback and speed changes. The application owns countdown rendering; see [ADR-0010](./adr/0010-event-sampled-playback-timing.md).
 
 Invalid commands are reported without changing state. `ERROR` is reserved for unexpected runtime failures such as a scheduler exception. This separates caller mistakes from a broken playback session.
 

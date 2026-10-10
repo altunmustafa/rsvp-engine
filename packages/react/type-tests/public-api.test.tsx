@@ -4,6 +4,7 @@ import type {
   RsvpControllerSnapshot,
   RsvpEventType,
   RsvpSnapshot,
+  RsvpTiming,
 } from "../src";
 import type { ReactNode } from "react";
 
@@ -14,11 +15,14 @@ const stringController = createRsvpController({ data: "one two" });
 const typedController: RsvpController<number> = numberController;
 const coreStore: RsvpSnapshot<number> = typedController.getSnapshot();
 const controllerStore: RsvpControllerSnapshot<number> = coreStore;
+const timing: RsvpTiming = controllerStore.timing;
+void timing;
 numberController.subscribe((snapshot, eventType) => {
   const value: number | undefined = snapshot.currentItem?.value;
+  const multiplier: number | undefined = snapshot.currentItem?.durationMultiplier;
   const error: Error | null = snapshot.error;
   const event: RsvpEventType = eventType;
-  void [value, error, event];
+  void [value, error, event, multiplier];
   // @ts-expect-error The subscriber receives readonly Core state.
   snapshot.error = null;
 });
@@ -33,6 +37,10 @@ function NumberConsumer(): ReactNode {
   const currentValue: number | undefined = useRsvpSelector(
     (snapshot) => snapshot.currentItem?.value,
   );
+  const remaining: number | null = useRsvpSelector(
+    (snapshot) => snapshot.timing.remainingDurationMs,
+  );
+  void remaining;
   const actions: RsvpActions<number> = useRsvpActions();
   const controller: RsvpController<number> = useRsvpController();
   actions.load([4, 5]);

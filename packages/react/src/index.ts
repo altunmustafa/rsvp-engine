@@ -36,6 +36,7 @@ export type {
   RsvpItem,
   RsvpEngineOptions,
   RsvpSnapshot,
+  RsvpTiming,
   RsvpState,
   SchedulerStrategy,
   TimeDriver,

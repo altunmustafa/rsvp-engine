@@ -9,11 +9,11 @@ import { DefaultOvpStrategy } from "./ovp";
  */
 export interface DefaultTokenizerOptions {
   /** Multiplier for sentence-ending punctuation (`.`, `!`, `?`). Defaults to `2.0`. */
-  readonly sentenceDelay?: number;
+  readonly sentenceDurationMultiplier?: number;
   /** Multiplier for clause-ending punctuation (`,`, `;`, `:`). Defaults to `1.5`. */
-  readonly clauseDelay?: number;
+  readonly clauseDurationMultiplier?: number;
   /** Multiplier for dashes (`—`, `–`). Defaults to `1.3`. */
-  readonly dashDelay?: number;
+  readonly dashDurationMultiplier?: number;
   /** Whether array elements and nested inputs should be recursively tokenized. Defaults to `false`. */
   readonly nestedTokenize?: boolean;
   /** Strategy used to calculate viewing positions for string tokens. */
@@ -22,21 +22,21 @@ export interface DefaultTokenizerOptions {
 
 /**
  * Default configurable tokenizer for text, items, and array inputs.
- * Splits text on whitespace and assigns delay multipliers based on punctuation.
+ * Splits text on whitespace and assigns duration multipliers based on punctuation.
  * Wraps custom generic items or arrays into presentable tokens.
  * @typeParam T - The type of items being presented (defaults to `string`).
  */
 export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
-  readonly #sentenceDelay: number;
-  readonly #clauseDelay: number;
-  readonly #dashDelay: number;
+  readonly #sentenceDurationMultiplier: number;
+  readonly #clauseDurationMultiplier: number;
+  readonly #dashDurationMultiplier: number;
   readonly #nestedTokenize: boolean;
   readonly #ovpStrategy: OvpStrategy;
 
   constructor(options: DefaultTokenizerOptions = {}) {
-    this.#sentenceDelay = options.sentenceDelay ?? 2.0;
-    this.#clauseDelay = options.clauseDelay ?? 1.5;
-    this.#dashDelay = options.dashDelay ?? 1.3;
+    this.#sentenceDurationMultiplier = options.sentenceDurationMultiplier ?? 2.0;
+    this.#clauseDurationMultiplier = options.clauseDurationMultiplier ?? 1.5;
+    this.#dashDurationMultiplier = options.dashDurationMultiplier ?? 1.3;
     this.#nestedTokenize = options.nestedTokenize ?? false;
     this.#ovpStrategy = options.ovpStrategy ?? new DefaultOvpStrategy();
     this.#validateOptions();
@@ -59,7 +59,7 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
       {
         value: input,
         ovpIndex: 0,
-        delayMultiplier: this.#calculateDelay(input),
+        durationMultiplier: this.#calculateDurationMultiplier(input),
       },
     ];
   }
@@ -72,7 +72,7 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     return items.map((item) => ({
       value: item,
       ovpIndex: typeof item === "string" ? this.#ovpStrategy.calculate(item) : 0,
-      delayMultiplier: this.#calculateDelay(item),
+      durationMultiplier: this.#calculateDurationMultiplier(item),
     }));
   }
 
@@ -86,20 +86,20 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     return words.map((word) => ({
       value: word,
       ovpIndex: this.#ovpStrategy.calculate(word),
-      delayMultiplier: this.#calculateDelay(word),
+      durationMultiplier: this.#calculateDurationMultiplier(word),
     }));
   }
 
-  #calculateDelay(item: unknown): number {
+  #calculateDurationMultiplier(item: unknown): number {
     if (typeof item === "string") {
       if (/[.!?。！？…]+[\p{Pe}\p{Pf}"']*$/u.test(item)) {
-        return this.#sentenceDelay;
+        return this.#sentenceDurationMultiplier;
       }
       if (/[,;:，、；：]+[\p{Pe}\p{Pf}"']*$/u.test(item)) {
-        return this.#clauseDelay;
+        return this.#clauseDurationMultiplier;
       }
       if (/\p{Pd}+[\p{Pe}\p{Pf}"']*$/u.test(item)) {
-        return this.#dashDelay;
+        return this.#dashDurationMultiplier;
       }
       return 1.0;
     }
@@ -109,9 +109,9 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
 
   #validateOptions(): void {
     const options = [
-      ["sentenceDelay", this.#sentenceDelay],
-      ["clauseDelay", this.#clauseDelay],
-      ["dashDelay", this.#dashDelay],
+      ["sentenceDurationMultiplier", this.#sentenceDurationMultiplier],
+      ["clauseDurationMultiplier", this.#clauseDurationMultiplier],
+      ["dashDurationMultiplier", this.#dashDurationMultiplier],
     ] as const;
     for (const [name, value] of options) {
       if (!Number.isFinite(value) || value <= 0) {
