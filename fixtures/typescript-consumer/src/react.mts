@@ -1,6 +1,46 @@
-import { type RsvpEventType, createRsvpContext, createRsvpController } from "@rsvp-engine/react";
+import {
+  EngineError,
+  type EngineErrorOptions,
+  type ErrorOptionsWithMessage,
+  ItemSelectionError,
+  ListenerError,
+  PlaybackSchedulingError,
+  type RsvpEventType,
+  SessionLoadError,
+  TokenizationError,
+  createRsvpContext,
+  createRsvpController,
+} from "@rsvp-engine/react";
 
-const controller = createRsvpController({ data: "one two", wpm: 225 });
+const errorOptions: EngineErrorOptions = { cause: new Error("source failure"), isFatal: true };
+new EngineError("Consumer failure", errorOptions);
+const optionsWithMessage: ErrorOptionsWithMessage = {
+  message: "Consumer failure",
+  cause: errorOptions.cause,
+};
+new ListenerError("advanced", optionsWithMessage);
+const operationErrors: EngineError[] = [
+  new TokenizationError(optionsWithMessage),
+  new SessionLoadError(),
+  new ItemSelectionError(1, optionsWithMessage),
+  new PlaybackSchedulingError(),
+];
+void operationErrors;
+
+const controller = createRsvpController({
+  data: "one two",
+  wpm: 225,
+  onError: (error) => {
+    const failure: EngineError | ListenerError = error;
+    if (failure instanceof ListenerError) {
+      const event: RsvpEventType = failure.eventType;
+      void event;
+    } else {
+      const fatal: boolean = failure.isFatal;
+      void fatal;
+    }
+  },
+});
 controller.subscribe((snapshot, eventType) => {
   const event: RsvpEventType = eventType;
   void [snapshot.currentItem?.value, event];
@@ -10,6 +50,8 @@ const speed: number = useRsvpSelector((snapshot) => snapshot.wpm);
 const remaining: number | null = useRsvpSelector((snapshot) => snapshot.timing.remainingDurationMs);
 void remaining;
 useRsvpActions().setWpm(speed);
+useRsvpActions().setOvpStrategy({ calculate: () => 0 });
+controller.setOvpStrategy({ calculate: () => 0 });
 // @ts-expect-error Selector result types must not degrade to any.
 const invalid: string = useRsvpSelector((snapshot) => snapshot.wpm);
 void invalid;

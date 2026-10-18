@@ -1,12 +1,39 @@
 import {
+  DefaultOvpStrategy,
   DefaultTokenizer,
+  EngineError,
+  type EngineErrorOptions,
+  type ErrorOptionsWithMessage,
+  ItemSelectionError,
+  ListenerError,
+  PlaybackSchedulingError,
   RsvpEngine,
   type RsvpEventType,
+  type RsvpItem,
   type RsvpSnapshot,
   type RsvpStoreListener,
   type RsvpTiming,
+  SessionLoadError,
   type Token,
+  TokenizationError,
+  type TokenizerStrategy,
 } from "@rsvp-engine/core";
+
+const errorOptions: EngineErrorOptions = { cause: new Error("source failure"), isFatal: true };
+new EngineError("Consumer failure", errorOptions);
+new EngineError();
+const optionsWithMessage: ErrorOptionsWithMessage = {
+  message: "Consumer failure",
+  cause: errorOptions.cause,
+};
+new ListenerError("advanced", optionsWithMessage);
+const operationErrors: EngineError[] = [
+  new TokenizationError(optionsWithMessage),
+  new SessionLoadError(),
+  new ItemSelectionError(1, optionsWithMessage),
+  new PlaybackSchedulingError(),
+];
+void operationErrors;
 
 const token: Token<string> = { value: "word", ovpIndex: 1, durationMultiplier: 1.5 };
 // @ts-expect-error Token duration multipliers are readonly.
@@ -17,9 +44,39 @@ new DefaultTokenizer({
   dashDurationMultiplier: 1.5,
 });
 
-const engine = new RsvpEngine({ data: "one two", wpm: 225 });
+const tokenizer: TokenizerStrategy<string> = {
+  tokenize: (input) =>
+    (Array.isArray(input) ? input : [input]).map((value) => ({
+      value,
+      ovpIndex: 0,
+      durationMultiplier: 1,
+    })),
+};
+const engine = new RsvpEngine({
+  onError: (error) => {
+    const failure: EngineError | ListenerError = error;
+    if (failure instanceof ListenerError) {
+      const event: RsvpEventType = failure.eventType;
+      void event;
+    } else {
+      const fatal: boolean = failure.isFatal;
+      void fatal;
+    }
+  },
+  tokenizer,
+  data: "one two",
+  wpm: 225,
+  ovpStrategy: new DefaultOvpStrategy(),
+});
 engine.setWpm(425);
+engine.setOvpStrategy(new DefaultOvpStrategy());
+engine.setOvpStrategy(undefined);
+const ovpEvent: RsvpEventType = "ovpChanged";
+void ovpEvent;
 const snapshot: RsvpSnapshot<string> = engine.getSnapshot();
+const item: RsvpItem<string> | null = snapshot.currentItem;
+const currentIndex: number = snapshot.currentIndex;
+void [item, currentIndex];
 const timing: RsvpTiming = snapshot.timing;
 const remaining: number | null = timing.remainingDurationMs;
 void remaining;
@@ -27,18 +84,15 @@ void remaining;
 timing.sampledAtMs = 0;
 const listener: RsvpStoreListener<string> = (snapshot, eventType) => {
   const value: string | undefined = snapshot.currentItem?.value;
-  const error: Error | null = snapshot.error;
   const event: RsvpEventType = eventType;
-  void [value, error, event];
+  void [value, event];
 };
-// @ts-expect-error Events describe concrete operations, not changed fields.
-const invalidEvent: RsvpEventType = "stateChanged";
+// @ts-expect-error Events describe concrete operations or playback state changes.
+const invalidEvent: RsvpEventType = "unknownEvent";
 void invalidEvent;
 engine.subscribe(listener)();
-const error: Error | null = snapshot.error;
-void error;
 // @ts-expect-error Observable state is readonly.
-snapshot.error = null;
+snapshot.currentIndex = 0;
 const value: string | undefined = snapshot.currentItem?.value;
 void value;
 const multiplier: number | undefined = snapshot.currentItem?.durationMultiplier;

@@ -31,5 +31,4 @@ export function checkSpeedCommands(
   engine.subscribe(() => {
     void engine.getSnapshot();
   })();
-  engine.clearError();
 }

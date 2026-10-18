@@ -4,6 +4,16 @@ import type { OvpStrategy } from "./types";
  * Default grapheme-aware Optimal Viewing Position strategy.
  */
 export class DefaultOvpStrategy implements OvpStrategy {
+  readonly #segmenter: Intl.Segmenter | undefined;
+
+  constructor() {
+    const Segmenter = globalThis.Intl?.Segmenter;
+    this.#segmenter =
+      typeof Segmenter === "function"
+        ? new Segmenter(undefined, { granularity: "grapheme" })
+        : undefined;
+  }
+
   /**
    * Calculates the Optimal Viewing Position for text.
    * @returns The zero-based UTF-16 offset of the OVP grapheme.
@@ -13,7 +23,9 @@ export class DefaultOvpStrategy implements OvpStrategy {
       return 0;
     }
 
-    const graphemes = segmentGraphemes(text);
+    const graphemes = this.#segmenter
+      ? Array.from(this.#segmenter.segment(text))
+      : segmentGraphemes(text);
     const content = graphemes.filter(({ segment }) => !isPunctuation(segment));
 
     if (content.length === 0) {
@@ -31,11 +43,6 @@ interface Grapheme {
 }
 
 function segmentGraphemes(text: string): Grapheme[] {
-  const Segmenter = globalThis.Intl?.Segmenter;
-  if (typeof Segmenter === "function") {
-    return Array.from(new Segmenter(undefined, { granularity: "grapheme" }).segment(text));
-  }
-
   const graphemes: Grapheme[] = [];
   let index = 0;
   for (const segment of text) {

@@ -4,7 +4,14 @@ import type { SchedulerStrategy } from "../scheduler/types";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EngineDestroyedError, InvalidInputError } from "../errors";
+import {
+  EngineDestroyedError,
+  EngineError,
+  InvalidInputError,
+  ListenerError,
+  PlaybackSchedulingError,
+  TokenizationError,
+} from "../errors";
 
 import { RsvpEngine } from "./rsvp-engine";
 
@@ -13,33 +20,26 @@ describe("Core observable store", () => {
   afterEach(() => {
     vi.clearAllTimers();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   function createEngine(options: RsvpEngineOptions<string> = {}): RsvpEngine<string> {
     return new RsvpEngine({ data: "one two", wpm: 600, ...options });
   }
 
-  it("returns a flat cached snapshot with readonly playback and error fields", () => {
+  it("returns a flat cached immutable playback snapshot", () => {
     const engine = createEngine();
     const initial = engine.getSnapshot();
     expect(engine.getSnapshot()).toBe(initial);
     expect(Object.isFrozen(initial)).toBe(true);
     expect(initial).toMatchObject({ state: "IDLE", progress: 0, totalItems: 2 });
-    expect(initial).not.toHaveProperty("snapshot");
     expect(Object.isFrozen(initial.currentItem)).toBe(true);
-    expect(initial.error).toBeNull();
 
-    engine.pause();
+    expect(() => engine.pause()).toThrow();
     const failed = engine.getSnapshot();
-    expect(failed).not.toBe(initial);
-    expect(failed).toEqual({ ...initial, error: failed.error });
-    expect(failed.error).toBeInstanceOf(Error);
+    expect(failed).toBe(initial);
     engine.setWpm(300);
-    expect(engine.getSnapshot().error).toBe(failed.error);
     expect(engine.getSnapshot().currentItem).toBe(initial.currentItem);
-    expect(initial.error).toBeNull();
-    engine.clearError();
-    expect(engine.getSnapshot().error).toBeNull();
     engine.destroy();
   });
 
@@ -54,13 +54,12 @@ describe("Core observable store", () => {
     expect(listener).not.toHaveBeenCalled();
     engine.play();
     expect(listener.mock.calls[0]).toHaveLength(2);
-    expect(observed[0]).toMatchObject({ state: "PLAYING", progress: 0.5, error: null });
+    expect(observed[0]).toMatchObject({ state: "PLAYING", progress: 0 });
     engine.pause();
     expect(observed[0].state).toBe("PLAYING");
     expect(observed[1].state).toBe("PAUSED");
-    engine.seek(-1);
-    expect(observed[2].error).toBeInstanceOf(Error);
-    expect(observed[2].state).toBe("PAUSED");
+    expect(() => engine.seek(-1)).toThrow();
+    expect(observed).toHaveLength(2);
     engine.destroy();
   });
 
@@ -68,12 +67,10 @@ describe("Core observable store", () => {
     const engine = createEngine();
     const observed: unknown[] = [];
     engine.subscribe((snapshot) => {
-      const { error } = snapshot;
       observed.push({
         state: snapshot.state,
         index: snapshot.currentIndex,
         progress: snapshot.progress,
-        error,
       });
       if (snapshot.state === "PLAYING") {
         expect(vi.getTimerCount()).toBe(1);
@@ -83,9 +80,9 @@ describe("Core observable store", () => {
     vi.advanceTimersByTime(100);
     vi.advanceTimersByTime(100);
     expect(observed).toEqual([
-      { state: "PLAYING", index: 0, progress: 0.5, error: null },
-      { state: "PLAYING", index: 1, progress: 1, error: null },
-      { state: "COMPLETED", index: 1, progress: 1, error: null },
+      { state: "PLAYING", index: 0, progress: 0 },
+      { state: "PLAYING", index: 1, progress: 0.5 },
+      { state: "COMPLETED", index: 1, progress: 1 },
     ]);
     engine.destroy();
   });
@@ -96,7 +93,6 @@ describe("Core observable store", () => {
     engine.subscribe(listener);
     engine.setWpm(600);
     engine.setMsPerItem(100);
-    engine.clearError();
     expect(listener).not.toHaveBeenCalled();
     engine.load("new content");
     expect(listener).toHaveBeenCalledTimes(1);
@@ -125,30 +121,9 @@ describe("Core observable store", () => {
     engine.destroy();
   });
 
-  it.each(["load", "loadTokens"] as const)(
-    "clears errors with a successful %s in the same notification",
-    (method) => {
-      const engine = createEngine();
-      engine.pause();
-      const listener = vi.fn();
-      engine.subscribe(listener);
-      if (method === "load") {
-        engine.load("replacement");
-      } else {
-        engine.loadTokens([{ value: "replacement", ovpIndex: 0, durationMultiplier: 1 }]);
-      }
-      expect(listener).toHaveBeenCalledOnce();
-      expect(engine.getSnapshot()).toMatchObject({
-        state: "IDLE",
-        totalItems: 1,
-        error: null,
-      });
-      engine.destroy();
-    },
-  );
-
-  it("records thrown validation failures while preserving playback, then rethrows", () => {
-    const engine = createEngine();
+  it("throws validation failures without changing playback or reporting through onError", () => {
+    const onError = vi.fn();
+    const engine = createEngine({ onError });
     engine.play();
     const playback = engine.getSnapshot();
     const listener = vi.fn();
@@ -160,65 +135,113 @@ describe("Core observable store", () => {
       thrown = error;
     }
     expect(thrown).toBeInstanceOf(InvalidInputError);
-    expect(engine.getSnapshot()).toEqual({ ...playback, error: engine.getSnapshot().error });
-    expect(engine.getSnapshot().error).toBe(thrown);
-    expect(listener).toHaveBeenCalledOnce();
+    expect(engine.getSnapshot()).toBe(playback);
+    expect(listener).not.toHaveBeenCalled();
     expect(() => engine.setWpm(0)).toThrow(InvalidInputError);
-    expect(engine.getSnapshot()).toEqual({ ...playback, error: engine.getSnapshot().error });
+    expect(engine.getSnapshot()).toBe(playback);
+    expect(onError).not.toHaveBeenCalled();
     engine.destroy();
   });
 
-  it("publishes fatal state and error atomically and clears both on reset", () => {
-    const fatal = new Error("scheduler failure");
-    const scheduler: SchedulerStrategy = {
-      cancel: vi.fn(),
-      schedule: () => {
-        throw fatal;
-      },
-    };
-    const engine = createEngine({ scheduler });
-    const listener = vi.fn();
-    engine.subscribe(listener);
-    engine.play();
-    expect(listener).toHaveBeenCalledOnce();
-    expect(engine.getSnapshot()).toMatchObject({ state: "ERROR", error: fatal });
-    engine.clearError();
-    expect(engine.state).toBe("ERROR");
-    expect(engine.getSnapshot().error).toBeNull();
-    expect(() => engine.load("replacement")).toThrow(InvalidInputError);
-    expect(engine.getSnapshot().error).toBeInstanceOf(InvalidInputError);
-    listener.mockClear();
-    engine.reset();
-    expect(listener).toHaveBeenCalledOnce();
-    expect(engine.getSnapshot()).toMatchObject({
-      state: "IDLE",
-      totalItems: 0,
-      error: null,
-    });
-    engine.destroy();
-  });
-
-  it("publishes tokenizer failures before rethrowing the original value", () => {
-    const engine = createEngine({
-      data: undefined,
-      tokenizer: {
-        tokenize: () => {
-          throw "tokenizer failure";
+  it.each(["schedule", "cancel"] as const)(
+    "publishes fatal %s failures even if cleanup fails",
+    (stage) => {
+      const fatal = new Error("scheduler failure");
+      let cancelFailure: Error | undefined;
+      const scheduler: SchedulerStrategy = {
+        cancel: () => {
+          if (cancelFailure) {
+            throw cancelFailure;
+          }
         },
-      },
-    });
-    const listener = vi.fn();
-    engine.subscribe(listener);
-    expect(() => engine.load("input")).toThrow("tokenizer failure");
-    expect(listener).toHaveBeenCalledOnce();
-    expect(engine.getSnapshot()).toMatchObject({
-      state: "ERROR",
-      error: { message: "tokenizer failure" },
-    });
-    engine.reset();
-    expect(engine.getSnapshot().error).toBeNull();
-    engine.destroy();
-  });
+        schedule: () => {
+          if (stage === "schedule") {
+            throw fatal;
+          }
+        },
+      };
+      const engine = createEngine({ scheduler });
+      if (stage === "cancel") {
+        engine.play();
+      }
+      const listener = vi.fn();
+      engine.subscribe(listener);
+      cancelFailure = stage === "schedule" ? new Error("cleanup failure") : fatal;
+      let thrown: unknown;
+      try {
+        if (stage === "schedule") {
+          engine.play();
+        } else {
+          engine.pause();
+        }
+      } catch (error) {
+        thrown = error;
+      }
+      expect(listener).toHaveBeenCalledOnce();
+      expect(thrown).toBeInstanceOf(EngineError);
+      expect(thrown).toMatchObject({ isFatal: true, cause: fatal });
+      expect(engine.getSnapshot().state).toBe("ERROR");
+      cancelFailure = undefined;
+      expect(engine.state).toBe("ERROR");
+      expect(() => engine.load("replacement")).toThrow(InvalidInputError);
+      listener.mockClear();
+      engine.reset();
+      expect(listener).toHaveBeenCalledOnce();
+      expect(engine.getSnapshot()).toMatchObject({
+        state: "IDLE",
+        totalItems: 0,
+      });
+      engine.destroy();
+    },
+  );
+
+  it.each(["primitive", "fatal input"] as const)(
+    "publishes %s tokenizer failures before throwing",
+    (kind) => {
+      const failure =
+        kind === "primitive"
+          ? "tokenizer failure"
+          : new InvalidInputError({
+              cause: new EngineError("fatal source", { isFatal: true }),
+            });
+      const engine = createEngine({
+        data: undefined,
+        tokenizer: {
+          tokenize: () => {
+            throw failure;
+          },
+        },
+      });
+      engine.loadTokens([
+        { value: "one", ovpIndex: 0, durationMultiplier: 1 },
+        { value: "two", ovpIndex: 0, durationMultiplier: 1 },
+      ]);
+      engine.seek(1);
+      const listener = vi.fn();
+      engine.subscribe(listener);
+      let thrown: unknown;
+      try {
+        engine.load("input");
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(EngineError);
+      expect(thrown).toMatchObject({ cause: failure });
+      expect(thrown).toBeInstanceOf(TokenizationError);
+      expect(thrown).toMatchObject({ name: "TokenizationError", isFatal: true });
+      expect(listener).toHaveBeenCalledOnce();
+      expect(engine.getSnapshot()).toMatchObject({
+        state: "ERROR",
+        currentIndex: 0,
+        currentItem: null,
+        totalItems: 0,
+        progress: 0,
+        timing: { totalDurationMs: 0, remainingDurationMs: null },
+      });
+      engine.reset();
+      engine.destroy();
+    },
+  );
 
   it("supports duplicate listeners, unsubscription, and commands inside notifications", () => {
     const engine = createEngine();
@@ -263,52 +286,333 @@ describe("Core observable store", () => {
     engine.destroy();
   });
 
-  it("propagates subscriber exceptions without recording them as engine failures", () => {
-    const engine = createEngine();
-    const failure = new Error("subscriber failure");
+  it("reports subscriber exceptions without changing playback or blocking other listeners", () => {
+    const onError = vi.fn();
+    const engine = createEngine({ onError });
+    const failure = new EngineError("subscriber failure", { isFatal: true });
     const unsubscribe = engine.subscribe(() => {
       throw failure;
     });
-    expect(() => engine.play()).toThrow(failure);
-    expect(engine.getSnapshot()).toMatchObject({ state: "PLAYING", error: null });
-    unsubscribe();
     const listener = vi.fn();
     engine.subscribe(listener);
+    expect(() => engine.play()).not.toThrow();
+    expect(engine.getSnapshot()).toMatchObject({ state: "PLAYING" });
+    expect(listener).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledOnce();
+    const reported = onError.mock.calls[0]![0] as ListenerError;
+    expect(reported).toBeInstanceOf(ListenerError);
+    expect(reported).not.toBeInstanceOf(EngineError);
+    expect(reported).not.toHaveProperty("isFatal");
+    expect(reported.eventType).toBe("started");
+    expect(reported.cause).toBe(failure);
+    unsubscribe();
+    listener.mockClear();
     engine.pause();
     expect(listener).toHaveBeenCalledOnce();
     engine.destroy();
   });
 
-  it("preserves the original command failure when a subscriber also throws", () => {
-    const engine = createEngine();
-    const subscriberFailure = new Error("subscriber failure");
-    engine.subscribe(() => {
-      throw subscriberFailure;
+  it.each(["callback", "unavailable"] as const)(
+    "preserves the original command failure when listener reporting is %s",
+    (reporting) => {
+      const onError = vi.fn();
+      const commandFailure = new Error("schedule failed");
+      vi.stubGlobal("queueMicrotask", () => {
+        throw new Error("host reporting unavailable");
+      });
+      const engine = createEngine({
+        onError: reporting === "callback" ? onError : undefined,
+        scheduler: {
+          cancel: vi.fn(),
+          schedule: () => {
+            throw commandFailure;
+          },
+        },
+      });
+      const subscriberFailure = new Error("subscriber failure");
+      engine.subscribe(() => {
+        throw subscriberFailure;
+      });
+      const listener = vi.fn();
+      engine.subscribe(listener);
+      let thrown: unknown;
+      try {
+        engine.play();
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(PlaybackSchedulingError);
+      expect(thrown).toMatchObject({ cause: commandFailure });
+      expect(listener).toHaveBeenCalledOnce();
+      if (reporting === "callback") {
+        expect(onError).toHaveBeenCalledOnce();
+        expect(onError.mock.calls[0]![0]).toMatchObject({
+          eventType: "stateChanged",
+          cause: subscriberFailure,
+        });
+      } else {
+        expect(onError).not.toHaveBeenCalled();
+      }
+      engine.destroy();
+    },
+  );
+
+  it.each([
+    { transport: "microtask", command: "play", listenerFailures: 1 },
+    { transport: "timer", command: "load", listenerFailures: 2 },
+  ] as const)(
+    "keeps committed $command playback and delivers other listeners when $transport reporting fails",
+    ({ transport, command, listenerFailures }) => {
+      const reportingFailure = new EngineError("host reporting unavailable", { isFatal: true });
+      const unavailable = () => {
+        throw reportingFailure;
+      };
+      vi.stubGlobal("queueMicrotask", transport === "microtask" ? unavailable : undefined);
+      const engine = createEngine({
+        scheduler: { schedule: vi.fn(), cancel: vi.fn() },
+        timeDriver: { now: () => 0, setTimeout: unavailable, clearTimeout: vi.fn() },
+      });
+      const subscriberFailure = new Error("subscriber failed");
+      for (let index = 0; index < listenerFailures; index++) {
+        engine.subscribe((_, eventType) => {
+          if (eventType !== (command === "load" ? "loaded" : "started")) {
+            return;
+          }
+          if (command === "load" && index === 0) {
+            engine.setWpm(900);
+          }
+          throw subscriberFailure;
+        });
+      }
+      const listener = vi.fn();
+      engine.subscribe(listener);
+      let thrown: unknown;
+      try {
+        if (command === "load") {
+          engine.load("replacement");
+        } else {
+          engine.play();
+        }
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(AggregateError);
+      expect(thrown).not.toBeInstanceOf(EngineError);
+      const failures: readonly unknown[] =
+        listenerFailures === 1 ? [thrown] : (thrown as AggregateError).errors;
+      expect(failures).toHaveLength(listenerFailures);
+      for (const failure of failures) {
+        expect(failure).toBeInstanceOf(AggregateError);
+        expect((failure as AggregateError).errors).toEqual([
+          expect.objectContaining({
+            eventType: command === "load" ? "loaded" : "started",
+            cause: subscriberFailure,
+          }),
+          reportingFailure,
+        ]);
+      }
+      expect(engine.getSnapshot()).toMatchObject({
+        state: command === "load" ? "IDLE" : "PLAYING",
+        currentItem: { value: command === "load" ? "replacement" : "one" },
+        totalItems: command === "load" ? 1 : 2,
+        wpm: command === "load" ? 900 : 600,
+      });
+      expect(listener.mock.calls.map(([, eventType]) => eventType)).toEqual(
+        command === "load" ? ["loaded", "speedChanged"] : ["started"],
+      );
+      engine.destroy();
+    },
+  );
+
+  it.each(["command", "scheduler"] as const)(
+    "reports unhandled %s listener failures asynchronously",
+    (source) => {
+      let report: () => void = vi.fn();
+      const enqueue = vi.fn((task: () => void) => {
+        report = task;
+      });
+      vi.stubGlobal("queueMicrotask", enqueue);
+      const engine = createEngine();
+      const event = source === "command" ? "started" : "advanced";
+      engine.subscribe((_, eventType) => {
+        if (eventType === event) {
+          throw new Error("listener failed");
+        }
+      });
+      const listener = vi.fn();
+      engine.subscribe(listener);
+      expect(() => engine.play()).not.toThrow();
+      if (source === "scheduler") {
+        listener.mockClear();
+        expect(() => vi.advanceTimersByTime(100)).not.toThrow();
+      }
+      expect(listener).toHaveBeenCalledOnce();
+      expect(enqueue).toHaveBeenCalledOnce();
+      expect(engine.getSnapshot()).toMatchObject({ state: "PLAYING" });
+      expect(report).toThrow(ListenerError);
+      engine.destroy();
+    },
+  );
+
+  it("uses the injected timer when microtasks are unavailable", () => {
+    vi.stubGlobal("queueMicrotask", undefined);
+    let report: () => void = vi.fn();
+    const setTimeout = vi.fn((task: () => void) => {
+      report = task;
     });
-    let thrown: unknown;
-    try {
-      engine.setWpm(0);
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown).toBeInstanceOf(InvalidInputError);
-    expect(engine.getSnapshot().error).toBe(thrown);
+    const engine = createEngine({
+      timeDriver: { now: () => 0, setTimeout, clearTimeout: vi.fn() },
+    });
+    engine.subscribe(() => {
+      throw "listener failed";
+    });
+    expect(() => engine.setWpm(450)).not.toThrow();
+    expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 0);
+    expect(report).toThrow(ListenerError);
+    expect(engine.getSnapshot().state).toBe("IDLE");
     engine.destroy();
   });
 
-  it("keeps the last store readable after destroy and rejects further commands and subscriptions", () => {
-    const engine = createEngine();
-    engine.subscribe(() => engine.destroy());
+  it("reports a failing error handler without recursion or interrupting delivery", () => {
+    let report: () => void = vi.fn();
+    vi.stubGlobal("queueMicrotask", (task: () => void) => {
+      report = task;
+    });
+    const reporterFailure = new Error("reporter failed");
+    const onError = vi.fn<NonNullable<RsvpEngineOptions["onError"]>>(() => {
+      throw reporterFailure;
+    });
+    const engine = createEngine({ onError });
+    const failure = new Error("listener failed");
+    engine.subscribe(() => {
+      throw failure;
+    });
+    const listener = vi.fn();
+    engine.subscribe(listener);
+    expect(() => engine.play()).not.toThrow();
+    expect(listener).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(engine.getSnapshot()).toMatchObject({ state: "PLAYING" });
+    let unhandled: unknown;
+    try {
+      report();
+    } catch (error) {
+      unhandled = error;
+    }
+    expect(unhandled).toBeInstanceOf(AggregateError);
+    expect((unhandled as AggregateError).errors).toEqual([
+      onError.mock.calls[0]![0],
+      reporterFailure,
+    ]);
+    engine.destroy();
+  });
+
+  it("reports timer failures to the host when onError is omitted", () => {
+    const reports: (() => void)[] = [];
+    vi.stubGlobal("queueMicrotask", (task: () => void) => reports.push(task));
+    let callback: () => void = vi.fn();
+    let schedules = 0;
+    const failure = new Error("schedule failed");
+    const engine = createEngine({
+      scheduler: {
+        cancel: vi.fn(),
+        schedule: (task) => {
+          if (++schedules === 2) {
+            throw failure;
+          }
+          callback = task;
+        },
+      },
+    });
     engine.play();
-    const final = engine.getSnapshot();
-    expect(final.state).toBe("PLAYING");
+    expect(() => callback()).not.toThrow();
+    expect(engine.state).toBe("ERROR");
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toThrow(expect.objectContaining({ cause: failure, isFatal: true }));
+    engine.destroy();
+  });
+
+  it("does not re-enter onError when its command causes another listener failure", () => {
+    const reports: (() => void)[] = [];
+    vi.stubGlobal("queueMicrotask", (task: () => void) => reports.push(task));
+    let callback: () => void = vi.fn();
+    let schedules = 0;
+    const onError = vi.fn(() => engine.setWpm(300));
+    const engine = createEngine({
+      onError,
+      scheduler: {
+        cancel: vi.fn(),
+        schedule: (task) => {
+          if (++schedules === 2) {
+            throw new Error("schedule failed");
+          }
+          callback = task;
+        },
+      },
+    });
+    const failure = new Error("speed listener failed");
+    engine.subscribe((_, eventType) => {
+      if (eventType === "speedChanged") {
+        throw failure;
+      }
+    });
+    engine.play();
+    expect(() => callback()).not.toThrow();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0]).toHaveLength(1);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toThrow(
+      expect.objectContaining({ cause: failure, eventType: "speedChanged" }),
+    );
+    engine.destroy();
+  });
+
+  it("ends the instance lifetime even when scheduler cancellation fails", () => {
+    let fail = false;
+    const engine = createEngine({
+      scheduler: {
+        schedule: vi.fn(),
+        cancel: () => {
+          if (fail) {
+            throw new Error("cancel failed");
+          }
+        },
+      },
+    });
+    fail = true;
+    expect(() => engine.destroy()).toThrow(PlaybackSchedulingError);
+    expect(() => engine.play()).toThrow(EngineDestroyedError);
+    expect(() => engine.subscribe(vi.fn())).toThrow(EngineDestroyedError);
+    expect(() => engine.destroy()).not.toThrow();
+  });
+
+  it("ends playback and notification delivery on destroy while preserving captured snapshots", () => {
+    const engine = createEngine();
+    const delivered: RsvpSnapshot<string>[] = [];
+    engine.subscribe((snapshot) => {
+      delivered.push(snapshot);
+      engine.setWpm(300);
+      engine.destroy();
+    });
+    const second = vi.fn();
+    const unsubscribe = engine.subscribe(second);
+    engine.play();
+    expect(delivered).toEqual([
+      expect.objectContaining({
+        state: "PLAYING",
+        wpm: 600,
+        currentItem: expect.objectContaining({ value: "one" }),
+      }),
+    ]);
+    expect(Object.isFrozen(delivered[0])).toBe(true);
+    expect(second).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
     engine.destroy();
-    expect(engine.getSnapshot()).toBe(final);
+    unsubscribe();
+    unsubscribe();
+    vi.runAllTimers();
+    expect(delivered).toHaveLength(1);
     expect(() => engine.subscribe(vi.fn())).toThrow(EngineDestroyedError);
     expect(() => engine.play()).toThrow(EngineDestroyedError);
-    expect(() => engine.clearError()).toThrow(EngineDestroyedError);
-    expect(engine).not.toHaveProperty("on");
-    expect(engine).not.toHaveProperty("snapshot");
   });
 });

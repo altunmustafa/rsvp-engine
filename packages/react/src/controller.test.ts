@@ -3,7 +3,7 @@ import type { RsvpSnapshot, SchedulerStrategy, TokenizerStrategy } from "@rsvp-e
 import { EngineDestroyedError, IndexOutOfBoundsError, InvalidInputError } from "@rsvp-engine/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createRsvpController } from "./controller";
+import { EngineError, ListenerError, TokenizationError, createRsvpController } from "./index";
 
 describe("RSVP controller", () => {
   beforeEach(() => {
@@ -18,8 +18,7 @@ describe("RSVP controller", () => {
   it("exposes the flat Core snapshot through reads and subscription payloads", () => {
     const controller = createRsvpController({ data: "one two", wpm: 600 });
     const initial = controller.getSnapshot();
-    expect(initial).toMatchObject({ state: "IDLE", totalItems: 2, progress: 0, error: null });
-    expect(initial).not.toHaveProperty("snapshot");
+    expect(initial).toMatchObject({ state: "IDLE", totalItems: 2, progress: 0 });
     const observed: RsvpSnapshot<string>[] = [];
     controller.subscribe((snapshot) => {
       expect(snapshot).toBe(controller.getSnapshot());
@@ -27,7 +26,7 @@ describe("RSVP controller", () => {
     });
     controller.play();
     expect(observed).toHaveLength(1);
-    expect(observed[0]).toMatchObject({ state: "PLAYING", progress: 0.5, error: null });
+    expect(observed[0]).toMatchObject({ state: "PLAYING", progress: 0 });
     expect(controller.getServerSnapshot()).toBe(initial);
     expect(initial.state).toBe("IDLE");
     controller.destroy();
@@ -63,7 +62,6 @@ describe("RSVP controller", () => {
     const initial = controller.getSnapshot();
 
     expect(Object.isFrozen(initial)).toBe(true);
-    expect(initial.error).toBeNull();
     expect(initial).toMatchObject({
       state: "IDLE",
       totalItems: 2,
@@ -81,16 +79,42 @@ describe("RSVP controller", () => {
   });
 
   it("forwards Core event types with their snapshots", () => {
-    const controller = createRsvpController({ data: "one two", wpm: 600 });
+    const onError = vi.fn();
+    const controller = createRsvpController({ data: "one two", wpm: 600, onError });
+    const failure = new Error("listener failed");
+    controller.subscribe((_, eventType) => {
+      if (eventType === "started") {
+        throw failure;
+      }
+    });
     const listener = vi.fn();
     controller.subscribe(listener);
     controller.play();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0]![0]).toBeInstanceOf(ListenerError);
+    expect(onError.mock.calls[0]![0]).toMatchObject({
+      eventType: "started",
+      cause: failure,
+    });
     expect(listener).toHaveBeenLastCalledWith(controller.getSnapshot(), "started");
     vi.advanceTimersByTime(100);
     expect(listener).toHaveBeenLastCalledWith(controller.getSnapshot(), "advanced");
     controller.pause();
     controller.previous();
     expect(listener).toHaveBeenLastCalledWith(controller.getSnapshot(), "navigated");
+    controller.destroy();
+  });
+
+  it("forwards detached OVP actions and notifications while preserving the server snapshot", () => {
+    const controller = createRsvpController({ data: "hello world" });
+    const server = controller.getServerSnapshot();
+    const listener = vi.fn();
+    controller.subscribe(listener);
+    const { setOvpStrategy } = controller;
+    setOvpStrategy({ calculate: () => 0 });
+    expect(controller.getSnapshot().currentItem?.ovpIndex).toBe(0);
+    expect(controller.getServerSnapshot()).toBe(server);
+    expect(listener.mock.calls).toEqual([[controller.getSnapshot(), "ovpChanged"]]);
     controller.destroy();
   });
 
@@ -108,8 +132,7 @@ describe("RSVP controller", () => {
     expect(selected).toMatchObject({
       state: "PAUSED",
       currentIndex: 1,
-      progress: 1,
-      error: null,
+      progress: 0.5,
       timing: { totalDurationMs: 300, remainingDurationMs: 200 },
     });
     expect(listener).toHaveBeenLastCalledWith(selected, "navigated");
@@ -127,7 +150,6 @@ describe("RSVP controller", () => {
       currentIndex: 0,
       progress: 0,
       totalItems: 2,
-      error: null,
       timing: { totalDurationMs: 300, remainingDurationMs: 300 },
     });
     expect(stopped.currentItem).toBe(server.currentItem);
@@ -168,7 +190,6 @@ describe("RSVP controller", () => {
     const listener = vi.fn();
     controller.subscribe(listener);
     const { setWpm } = controller;
-    expect(controller).not.toHaveProperty("setSpeed");
 
     setWpm(225);
     const exact = controller.getSnapshot();
@@ -198,10 +219,10 @@ describe("RSVP controller", () => {
 
     controller.play();
 
-    expect(observed).toEqual([{ state: "PLAYING", progress: 0.5 }]);
+    expect(observed).toEqual([{ state: "PLAYING", progress: 0 }]);
 
     vi.advanceTimersByTime(100);
-    expect(observed.at(-1)).toEqual({ state: "PLAYING", progress: 1 });
+    expect(observed.at(-1)).toEqual({ state: "PLAYING", progress: 0.5 });
 
     vi.advanceTimersByTime(100);
     expect(observed.at(-1)).toEqual({ state: "COMPLETED", progress: 1 });
@@ -244,62 +265,63 @@ describe("RSVP controller", () => {
       msPerItem: 250,
     });
 
-    expect(() => controller.load("fatal")).toThrow(fatal);
+    let thrown: unknown;
+    try {
+      controller.load("fatal");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(EngineError);
+    expect(thrown).toBeInstanceOf(TokenizationError);
+    expect(thrown).toMatchObject({ isFatal: true, cause: fatal });
     expect(controller.getSnapshot()).toMatchObject({
       state: "ERROR",
-      error: fatal,
     });
 
     controller.reset();
     expect(controller.getSnapshot()).toMatchObject({
       state: "IDLE",
       totalItems: 0,
-      error: null,
     });
     controller.destroy();
   });
 
-  it("keeps errors across speed changes until clearError", () => {
-    const controller = createRsvpController<string>();
+  it("forwards timer failures through onError after publishing the ERROR state", () => {
+    const onError = vi.fn();
+    const failure = new Error("schedule failed");
+    let schedules = 0;
+    const controller = createRsvpController({
+      data: "one two",
+      wpm: 600,
+      onError,
+      scheduler: {
+        cancel: vi.fn(),
+        schedule: (task, delay) => {
+          if (++schedules === 2) {
+            throw failure;
+          }
+          setTimeout(task, delay);
+        },
+      },
+    });
     const listener = vi.fn();
     controller.subscribe(listener);
-
     controller.play();
-    const reported = controller.getSnapshot().error;
-    expect(reported).toBeInstanceOf(InvalidInputError);
-
-    controller.setWpm(600);
-    expect(controller.getSnapshot().error).toBe(reported);
-
-    controller.clearError();
-    expect(controller.getSnapshot().error).toBeNull();
-    controller.clearError();
-
-    expect(listener).toHaveBeenCalledTimes(3);
+    expect(onError).not.toHaveBeenCalled();
+    expect(() => vi.advanceTimersByTime(100)).not.toThrow();
+    expect(controller.getSnapshot().state).toBe("ERROR");
+    expect(listener).toHaveBeenLastCalledWith(controller.getSnapshot(), "stateChanged");
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0]![0]).toMatchObject({ isFatal: true, cause: failure });
     controller.destroy();
   });
 
-  it.each(["load", "loadTokens"] as const)(
-    "clears errors on successful %s with one notification",
-    (method) => {
-      const controller = createRsvpController<string>();
-      controller.play();
-      expect(controller.getSnapshot().error).toBeInstanceOf(InvalidInputError);
-      const listener = vi.fn();
-      controller.subscribe(listener);
-      if (method === "load") {
-        controller.load("replacement");
-      } else {
-        controller.loadTokens([{ value: "replacement", ovpIndex: 0, durationMultiplier: 1 }]);
-      }
-      expect(controller.getSnapshot().error).toBeNull();
-      expect(listener).toHaveBeenCalledOnce();
-      controller.destroy();
-    },
-  );
-
-  it("records synchronous failures and rethrows the original value", () => {
-    const controller = createRsvpController<string>();
+  it("throws synchronous failures without calling onError or notifying subscribers", () => {
+    const onError = vi.fn();
+    const controller = createRsvpController<string>({ onError });
+    const initial = controller.getSnapshot();
+    const listener = vi.fn();
+    controller.subscribe(listener);
 
     let thrown: unknown;
     try {
@@ -309,7 +331,9 @@ describe("RSVP controller", () => {
     }
 
     expect(thrown).toBeInstanceOf(InvalidInputError);
-    expect(controller.getSnapshot().error).toBe(thrown);
+    expect(controller.getSnapshot()).toBe(initial);
+    expect(listener).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
 
     const tokenizer: TokenizerStrategy<string> = {
       tokenize: () => {
@@ -318,27 +342,22 @@ describe("RSVP controller", () => {
     };
     const stringFailureController = createRsvpController({ tokenizer });
 
-    expect(() => stringFailureController.load("input")).toThrow("string failure");
-    expect(stringFailureController.getSnapshot().error).toMatchObject({
-      message: "string failure",
-    });
+    expect(() => stringFailureController.load("input")).toThrow(
+      expect.objectContaining({
+        message: "Failed to tokenize input.",
+        cause: "string failure",
+      }),
+    );
 
     controller.destroy();
     stringFailureController.destroy();
   });
 
-  it("reports invalid navigation through the observable error channel", () => {
+  it("throws invalid navigation errors directly", () => {
     const controller = createRsvpController({ data: "one two" });
 
-    controller.next();
-    expect(controller.getSnapshot().error).toMatchObject({
-      message: "next() is only available in PAUSED state.",
-    });
-    controller.clearError();
-    controller.previous();
-    expect(controller.getSnapshot().error).toMatchObject({
-      message: "previous() is only available in PAUSED state.",
-    });
+    expect(() => controller.next()).toThrow("next() is only available in PAUSED state.");
+    expect(() => controller.previous()).toThrow("previous() is only available in PAUSED state.");
     controller.destroy();
   });
 
@@ -353,15 +372,10 @@ describe("RSVP controller", () => {
       const listener = vi.fn();
       controller.subscribe(listener);
 
-      expect(() => controller.seek(index)).not.toThrow();
+      expect(() => controller.seek(index)).toThrow(IndexOutOfBoundsError);
 
-      expect(controller.getSnapshot()).toEqual({
-        ...before,
-        error: controller.getSnapshot().error,
-      });
-      expect(controller.getSnapshot().error).toBeInstanceOf(IndexOutOfBoundsError);
-      expect(listener).toHaveBeenCalledTimes(1);
-      controller.clearError();
+      expect(controller.getSnapshot()).toBe(before);
+      expect(listener).not.toHaveBeenCalled();
       controller.play();
       vi.advanceTimersByTime(59);
       expect(controller.getSnapshot().currentIndex).toBe(1);
@@ -384,7 +398,7 @@ describe("RSVP controller", () => {
     controller.destroy();
   });
 
-  it("keeps the final snapshot readable and rejects work after idempotent destroy", () => {
+  it("rejects work after idempotent destroy and preserves previously captured snapshots", () => {
     const scheduler: SchedulerStrategy = {
       schedule: vi.fn(),
       cancel: vi.fn(),
@@ -393,16 +407,18 @@ describe("RSVP controller", () => {
     const unsubscribe = controller.subscribe(vi.fn());
     controller.play();
     const finalSnapshot = controller.getSnapshot();
+    const serverSnapshot = controller.getServerSnapshot();
 
     controller.destroy();
     controller.destroy();
     unsubscribe();
 
-    expect(controller.getSnapshot()).toBe(finalSnapshot);
-    expect(controller.getServerSnapshot()).not.toBe(finalSnapshot);
+    expect(finalSnapshot).toMatchObject({ state: "PLAYING", currentItem: { value: "one" } });
+    expect(serverSnapshot).toMatchObject({ state: "IDLE", currentItem: { value: "one" } });
+    expect(Object.isFrozen(finalSnapshot)).toBe(true);
+    expect(Object.isFrozen(serverSnapshot)).toBe(true);
     expect(() => controller.subscribe(vi.fn())).toThrow(EngineDestroyedError);
     expect(() => controller.play()).toThrow(EngineDestroyedError);
-    expect(() => controller.clearError()).toThrow(EngineDestroyedError);
     expect(scheduler.cancel).toHaveBeenCalled();
   });
 });

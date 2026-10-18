@@ -4,7 +4,10 @@
 
 ## Status
 
-Accepted; supersedes [ADR-0001](./0001-own-core-with-a-cached-external-store.md).
+Accepted
+
+- Supersedes [ADR-0001](./0001-own-core-with-a-cached-external-store.md).
+- Superseded by [Core ADR-0018](../../../../core/docs/architecture/adr/0018-caller-owned-errors-and-playback-snapshots.md) for error storage.
 
 ## Context
 

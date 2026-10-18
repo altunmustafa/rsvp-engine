@@ -18,6 +18,7 @@ const domElements = {
 const engine = new RsvpEngine({
   data: domElements.textInput.value,
   wpm: domElements.wpmInput.valueAsNumber,
+  onError: showError,
 });
 
 function showWord(item: { value: string; ovpIndex: number }): void {
@@ -34,7 +35,6 @@ function showProgress(value: number): void {
 }
 
 function renderPlayback(snapshot: RsvpSnapshot<string>, eventType: RsvpEventType): void {
-  const { error } = snapshot;
   if (eventType === "started" || eventType === "advanced" || eventType === "navigated") {
     if (snapshot.currentItem) {
       showWord(snapshot.currentItem);
@@ -43,35 +43,52 @@ function renderPlayback(snapshot: RsvpSnapshot<string>, eventType: RsvpEventType
     showWord(placeholderItem);
   }
   showProgress(snapshot.progress);
-  domElements.status.textContent = error
-    ? `Error: ${error.message}`
-    : snapshot.state === "COMPLETED"
+  domElements.status.textContent =
+    snapshot.state === "COMPLETED"
       ? `Complete: ${snapshot.totalItems} words`
       : `State: ${snapshot.state}`;
+}
+
+function showError(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  domElements.status.textContent = `Error: ${message}`;
+}
+
+function runCommand(command: () => void): void {
+  try {
+    command();
+  } catch (error) {
+    showError(error);
+  }
 }
 
 const unsubscribe = engine.subscribe(renderPlayback);
 
 document.querySelector<HTMLButtonElement>("#load")!.addEventListener("click", () => {
-  if (engine.state === "PLAYING") {
-    engine.pause();
-  }
-
-  engine.load(domElements.textInput.value);
+  runCommand(() => {
+    if (engine.state === "PLAYING") {
+      engine.pause();
+    } else if (engine.state === "ERROR") {
+      engine.reset();
+    }
+    engine.load(domElements.textInput.value);
+  });
 });
 
 domElements.wpmInput.addEventListener("input", () => {
   if (domElements.wpmInput.reportValidity()) {
-    engine.setWpm(domElements.wpmInput.valueAsNumber);
+    runCommand(() => engine.setWpm(domElements.wpmInput.valueAsNumber));
   }
 });
 
-document.querySelector<HTMLButtonElement>("#play")!.addEventListener("click", () => engine.play());
-document
-  .querySelector<HTMLButtonElement>("#pause")!
-  .addEventListener("click", () => engine.pause());
+document.querySelector<HTMLButtonElement>("#play")!.addEventListener("click", () => {
+  runCommand(() => engine.play());
+});
+document.querySelector<HTMLButtonElement>("#pause")!.addEventListener("click", () => {
+  runCommand(() => engine.pause());
+});
 document.querySelector<HTMLButtonElement>("#stop")!.addEventListener("click", () => {
-  engine.stop();
+  runCommand(() => engine.stop());
 });
 
 window.addEventListener("beforeunload", () => {

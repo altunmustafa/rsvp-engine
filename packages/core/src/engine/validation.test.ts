@@ -14,14 +14,14 @@ describe("validateTokens", () => {
     ).not.toThrow();
   });
 
-  it("rejects tokens that provide only the removed delayMultiplier field", () => {
-    const token = { value: "word", ovpIndex: 1, delayMultiplier: 1 } as unknown as Token<string>;
+  it("rejects tokens missing the required durationMultiplier", () => {
+    const token = { value: "word", ovpIndex: 1 } as Token<string>;
     expect(() => validateTokens([token])).toThrow("Token 0 has an invalid durationMultiplier.");
   });
 
   it("rejects a non-array value", () => {
     expect(() => validateTokens(null as unknown as Token<string>[])).toThrowError(
-      new InvalidInputError("tokens must be an array."),
+      new InvalidInputError({ message: "tokens must be an array." }),
     );
   });
 

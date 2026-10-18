@@ -31,6 +31,7 @@ let fetchController: AbortController | undefined;
 const engine = new RsvpEngine({
   data: domElements.extractedText.value,
   wpm: domElements.wpmInput.valueAsNumber,
+  onError: showError,
 });
 
 function showWord(item: { value: string; ovpIndex: number }): void {
@@ -53,7 +54,6 @@ function setPlaybackDisabled(disabled: boolean): void {
 }
 
 function renderPlayback(snapshot: RsvpSnapshot<string>, eventType: RsvpEventType): void {
-  const { error } = snapshot;
   if (eventType === "started" || eventType === "advanced" || eventType === "navigated") {
     if (snapshot.currentItem) {
       showWord(snapshot.currentItem);
@@ -62,11 +62,23 @@ function renderPlayback(snapshot: RsvpSnapshot<string>, eventType: RsvpEventType
     showWord(placeholderItem);
   }
   showProgress(snapshot.progress);
-  domElements.status.textContent = error
-    ? `Error: ${error.message}`
-    : snapshot.state === "COMPLETED"
+  domElements.status.textContent =
+    snapshot.state === "COMPLETED"
       ? `Complete: ${snapshot.totalItems} words`
       : `State: ${snapshot.state}`;
+}
+
+function showError(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  domElements.status.textContent = `Error: ${message}`;
+}
+
+function runCommand(command: () => void): void {
+  try {
+    command();
+  } catch (error) {
+    showError(error);
+  }
 }
 
 const unsubscribe = engine.subscribe(renderPlayback);
@@ -147,14 +159,18 @@ domElements.parseForm.addEventListener("submit", (event) => {
 
 domElements.wpmInput.addEventListener("input", () => {
   if (domElements.wpmInput.reportValidity()) {
-    engine.setWpm(domElements.wpmInput.valueAsNumber);
+    runCommand(() => engine.setWpm(domElements.wpmInput.valueAsNumber));
   }
 });
 
-domElements.playButton.addEventListener("click", () => engine.play());
-domElements.pauseButton.addEventListener("click", () => engine.pause());
+domElements.playButton.addEventListener("click", () => {
+  runCommand(() => engine.play());
+});
+domElements.pauseButton.addEventListener("click", () => {
+  runCommand(() => engine.pause());
+});
 domElements.stopButton.addEventListener("click", () => {
-  engine.stop();
+  runCommand(() => engine.stop());
 });
 
 window.addEventListener("beforeunload", () => {

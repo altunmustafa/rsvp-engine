@@ -2,7 +2,7 @@ import type { OvpStrategy, Token, TokenizerStrategy } from "./types";
 
 import { InvalidInputError } from "../errors";
 
-import { DefaultOvpStrategy } from "./ovp";
+import { DefaultOvpStrategy } from "./default-ovp-strategy";
 
 /**
  * Options for configuring `DefaultTokenizer`.
@@ -23,7 +23,7 @@ export interface DefaultTokenizerOptions {
 /**
  * Default configurable tokenizer for text, items, and array inputs.
  * Splits text on whitespace and assigns duration multipliers based on punctuation.
- * Wraps custom generic items or arrays into presentable tokens.
+ * Wraps generic values or arrays into source tokens.
  * @typeParam T - The type of items being presented (defaults to `string`).
  */
 export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
@@ -64,15 +64,15 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     ];
   }
 
-  #tokenizeArray(items: T[]): Token<T>[] {
+  #tokenizeArray(values: T[]): Token<T>[] {
     if (this.#nestedTokenize) {
-      return items.flatMap((item) => this.tokenize(item));
+      return values.flatMap((value) => this.tokenize(value));
     }
 
-    return items.map((item) => ({
-      value: item,
-      ovpIndex: typeof item === "string" ? this.#ovpStrategy.calculate(item) : 0,
-      durationMultiplier: this.#calculateDurationMultiplier(item),
+    return values.map((value) => ({
+      value,
+      ovpIndex: typeof value === "string" ? this.#ovpStrategy.calculate(value) : 0,
+      durationMultiplier: this.#calculateDurationMultiplier(value),
     }));
   }
 
@@ -90,15 +90,15 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     }));
   }
 
-  #calculateDurationMultiplier(item: unknown): number {
-    if (typeof item === "string") {
-      if (/[.!?。！？…]+[\p{Pe}\p{Pf}"']*$/u.test(item)) {
+  #calculateDurationMultiplier(value: unknown): number {
+    if (typeof value === "string") {
+      if (/[.!?。！？…]+[\p{Pe}\p{Pf}"']*$/u.test(value)) {
         return this.#sentenceDurationMultiplier;
       }
-      if (/[,;:，、；：]+[\p{Pe}\p{Pf}"']*$/u.test(item)) {
+      if (/[,;:，、；：]+[\p{Pe}\p{Pf}"']*$/u.test(value)) {
         return this.#clauseDurationMultiplier;
       }
-      if (/\p{Pd}+[\p{Pe}\p{Pf}"']*$/u.test(item)) {
+      if (/\p{Pd}+[\p{Pe}\p{Pf}"']*$/u.test(value)) {
         return this.#dashDurationMultiplier;
       }
       return 1.0;
@@ -115,7 +115,7 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     ] as const;
     for (const [name, value] of options) {
       if (!Number.isFinite(value) || value <= 0) {
-        throw new InvalidInputError(`${name} must be a positive finite number.`);
+        throw new InvalidInputError({ message: `${name} must be a positive finite number.` });
       }
     }
   }
@@ -127,30 +127,30 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     }
 
     const segmenter = new Segmenter(undefined, { granularity: "word" });
-    const tokens: string[] = [];
+    const words: string[] = [];
     let prefix = "";
     let atBoundary = true;
     for (const part of segmenter.segment(text)) {
       if (/^\s+$/u.test(part.segment)) {
         if (prefix) {
-          tokens.push(prefix);
+          words.push(prefix);
         }
         prefix = "";
         atBoundary = true;
       } else if (part.isWordLike || !isPunctuation(part.segment)) {
-        tokens.push(prefix + part.segment);
+        words.push(prefix + part.segment);
         prefix = "";
         atBoundary = false;
       } else if (atBoundary || prefix || /^[\p{Ps}\p{Pi}]+$/u.test(part.segment)) {
         prefix += part.segment;
       } else {
-        tokens[tokens.length - 1] += part.segment;
+        words[words.length - 1] += part.segment;
       }
     }
     if (prefix) {
-      tokens.push(prefix);
+      words.push(prefix);
     }
-    return tokens;
+    return words;
   }
 }
 

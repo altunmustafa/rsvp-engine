@@ -13,7 +13,14 @@ const { values } = parseArgs({
 const text = values.text ?? defaultText;
 const wpm = values.wpm !== undefined ? Number(values.wpm) : 300;
 
-const engine = new RsvpEngine({ data: text, wpm });
+const engine = new RsvpEngine({
+  data: text,
+  wpm,
+  onError: (error) => {
+    process.stderr.write(`\nError: ${error.message}\n`);
+    process.exitCode = 1;
+  },
+});
 
 function highlightOvp(value: string, ovpIndex: number): string {
   const before = value.slice(0, ovpIndex);
@@ -26,11 +33,6 @@ function highlightOvp(value: string, ovpIndex: number): string {
 }
 
 engine.subscribe((snapshot, eventType) => {
-  const { error } = snapshot;
-  if (eventType === "errorOccurred" && error) {
-    process.stderr.write(`\nError: ${error.message}\n`);
-    process.exitCode = 1;
-  }
   if (
     (eventType === "started" || eventType === "advanced" || eventType === "navigated") &&
     snapshot.currentItem &&

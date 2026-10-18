@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EngineDestroyedError, RsvpEngine } from "./index";
+import { EngineDestroyedError, InvalidTransitionError, RsvpEngine } from "./index";
 
 describe("Public API integration", () => {
   beforeEach(() => {
@@ -22,16 +22,12 @@ describe("Public API integration", () => {
     const presentedItems: string[] = [];
 
     let previous = engine.getSnapshot();
-    engine.subscribe(() => {
-      const current = engine.getSnapshot();
+    engine.subscribe((current, eventType) => {
       if (current.state !== previous.state) {
         states.push(current.state);
       }
-      if (
-        current.progress > 0 &&
-        (current.currentItem !== previous.currentItem || current.progress !== previous.progress)
-      ) {
-        presentedItems.push(current.currentItem!.value);
+      if (current.currentItem && (eventType === "started" || eventType === "advanced")) {
+        presentedItems.push(current.currentItem.value);
       }
       previous = current;
     });
@@ -107,7 +103,7 @@ describe("Public API integration", () => {
 
     expect(() => {
       engine.pause(); // Invalid transition from IDLE
-    }).not.toThrow(); // Invalid controls record an observable error.
+    }).toThrow(InvalidTransitionError);
 
     expect(engine.state).toBe("IDLE");
 

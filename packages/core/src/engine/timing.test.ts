@@ -3,6 +3,8 @@ import type { SchedulerStrategy, TimeDriver } from "../scheduler/types";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { EngineError } from "../errors";
+
 import { RsvpEngine } from "./rsvp-engine";
 
 function createClock() {
@@ -61,7 +63,7 @@ describe("playback timing", () => {
     });
     engine.play();
     clock.tick();
-    expect(engine.progress).toBe(1);
+    expect(engine.progress).toBe(0.5);
     expect(engine.state).toBe("PLAYING");
     expect(engine.getSnapshot().timing.remainingDurationMs).toBe(400);
     clock.tick();
@@ -90,7 +92,7 @@ describe("playback timing", () => {
     engine.seek(0);
     expect(engine.getSnapshot().timing.remainingDurationMs).toBe(400);
     const timing = engine.getSnapshot().timing;
-    engine.seek(Number.NaN);
+    expect(() => engine.seek(Number.NaN)).toThrow();
     expect(engine.getSnapshot().timing).toBe(timing);
     engine.loadTokens([{ value: "new", ovpIndex: 0, durationMultiplier: 3 }]);
     expect(engine.getSnapshot().timing.remainingDurationMs).toBe(300);
@@ -179,11 +181,8 @@ describe("playback timing", () => {
     clock.elapse(30);
     engine.setWpm(600);
     engine.setMsPerItem(100);
-    engine.clearError();
     expect(engine.getSnapshot()).toBe(playing);
-    engine.seek(-1);
-    expect(engine.getSnapshot().timing).toBe(playing.timing);
-    engine.clearError();
+    expect(() => engine.seek(-1)).toThrow();
     expect(engine.getSnapshot().timing).toBe(playing.timing);
     expect(clock.pending()).toBe(1);
     engine.destroy();
@@ -281,7 +280,7 @@ describe("playback timing", () => {
         cancel: vi.fn(),
       },
     });
-    engine.play();
+    expect(() => engine.play()).toThrow("Failed to schedule playback.");
     expect(engine.state).toBe("ERROR");
     expect(engine.getSnapshot().timing.remainingDurationMs).toBeNull();
     engine.reset();
@@ -305,11 +304,97 @@ describe("playback timing", () => {
       data: "one",
       scheduler: { schedule: vi.fn(), cancel: vi.fn(), getDeadline: () => Number.NaN },
     });
-    engine.play();
+    expect(() => engine.play()).toThrow(
+      expect.objectContaining({
+        cause: expect.objectContaining({ message: "Scheduler deadline must be finite." }),
+      }),
+    );
     expect(engine.state).toBe("ERROR");
     expect(engine.getSnapshot().timing.remainingDurationMs).toBeNull();
     engine.destroy();
   });
+
+  it.each(["start", "pause", "notification", "advancement", "loading", "nonfinite"] as const)(
+    "publishes a consistent fatal snapshot when the clock fails during %s",
+    (phase) => {
+      const failure = new Error("clock failed");
+      const now = vi.fn(() => 100);
+      let callback: () => void = vi.fn();
+      const cancel = vi.fn();
+      const onError = vi.fn();
+      const engine = new RsvpEngine({
+        data: "one two",
+        onError,
+        timeDriver: { now, setTimeout: vi.fn(), clearTimeout: vi.fn() },
+        scheduler: {
+          schedule: (task) => {
+            callback = task;
+          },
+          cancel,
+        },
+      });
+      if (phase === "pause" || phase === "advancement") {
+        engine.play();
+      }
+      const before = engine.getSnapshot();
+      const listener = vi.fn();
+      engine.subscribe(listener);
+      if (phase === "nonfinite") {
+        now.mockReturnValue(Number.NaN);
+      } else {
+        now.mockImplementation(() => {
+          throw failure;
+        });
+      }
+      if (phase === "notification") {
+        now.mockReturnValueOnce(100);
+      }
+      let thrown: unknown;
+      if (phase === "advancement") {
+        cancel.mockImplementation(() => {
+          throw new Error("cleanup failed");
+        });
+        expect(() => callback()).not.toThrow();
+      } else {
+        try {
+          if (phase === "pause") {
+            engine.pause();
+          } else if (phase === "loading") {
+            engine.load("replacement");
+          } else {
+            engine.play();
+          }
+        } catch (error) {
+          thrown = error;
+        }
+      }
+      const failed = engine.getSnapshot();
+      expect(engine.state).toBe("ERROR");
+      expect(failed.state).toBe(engine.state);
+      if (phase === "advancement") {
+        expect(onError).toHaveBeenCalledOnce();
+        expect(onError.mock.calls[0]![0]).toMatchObject({ isFatal: true });
+      } else {
+        expect(thrown).toBeInstanceOf(EngineError);
+        expect(thrown).toMatchObject({ isFatal: true });
+        expect(onError).not.toHaveBeenCalled();
+      }
+      if (phase === "loading") {
+        expect(failed.totalItems).toBe(0);
+        expect(failed.currentItem).toBeNull();
+        expect(failed.timing.totalDurationMs).toBe(0);
+      }
+      expect(failed.timing.sampledAtMs).toBe(before.timing.sampledAtMs);
+      expect(failed.timing.remainingDurationMs).toBeNull();
+      expect(listener.mock.calls).toEqual([[failed, "stateChanged"]]);
+      const reads = now.mock.calls.length;
+      callback();
+      expect(engine.getSnapshot()).toBe(failed);
+      expect(now).toHaveBeenCalledTimes(reads);
+      cancel.mockReset();
+      engine.destroy();
+    },
+  );
 
   it("keeps the full remaining interval when a presentation listener pauses immediately", () => {
     const clock = createClock();

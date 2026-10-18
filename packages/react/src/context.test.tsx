@@ -17,6 +17,38 @@ afterEach(() => {
 });
 
 describe("context-bound React bindings", () => {
+  it("exposes stable OVP actions and rerenders only selectors whose presentation changes", () => {
+    const controller = createRsvpController({ data: "hello world" });
+    const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<string>();
+    let timingRenders = 0;
+    function Timing(): ReactNode {
+      timingRenders++;
+      const timing = useRsvpSelector((snapshot) => snapshot.timing);
+      return <span>{timing.totalDurationMs}</span>;
+    }
+    const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
+      <RsvpProvider controller={controller}>
+        <Timing />
+        {children}
+      </RsvpProvider>
+    );
+    const { result } = renderHook(
+      () => ({
+        actions: useRsvpActions(),
+        ovpIndex: useRsvpSelector((snapshot) => snapshot.currentItem?.ovpIndex),
+      }),
+      { wrapper: Wrapper },
+    );
+    const actions = result.current.actions;
+    expect(actions.setOvpStrategy).toBe(controller.setOvpStrategy);
+    expect(result.current.ovpIndex).toBe(1);
+    act(() => actions.setOvpStrategy({ calculate: () => 0 }));
+    expect(result.current.ovpIndex).toBe(0);
+    expect(result.current.actions).toBe(actions);
+    expect(timingRenders).toBe(1);
+    controller.destroy();
+  });
+
   it("preserves exact slider values through speed actions and selectors", () => {
     const controller = createRsvpController();
     const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<string>();
@@ -29,7 +61,6 @@ describe("context-bound React bindings", () => {
     );
     const actions = result.current.actions;
     expect(actions.setWpm).toBe(controller.setWpm);
-    expect(actions).not.toHaveProperty("setSpeed");
     for (const wpm of [225, 425, 450, 825, 850, 900, 925]) {
       act(() => actions.setWpm(wpm));
       expect(result.current.wpm).toBe(wpm);
@@ -101,7 +132,6 @@ describe("context-bound React bindings", () => {
     const initial = result.current;
 
     expect(initial.play).toBe(controller.play);
-    expect(initial.clearError).toBe(controller.clearError);
     expect(subscribe).not.toHaveBeenCalled();
 
     act(() => controller.load("one two"));

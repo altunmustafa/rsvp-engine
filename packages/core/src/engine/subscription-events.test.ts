@@ -3,6 +3,8 @@ import type { SchedulerStrategy } from "../scheduler/types";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { InvalidInputError, ListenerError, PlaybackSchedulingError } from "../errors";
+
 import { RsvpEngine } from "./rsvp-engine";
 
 describe("subscription event types", () => {
@@ -46,77 +48,58 @@ describe("subscription event types", () => {
     engine.destroy();
   });
 
-  it.each(["load", "loadTokens"] as const)(
-    "reports successful %s once, including error clearing",
-    (method) => {
-      const engine = new RsvpEngine({ data: "old" });
-      engine.pause();
-      const listener = vi.fn();
-      engine.subscribe(listener);
-      if (method === "load") {
-        engine.load("new");
-      } else {
-        engine.loadTokens([{ value: "new", ovpIndex: 0, durationMultiplier: 1 }]);
-      }
-      expect(listener.mock.calls).toEqual([[engine.getSnapshot(), "loaded"]]);
-      expect(engine.getSnapshot().error).toBeNull();
-      engine.destroy();
-    },
-  );
+  it.each(["load", "loadTokens"] as const)("reports successful %s once", (method) => {
+    const engine = new RsvpEngine({ data: "old" });
+    const listener = vi.fn();
+    engine.subscribe(listener);
+    if (method === "load") {
+      engine.load("new");
+    } else {
+      engine.loadTokens([{ value: "new", ovpIndex: 0, durationMultiplier: 1 }]);
+    }
+    expect(listener.mock.calls).toEqual([[engine.getSnapshot(), "loaded"]]);
+    engine.destroy();
+  });
 
-  it("reports speed and explicit error clearing, skipping no-ops", () => {
+  it("reports effective speed and presentation changes, skipping no-ops and rejected commands", () => {
     const engine = new RsvpEngine({ data: "one two", wpm: 600 });
     const events: RsvpEventType[] = [];
     engine.subscribe((_, eventType) => events.push(eventType));
     engine.setWpm(600);
-    engine.clearError();
     engine.setWpm(300);
     engine.setMsPerItem(100);
     expect(() => engine.setWpm(0)).toThrow();
-    engine.clearError();
-    engine.clearError();
     engine.play();
     engine.pause();
     engine.previous();
     engine.seek(0);
     engine.next();
     engine.next();
-    expect(events).toEqual([
-      "speedChanged",
-      "speedChanged",
-      "errorOccurred",
-      "errorCleared",
-      "started",
-      "paused",
-      "navigated",
-    ]);
+    expect(events).toEqual(["speedChanged", "speedChanged", "started", "paused", "navigated"]);
     engine.destroy();
   });
 
-  it("reports invalid controls as errors instead of successful events", () => {
-    const engine = new RsvpEngine({ data: "one" });
+  it("throws invalid controls without notifying subscribers or onError", () => {
+    const onError = vi.fn();
+    const engine = new RsvpEngine({ data: "one", onError });
+    const initial = engine.getSnapshot();
     const listener = vi.fn();
     engine.subscribe(listener);
-    engine.pause();
-    engine.seek(-1);
-    engine.next();
-    engine.previous();
-    engine.reset();
+    expect(() => engine.pause()).toThrow();
+    expect(() => engine.seek(-1)).toThrow();
+    expect(() => engine.next()).toThrow();
+    expect(() => engine.previous()).toThrow();
+    expect(() => engine.reset()).toThrow();
+    expect(engine.getSnapshot()).toBe(initial);
+    expect(listener).not.toHaveBeenCalled();
     engine.play();
-    engine.play();
-    expect(listener.mock.calls.map((call) => call[1])).toEqual([
-      "errorOccurred",
-      "errorOccurred",
-      "errorOccurred",
-      "errorOccurred",
-      "errorOccurred",
-      "started",
-      "errorOccurred",
-    ]);
+    expect(() => engine.play()).toThrow();
+    expect(listener.mock.calls.map((call) => call[1])).toEqual(["started"]);
+    expect(onError).not.toHaveBeenCalled();
     engine.destroy();
   });
 
-  it("replaces start and advancement events with fatal scheduling errors", () => {
+  it("reports timer errors through onError and publishes only the changed playback state", () => {
     let schedules = 0;
     const scheduler: SchedulerStrategy = {
       cancel: vi.fn(),
@@ -127,22 +110,25 @@ describe("subscription event types", () => {
         setTimeout(task, delay);
       },
     };
-    const engine = new RsvpEngine({ data: "one two", scheduler, wpm: 600 });
+    const onError = vi.fn();
+    const engine = new RsvpEngine({ data: "one two", scheduler, wpm: 600, onError });
     const listener = vi.fn();
     engine.subscribe(listener);
     engine.play();
     vi.advanceTimersByTime(100);
-    expect(listener.mock.calls.map((call) => call[1])).toEqual(["started", "errorOccurred"]);
+    expect(listener.mock.calls.map((call) => call[1])).toEqual(["started", "stateChanged"]);
     expect(engine.getSnapshot().state).toBe("ERROR");
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0]![0]).toBeInstanceOf(PlaybackSchedulingError);
     engine.reset();
     expect(listener).toHaveBeenLastCalledWith(engine.getSnapshot(), "reset");
-    expect(engine.getSnapshot().error).toBeNull();
-    engine.play();
-    expect(listener).toHaveBeenLastCalledWith(engine.getSnapshot(), "errorOccurred");
+    expect(() => engine.play()).toThrow("Cannot play: no tokens loaded.");
+    expect(listener).toHaveBeenLastCalledWith(engine.getSnapshot(), "reset");
     engine.destroy();
 
     const failed = new RsvpEngine({
       data: "one",
+      onError,
       scheduler: {
         cancel: vi.fn(),
         schedule: () => {
@@ -152,8 +138,9 @@ describe("subscription event types", () => {
     });
     const startListener = vi.fn();
     failed.subscribe(startListener);
-    failed.play();
-    expect(startListener.mock.calls).toEqual([[failed.getSnapshot(), "errorOccurred"]]);
+    expect(() => failed.play()).toThrow("Failed to schedule playback.");
+    expect(startListener.mock.calls).toEqual([[failed.getSnapshot(), "stateChanged"]]);
+    expect(onError).toHaveBeenCalledOnce();
     failed.destroy();
   });
 
@@ -203,37 +190,72 @@ describe("subscription event types", () => {
     engine.pause();
     const listener = vi.fn();
     engine.subscribe(listener);
-    engine.play();
-    expect(listener.mock.calls).toEqual([[engine.getSnapshot(), "errorOccurred"]]);
+    expect(() => engine.play()).toThrow("Failed to schedule playback.");
+    expect(listener.mock.calls).toEqual([[engine.getSnapshot(), "stateChanged"]]);
     expect(engine.getSnapshot().state).toBe("ERROR");
     engine.destroy();
   });
 
-  it("drops queued notifications on destroy or a throwing subscriber", () => {
-    const engine = new RsvpEngine({ data: "one" });
+  it("reports subscriber failures and delivers pending notifications in order", () => {
+    const onError = vi.fn();
+    const engine = new RsvpEngine({ data: "one", onError });
     const failure = new Error("subscriber failed");
-    const unsubscribe = engine.subscribe(() => {
-      engine.pause();
-      throw failure;
+    const unsubscribe = engine.subscribe((_, eventType) => {
+      if (eventType === "started") {
+        engine.pause();
+        throw failure;
+      }
     });
     const listener = vi.fn();
     engine.subscribe(listener);
-    expect(() => engine.play()).toThrow(failure);
-    expect(listener).not.toHaveBeenCalled();
-    expect(engine.getSnapshot()).toMatchObject({ state: "PAUSED", error: null });
+    expect(() => engine.play()).not.toThrow();
+    expect(listener.mock.calls.map(([, eventType]) => eventType)).toEqual(["started", "paused"]);
+    expect(listener.mock.calls[0]![0]).toMatchObject({ state: "PLAYING" });
+    expect(listener.mock.calls[1]![0]).toBe(engine.getSnapshot());
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0]![0]).toMatchObject({
+      eventType: "started",
+      cause: failure,
+    });
+    expect(engine.getSnapshot()).toMatchObject({ state: "PAUSED" });
     unsubscribe();
+    listener.mockClear();
     engine.stop();
     expect(listener.mock.calls).toEqual([[engine.getSnapshot(), "stopped"]]);
     engine.destroy();
-
-    const destroyed = new RsvpEngine({ data: "one" });
-    destroyed.subscribe(() => {
-      destroyed.pause();
-      destroyed.destroy();
-    });
-    const afterDestroy = vi.fn();
-    destroyed.subscribe(afterDestroy);
-    destroyed.play();
-    expect(afterDestroy).not.toHaveBeenCalled();
   });
+
+  it.each([true, false])(
+    "reports nested command errors only when the listener lets them escape (caught: %s)",
+    (caught) => {
+      const onError = vi.fn();
+      const engine = new RsvpEngine({ data: "one", onError });
+      let commandError: unknown;
+      engine.subscribe((_, eventType) => {
+        if (eventType !== "started") {
+          return;
+        }
+        try {
+          engine.setWpm(0);
+        } catch (error) {
+          commandError = error;
+          if (!caught) {
+            throw error;
+          }
+        }
+      });
+      const listener = vi.fn();
+      engine.subscribe(listener);
+      expect(() => engine.play()).not.toThrow();
+      expect(commandError).toBeInstanceOf(InvalidInputError);
+      expect(listener).toHaveBeenCalledOnce();
+      expect(onError).toHaveBeenCalledTimes(caught ? 0 : 1);
+      if (!caught) {
+        expect(onError.mock.calls[0]![0]).toBeInstanceOf(ListenerError);
+        expect(onError.mock.calls[0]![0].cause).toBe(commandError);
+      }
+      expect(engine.getSnapshot().state).toBe("PLAYING");
+      engine.destroy();
+    },
+  );
 });

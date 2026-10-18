@@ -25,7 +25,7 @@ export type { StateMachineAction } from "./state/types";
 
 // Tokenizer & OVP
 export type { OvpStrategy, Token, TokenizerStrategy } from "./tokenizer/types";
-export { DefaultOvpStrategy } from "./tokenizer/ovp";
+export { DefaultOvpStrategy } from "./tokenizer/default-ovp-strategy";
 export { DefaultTokenizer } from "./tokenizer/default-tokenizer";
 export type { DefaultTokenizerOptions } from "./tokenizer/default-tokenizer";
 
@@ -35,9 +35,16 @@ export { SystemTimeDriver } from "./scheduler/system-time-driver";
 export { DriftCorrectedScheduler } from "./scheduler/drift-corrected-scheduler";
 
 // Errors
+export type { EngineErrorOptions, ErrorOptionsWithMessage } from "./errors";
 export {
+  EngineError,
+  ListenerError,
   InvalidTransitionError,
   EngineDestroyedError,
   InvalidInputError,
   IndexOutOfBoundsError,
+  TokenizationError,
+  SessionLoadError,
+  ItemSelectionError,
+  PlaybackSchedulingError,
 } from "./errors";

@@ -1,5 +1,6 @@
+import type { EngineError, ListenerError } from "../errors";
 import type { SchedulerStrategy, TimeDriver } from "../scheduler/types";
-import type { TokenizerStrategy } from "../tokenizer/types";
+import type { OvpStrategy, TokenizerStrategy } from "../tokenizer/types";
 
 /**
  * Configuration options for the RSVP Engine.
@@ -13,10 +14,18 @@ export interface RsvpEngineOptions<T = string> {
   readonly msPerItem?: number;
   /** Custom tokenizer strategy. Defaults to `DefaultTokenizer`. */
   readonly tokenizer?: TokenizerStrategy<T>;
+  /**
+   * Overrides string viewing offsets when selected in sessions loaded through `load()`,
+   * independently of the tokenizer's initial OVP calculation. Stored token offsets and
+   * `loadTokens()` sessions are unchanged. Update or remove with `setOvpStrategy()`.
+   */
+  readonly ovpStrategy?: OvpStrategy;
   /** Custom scheduler strategy. Defaults to `DriftCorrectedScheduler`. */
   readonly scheduler?: SchedulerStrategy;
   /** Clock used to preserve remaining display time across pause/resume. */
   readonly timeDriver?: TimeDriver;
+  /** Reports timer and listener failures; synchronous command failures are thrown to their caller. */
+  readonly onError?: (error: EngineError | ListenerError) => void;
 }
 
 /** Minimum allowed playback speed in Words Per Minute. */
