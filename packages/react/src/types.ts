@@ -1,4 +1,5 @@
 import type {
+  OvpStrategy,
   RsvpEngineOptions,
   RsvpSnapshot,
   RsvpStoreListener,
@@ -25,18 +26,19 @@ export interface RsvpActions<T = string> {
   readonly loadTokens: (tokens: Token<T>[]) => void;
   readonly setWpm: (wpm: number) => void;
   readonly setMsPerItem: (ms: number) => void;
-  readonly clearError: () => void;
+  /** Sets or removes the presentation OVP override; preserves loadTokens offsets. */
+  readonly setOvpStrategy: (strategy: OvpStrategy | undefined) => void;
 }
 
 /** Headless external store that owns one Core engine. */
 export interface RsvpController<T = string> extends RsvpActions<T> {
-  /** Reads the cached live snapshot. */
+  /** Reads the cached live snapshot. Do not read after destroy. */
   readonly getSnapshot: () => RsvpControllerSnapshot<T>;
-  /** Reads the immutable construction-time snapshot used for server rendering. */
+  /** Reads the immutable construction-time snapshot used for server rendering. Do not read after destroy. */
   readonly getServerSnapshot: () => RsvpControllerSnapshot<T>;
   /** Subscribes to meaningful observable changes. */
   readonly subscribe: (listener: RsvpStoreListener<T>) => UnsubscribeFn;
-  /** Permanently releases the owned engine and all subscriptions. */
+  /** Permanently clears playback buffers and subscriptions. Safe to repeat. */
   readonly destroy: () => void;
 }
 

@@ -14,8 +14,21 @@ const timeDriver: TimeDriver = {
   setTimeout: (callback, ms) => window.setTimeout(callback, ms),
   clearTimeout: (handle) => window.clearTimeout(handle as number),
 };
-const controller = createRsvpController({ data: initialText, wpm: 300, timeDriver });
+const controller = createRsvpController({
+  data: initialText,
+  wpm: 300,
+  timeDriver,
+  onError: (error) => window.reportError(error),
+});
 const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<string>();
+
+function runCommand(command: () => void): void {
+  try {
+    command();
+  } catch (error) {
+    window.reportError(error);
+  }
+}
 
 function WordDisplay() {
   const currentItem = useRsvpSelector((snapshot) => snapshot.currentItem);
@@ -94,13 +107,21 @@ function PlaybackControls() {
 
   return (
     <div className="controls" aria-label="Playback controls">
-      <button type="button" onClick={play} disabled={state === "PLAYING" || totalItems === 0}>
+      <button
+        type="button"
+        onClick={() => runCommand(play)}
+        disabled={state === "PLAYING" || state === "ERROR" || totalItems === 0}
+      >
         Start
       </button>
-      <button type="button" onClick={pause} disabled={state !== "PLAYING"}>
+      <button type="button" onClick={() => runCommand(pause)} disabled={state !== "PLAYING"}>
         Pause
       </button>
-      <button type="button" onClick={stop} disabled={state !== "PLAYING" && state !== "PAUSED"}>
+      <button
+        type="button"
+        onClick={() => runCommand(stop)}
+        disabled={state !== "PLAYING" && state !== "PAUSED"}
+      >
         Stop
       </button>
     </div>
@@ -116,13 +137,14 @@ function ReaderSettings() {
   function loadSource(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (state === "PLAYING") {
-      pause();
-    } else if (state === "ERROR") {
-      reset();
-    }
-
-    load(source);
+    runCommand(() => {
+      if (state === "PLAYING") {
+        pause();
+      } else if (state === "ERROR") {
+        reset();
+      }
+      load(source);
+    });
   }
 
   return (
@@ -149,7 +171,10 @@ function ReaderSettings() {
           max={1_000}
           step={25}
           value={wpm}
-          onChange={(event) => setWpm(event.currentTarget.valueAsNumber)}
+          onChange={(event) => {
+            const wpm = event.currentTarget.valueAsNumber;
+            runCommand(() => setWpm(wpm));
+          }}
         />
       </div>
 
@@ -160,11 +185,12 @@ function ReaderSettings() {
 
 function Status() {
   const state = useRsvpSelector((snapshot) => snapshot.state);
-  const error = useRsvpSelector(({ error }) => error);
 
   return (
-    <p className={error === null ? "status" : "status error"} aria-live="polite">
-      {error === null ? `Status: ${state}` : `Error: ${error.message}`}
+    <p className={state === "ERROR" ? "status error" : "status"} aria-live="polite">
+      {state === "ERROR"
+        ? "Playback failed. Load text to start a new session."
+        : `Status: ${state}`}
     </p>
   );
 }

@@ -51,7 +51,7 @@ export function createRsvpContext<T = string>(): RsvpContextBundle<T> {
           loadTokens: controller.loadTokens,
           setWpm: controller.setWpm,
           setMsPerItem: controller.setMsPerItem,
-          clearError: controller.clearError,
+          setOvpStrategy: controller.setOvpStrategy,
         }),
       [controller],
     );

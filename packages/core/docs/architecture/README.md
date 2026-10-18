@@ -10,6 +10,7 @@ flowchart LR
     Engine --> State["StateMachine"]
     Engine --> Tokenizer["TokenizerStrategy"]
     Tokenizer --> OVP["OvpStrategy"]
+    Engine -->|"optional presentation override"| OVP
     Engine --> Scheduler["SchedulerStrategy"]
     Scheduler --> Driver["TimeDriver"]
     Engine -->|"cached snapshot and change notification"| Host
@@ -19,23 +20,30 @@ flowchart LR
 
 - No production dependencies.
 - No DOM APIs; code must run in Node.js, workers, React Native, and browser threads.
-- Minified and gzipped ESM bundle remains below 5 KB.
+- Keep the bundle within the [size budget](../../scripts/check-bundle-size.js).
 - TypeScript strict mode and native `#privateField` encapsulation.
-- At least 95% line and branch coverage.
-- Repeated 5 ms timer lag remains below 10 ms drift over a simulated minute.
+- Preserve the [coverage thresholds](../../vitest.config.ts) and [simulated scheduling guarantees](../../src/scheduler/drift-corrected-scheduler.test.ts).
 
 ## Playback model
 
 `currentIndex` is the presented item, not the next scheduling cursor. A fresh `play()` presents index zero immediately, then schedules advancement using that item's multiplier. Pause stores the effective deadline delta; resume schedules that remaining duration or advances immediately when it has expired. Completion occurs only after the last item's display duration expires.
 
+The engine retains frozen source `Token<T>` copies and derives the selected `RsvpItem<T>` presentation without overwriting initial offsets. The two names share a structural type; position belongs to the engine and snapshot rather than the item. See [ADR-0015](./adr/0015-position-independent-presentation-items.md).
+
 Cached duration samples use duration-multiplier suffix sums: O(n) preparation on loading, then O(1) calculations on playback and speed changes. The application owns countdown rendering; see [ADR-0010](./adr/0010-event-sampled-playback-timing.md).
 
-Invalid commands are reported without changing state. `ERROR` is reserved for unexpected runtime failures such as a scheduler exception. This separates caller mistakes from a broken playback session.
+Synchronous command failures throw typed engine errors; timer and listener failures use `onError` or asynchronous host reporting. Snapshots contain playback state only. Nonfatal rejected commands preserve playback without notifying; fatal failures cancel advancement and publish `ERROR` before error delivery. See [error types](./adr/0017-typed-engine-errors.md) and [caller ownership](./adr/0018-caller-owned-errors-and-playback-snapshots.md).
+
+Loading validates tokens, installs them, and prepares the first item through the shared selection operation. Fatal loading failures discard session data while preserving preferences; playback and navigation failures retain the last valid selection. See [ADR-0016](./adr/0016-clear-failed-loads.md).
+
+Publication prepares the snapshot and delivers notifications together. Subscriber failures are isolated from other listeners and engine fatality, while diagnostic transport failures preserve committed playback. Fatal reporting remains possible when clock reads or cancellation fail. See [listener isolation](./adr/0019-isolated-listener-error-reporting.md) and [failure boundaries](./adr/0020-failure-safe-error-reporting.md).
+
+Destroy permanently ends the instance lifetime and clears session buffers and subscriptions. Commands and new subscriptions then fail; callers are responsible for stopping all reads. Previously captured snapshots remain valid. See [ADR-0014](./adr/0014-terminal-destruction.md).
 
 ## Dependency injection
 
-- `TokenizerStrategy<T>` converts synchronous input into `Token<T>[]`.
-- `OvpStrategy` selects the UTF-16 viewing-position offset for string tokens.
+- `TokenizerStrategy<T>` converts synchronous input into `Token<T>[]`, including initial offsets and duration multipliers.
+- `OvpStrategy` selects a UTF-16 viewing-position offset. A tokenizer strategy runs during tokenization; an independent, optional engine strategy overrides the selected string's presentation.
 - `SchedulerStrategy` controls delayed task execution.
 - `TimeDriver` supplies the monotonic clock and timer host.
 
@@ -58,4 +66,4 @@ Browser background throttling is outside the headless core. Browser hosts should
 
 ## Unicode decision
 
-The default tokenizer feature-detects `Intl.Segmenter` for Unicode word boundaries. A whitespace fallback keeps older runtimes functional. `DefaultOvpStrategy` operates on grapheme clusters, with a small dependency-free fallback for combining marks and ZWJ emoji, while returning UTF-16 offsets compatible with JavaScript string slicing. A custom `OvpStrategy` can be injected into `DefaultTokenizer` without replacing the complete tokenization strategy.
+The default tokenizer feature-detects `Intl.Segmenter` for Unicode word boundaries. A whitespace fallback keeps older runtimes functional. `DefaultOvpStrategy` reuses a grapheme segmenter per instance, with a dependency-free fallback for combining marks and ZWJ emoji, while returning UTF-16 offsets compatible with JavaScript string slicing. A custom strategy can be injected into `DefaultTokenizer` for initial offsets, or into the engine for per-item presentation overrides that preserve pre-tokenized offsets; see [ADR-0012](./adr/0012-persistent-ovp-preferences.md).

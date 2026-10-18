@@ -1,14 +1,22 @@
 # `@rsvp-engine/react`
 
-Headless React bindings for `@rsvp-engine/core`. A controller owns playback; typed context hooks connect it to your UI. The package supports React Native without importing React DOM, browser globals, or styles.
+Headless React bindings for `@rsvp-engine/core`. A controller owns playback; typed context hooks connect it to your UI. Works with React Native and supplies no DOM components or styles.
 
 ## Installation
 
-```sh
+Using npm:
+
+```bash
+npm install @rsvp-engine/react react
+```
+
+Using pnpm:
+
+```bash
 pnpm add @rsvp-engine/react react
 ```
 
-React is a peer dependency; supported versions are declared in [package.json](package.json).
+React is a peer dependency; supported versions and runtime requirements are declared in [package.json](package.json).
 
 ## Basic usage
 
@@ -56,18 +64,20 @@ function App() {
 }
 ```
 
+The application owns the controller; see [Lifecycle and server rendering](#lifecycle-and-server-rendering) for cleanup and SSR.
+
 ## React context and hooks
 
-`createRsvpContext<T = string>()` returns an isolated, typed Provider and three hooks. Hooks must run under their matching Provider or they throw. Different bundles can represent independent readers or item types.
+`createRsvpContext<T = string>()` returns a typed Provider and three hooks. Every hook requires its matching Provider. Separate bundles support independent readers or item types.
 
 | API | Behavior |
 | --- | --- |
-| `RsvpProvider` | Accepts `controller: RsvpController<T>` and optional React `children`. Replacing the controller moves selector subscriptions to the new instance. |
-| `useRsvpSelector(selector, equalityFn?)` | Selects from the flat `RsvpSnapshot<T>`, including `error`. Rerenders only when the selected value changes; comparison defaults to `Object.is`. |
-| `useRsvpActions()` | Returns a frozen command object, stable while the controller stays the same. Does not subscribe to playback. Excludes `destroy`. |
-| `useRsvpController()` | Returns the provided controller without subscribing. Use for imperative integrations; reading `getSnapshot()` through it does not make a component reactive. |
+| `RsvpProvider` | Accepts `controller: RsvpController<T>` and optional `children`. Replacing the controller moves subscriptions to it. |
+| `useRsvpSelector(selector, equalityFn?)` | Reads reactive snapshot data; rerenders only when the selected value changes. Defaults to `Object.is`. |
+| `useRsvpActions()` | Returns frozen commands, stable per controller, without subscribing. Excludes `destroy`. |
+| `useRsvpController()` | Returns the controller for imperative use. Calling `getSnapshot()` does not make a component reactive. |
 
-Selectors must be pure. When returning an object, provide an equality function to avoid rerenders for equivalent values:
+Selectors must be pure. Supply an equality function when selecting an object:
 
 ```tsx
 const status = useRsvpSelector(
@@ -78,134 +88,180 @@ const status = useRsvpSelector(
 
 ## Controller API
 
-### `createRsvpController<T = string>(options?)`
+`createRsvpController<T = string>(options?)` creates one Core engine. Its optional `RsvpControllerOptions<T>` accept:
 
-Creates and owns one Core engine, delegates its commands and observable store, and preserves the construction-time server snapshot. All options are optional; construction failures throw.
-
-| Option | Type | Behavior |
-| --- | --- | --- |
-| `data` | `T \| T[]` | Initial input, tokenized synchronously. Omit to start empty. |
-| `wpm` | `number` | Defaults to `DEFAULT_WPM`; valid between `MIN_WPM` and `MAX_WPM`, inclusive. |
-| `msPerItem` | `number` | Base duration between `MIN_MS_PER_ITEM` and `MAX_MS_PER_ITEM`, inclusive. Takes precedence over `wpm`. |
-| `tokenizer` | `TokenizerStrategy<T>` | Defaults to Core's Unicode-aware text tokenizer. |
-| `scheduler` | `SchedulerStrategy` | Defaults to Core's drift-corrected scheduler. |
-| `timeDriver` | `TimeDriver` | Clock and timers for scheduling and pause/resume accounting. |
-
-The default tokenizer wraps non-string values as individual items and treats array elements as individual tokens.
+| Option | Purpose |
+| --- | --- |
+| `data: T \| T[]` | Initial input; omit to start empty. |
+| `wpm: number` | Base items per minute; defaults to `DEFAULT_WPM`. |
+| `msPerItem: number` | Base duration; takes precedence over `wpm`. |
+| `tokenizer: TokenizerStrategy<T>` | Converts input into tokens; defaults to Core's `DefaultTokenizer`. |
+| `ovpStrategy: OvpStrategy` | Optional presentation override for strings loaded through `load()`. |
+| `scheduler: SchedulerStrategy` | Schedules playback; defaults to Core's drift-corrected scheduler. |
+| `timeDriver: TimeDriver` | Supplies clock and timers; defaults to Core's system driver. |
+| `onError: (error: EngineError \| ListenerError) => void` | Handles timer and listener failures; see [Errors](#errors). |
 
 ### Commands
 
-Available on the controller and through `useRsvpActions()`; all return `void`.
+Available on the controller and through `useRsvpActions()`. All return `void`; invalid commands throw.
 
-| Method | Behavior |
+| Command | Behavior |
 | --- | --- |
-| `play()` | Starts from nonempty `IDLE`, resumes `PAUSED`, or replays `STOPPED`/`COMPLETED` from index `0`. |
-| `pause()` | Valid only in `PLAYING`; preserves the item and remaining display time. |
-| `stop()` | Returns `PLAYING`/`PAUSED`/`COMPLETED` to `STOPPED` at index and progress `0`, retaining data. No-op in `IDLE`/`STOPPED`; invalid in `ERROR`. |
-| `seek(index: number)` | Requires an in-bounds finite integer; enters `PAUSED` from `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED` without playback. |
-| `next()` / `previous()` | Moves one item while `PAUSED`; does nothing at the boundary. |
-| `reset()` | Clears data and recovers `ERROR` to `IDLE`. Only valid from `ERROR`. |
-| `load(data: T \| T[])` | Replaces input through the tokenizer; rejected while `PLAYING` or `ERROR`. |
-| `loadTokens(tokens: Token<T>[])` | Replaces input with prepared tokens; same state restrictions as `load`. |
-| `setWpm(wpm: number)` | Sets the base reading rate. |
-| `setMsPerItem(ms: number)` | Sets the base item duration. |
-| `clearError()` | Clears the observable error without resetting playback. |
+| `play()` | Starts nonempty `IDLE`, resumes `PAUSED`, or replays `STOPPED`/`COMPLETED` from index `0`. |
+| `pause()` | Valid in `PLAYING`; preserves the current item's remaining display time. |
+| `stop()` | Enters `STOPPED` at index/progress `0`, retaining items and restoring full duration. No-op in `IDLE`/`STOPPED`; invalid in `ERROR`. |
+| `seek(index)` | Selects a finite integer in `[0, totalItems)` from `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED`; enters `PAUSED` with a full item duration. |
+| `next()` / `previous()` | Moves one item while `PAUSED`; no-op at an endpoint. |
+| `load(data)` / `loadTokens(tokens)` | Replaces input and enters `IDLE`; rejected in `PLAYING` or `ERROR`. |
+| `setWpm(wpm)` / `setMsPerItem(ms)` | Changes future display periods, preserving the active or paused period. |
+| `setOvpStrategy(strategy)` | Sets the presentation override; `undefined` restores initial offsets. Rejected in `ERROR`. |
+| `reset()` | Valid only in `ERROR`; clears data and returns to empty `IDLE`. |
 
-Pause or stop before loading during playback; reset after a fatal error before loading again. Loading leaves the engine in `IDLE`.
+Pause before seeking or replacing playing data. Invalid seek indices throw `IndexOutOfBoundsError` before checking state and preserve position and timing. Empty input has no valid seek index.
 
-Stop retains items without retokenizing, restores full remaining duration, and preserves existing errors. Repeated Stop and Stop in `IDLE`, including empty input, preserve the cached snapshot and do not notify. Initial seek gives the selected item its full display period without scheduling; `play()` continues from that position. Invalid seek indices record `IndexOutOfBoundsError` before checking state and preserve position, progress, and scheduling. Empty input has no valid seek index. Pause active playback before seeking.
-
-Speed commands accept finite fractional values within the exported limits. The supplied unit is preserved exactly; the other is derived as `60_000 / value` with normal floating-point precision. Changes affect future display periods, preserving a running timer or paused item's remaining duration. Each token's `durationMultiplier` scales its display duration.
+Speed inputs accept finite fractional values within the exported `MIN_WPM`/`MAX_WPM` or `MIN_MS_PER_ITEM`/`MAX_MS_PER_ITEM` limits. The supplied unit is preserved exactly; the other is derived as `60_000 / value` with normal floating-point precision.
 
 ### Snapshots and subscriptions
 
+`RsvpControllerSnapshot<T>` is the readonly `RsvpSnapshot<T>` exposed to selectors.
+
 | Method | Behavior |
 | --- | --- |
-| `getSnapshot()` | Cached live `RsvpSnapshot<T>`; reference stays stable until observable state changes. |
-| `getServerSnapshot()` | Immutable construction-time snapshot for server rendering. |
-| `subscribe(listener: RsvpStoreListener<T>)` | Receives `(snapshot, eventType)` on changes; does not invoke the listener immediately. Returns an unsubscribe function. |
-| `destroy()` | Permanently releases timers and subscriptions; idempotent. |
+| `getSnapshot()` | Cached live snapshot; reference stays stable until observable state changes. |
+| `getServerSnapshot()` | Immutable construction-time snapshot for SSR. |
+| `subscribe(listener: RsvpStoreListener<T>)` | Calls `listener(snapshot, eventType)` synchronously on changes; returns an unsubscribe function. |
+| `destroy()` | Permanently cancels playback, clears session buffers, and removes all subscriptions; safe to repeat. |
 
-The snapshot has readonly fields:
+| Snapshot field                 | Meaning                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| `state`                        | `IDLE`, `PLAYING`, `PAUSED`, `STOPPED`, `COMPLETED`, or fatal `ERROR`.     |
+| `currentIndex` / `currentItem` | Zero-based selected position and `RsvpItem<T>`; `0` and `null` when empty. |
+| `progress` / `totalItems`      | Playback-position fraction and loaded item count.                          |
+| `wpm` / `msPerItem`            | Base rate and duration before item multipliers.                            |
+| `timing`                       | Frozen duration sample described below.                                    |
 
-| Field               | Meaning                                                                                    |
-| ------------------- | ------------------------------------------------------------------------------------------ |
-| `state`             | `"IDLE" \| "PLAYING" \| "PAUSED" \| "STOPPED" \| "COMPLETED" \| "ERROR"`.                  |
-| `currentIndex`      | Zero-based selected or presented index; `0` when empty.                                    |
-| `currentItem`       | `RsvpItem<T> \| null`, with `value`, `index`, `ovpIndex`, and `durationMultiplier`.        |
-| `progress`          | `0` in `IDLE`/`STOPPED`; counts the selected item after navigation; `1` on the final item. |
-| `totalItems`        | Loaded token count.                                                                        |
-| `wpm` / `msPerItem` | Base reading rate and display duration.                                                    |
-| `timing`            | Frozen `RsvpTiming` sample with total duration, remaining duration, and timestamp.         |
-| `error`             | Last engine error, or `null`.                                                              |
+Progress is `currentIndex / totalItems`, or `0` when empty, until `COMPLETED` sets it to `1`. The first item is presented immediately; completion waits for the final display period. Seeking measures position, not reading history. Use `state === "COMPLETED"` for completion.
 
-The final item still needs its display period after progress reaches `1`. Use `state === "COMPLETED"` to detect completion.
+Direct subscriptions do not invoke listeners immediately; read `getSnapshot()` for initial state. Each notification carries a `RsvpEventType`: `loaded`, `started`, `resumed`, `paused`, `stopped`, `advanced`, `navigated`, `completed`, `speedChanged`, `ovpChanged`, `reset`, or `stateChanged`. Fatal failures publish `stateChanged`; no-ops and rejected nonfatal commands do not notify.
 
-Each notification carries one `RsvpEventType`: `loaded`, `started`, `resumed`, `paused`, `stopped`, `advanced`, `navigated`, `completed`, `speedChanged`, `reset`, `errorOccurred`, or `errorCleared`. Failed commands use `errorOccurred`; successful load/reset include error clearing in their own update. No-ops do not notify. Nested commands queue notifications in order; use the supplied snapshot for its event. Subscriber exceptions interrupt delivery and propagate.
+Nested updates arrive in order; use the callback's snapshot because `getSnapshot()` may already reflect a nested command. Resuming an expired item publishes `advanced` or `completed` immediately. Snapshot and item objects are frozen; generic `value` objects are not deeply frozen.
 
 ### Duration estimates
 
-Select timing with `useRsvpSelector((snapshot) => snapshot.timing)`:
+Select `snapshot.timing` or one of its `RsvpTiming` fields:
 
-| Field                 | Meaning                                                                       |
-| --------------------- | ----------------------------------------------------------------------------- |
-| `totalDurationMs`     | Fresh playback estimate at the selected speed, including item multipliers.    |
-| `remainingDurationMs` | Retained current-item remainder plus future periods; `null` in fatal `ERROR`. |
-| `sampledAtMs`         | Timestamp in the controller's `TimeDriver` clock, not necessarily Unix time.  |
+| Field                 | Meaning                                                                      |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `totalDurationMs`     | Full content duration at the selected speed, including item multipliers.     |
+| `remainingDurationMs` | Current-item remainder plus future periods; `null` in `ERROR`.               |
+| `sampledAtMs`         | Timestamp in the controller's `TimeDriver` clock, not necessarily Unix time. |
 
-Samples update on loading, playback/navigation changes, and effective speed changes. Reads, no-ops, and nonfatal error changes do not resample. Pause freezes the remainder; navigation gives the selected item a full period. In `IDLE` and `STOPPED`, remaining equals total; empty input and completion have zero remaining time. Speed increases can make remaining exceed total because the active item's older period is retained. Estimates exclude pauses and future host delays.
+Loading, playback/navigation, and effective speed changes update timing; reads, no-ops, and OVP-only changes do not. Pause freezes the remainder; seek gives the selected item a full period. In `IDLE`/`STOPPED`, remaining equals total; empty input and completion have zero remaining time. After a speed increase, the retained current period can make remaining exceed total.
 
-Neither Core nor React adds a countdown timer. For a live countdown, share the controller's `TimeDriver`, subtract `now() - sampledAtMs` only while `PLAYING`, and clamp to zero. Rebase on each new sample and clean up UI timers on pause/unmount. Loading prepares O(n) suffix sums; subsequent estimates take O(1).
-
-### Errors
-
-Select `error` with `useRsvpSelector(({ error }) => error)`. It is an `Error | null` and is owned by Core. It clears on `clearError()`, successful `load/loadTokens()`, or successful `reset()`; other commands retain it. Clearing it does not recover an engine in `ERROR`; use `reset()`.
-
-Invalid transitions and navigation report observable errors without necessarily throwing. Synchronous failures, such as invalid speed input, are recorded and rethrown. Handle both observable errors and thrown exceptions. Ordinary invalid commands preserve usable state; fatal failures enter `ERROR`.
-
-## Lifecycle and server rendering
-
-The application owns the controller. Provider and hook unmounts only remove subscriptions. Pause when a reader session becomes inactive; call `destroy()` when its owner permanently releases it. Avoid creating or destroying controllers as render side effects.
-
-Cached snapshots remain readable after destruction; commands and new subscriptions throw `EngineDestroyedError`.
-
-For SSR, create controllers per request with matching initial data on the server and client. Selectors read the construction-time snapshot, including timing, during server rendering and switch to live state during hydration.
+Estimates exclude pauses and future host delays. For a countdown, share the controller's clock, subtract `now() - sampledAtMs` only while `PLAYING`, clamp to zero, and rebase on new samples. Clean up UI timers on pause/unmount; the package adds no countdown timer. In `ERROR`, timing retains the last successful timestamp.
 
 ## Custom items and strategies
 
-Use the same item type for `createRsvpController<T>()` and `createRsvpContext<T>()`. A `Token<T>` contains `value: T`, `ovpIndex: number`, and `durationMultiplier: number`. The OVP is a non-negative integer UTF-16 offset, no greater than string length, suitable for `slice()`. The duration multiplier must be positive and finite.
+Use the same item type for `createRsvpController<T>()` and `createRsvpContext<T>()`. The default tokenizer splits strings with `Intl.Segmenter` or a whitespace fallback; array elements and non-string values are individual items.
 
-Prepare asynchronous input outside the controller, then pass tokens to `loadTokens`. Inject strategies through controller options:
+A source `Token<T>` and its presented `RsvpItem<T>` share readonly fields: `value: T`, `ovpIndex: number`, and `durationMultiplier: number`. The OVP is a non-negative integer UTF-16 offset, at most the string length, suitable for `slice()`. Multipliers must be positive and finite; display duration is `msPerItem * durationMultiplier`. Read position through `currentIndex`.
 
-| Type | Contract |
+Prepare asynchronous input outside the controller, then pass tokens to `loadTokens()`:
+
+```typescript
+controller.loadTokens([{ value: "hello", ovpIndex: 2, durationMultiplier: 1 }]);
+```
+
+| Strategy | Contract |
 | --- | --- |
-| `TokenizerStrategy<T>` | `tokenize(input: T \| T[]): Token<T>[]` |
+| `TokenizerStrategy<T>` | `tokenize(input: T \| T[]): Token<T>[]`; produces initial offsets and multipliers. |
+| `OvpStrategy` | `calculate(text: string): number`; chooses a viewing offset. |
 | `SchedulerStrategy` | `schedule(task: () => void, delayMs: number): void`; `cancel(): void`; optional `getDeadline(): number \| null` in the engine clock. |
-| `TimeDriver` | `now(): number`; `setTimeout(callback: () => void, ms: number): unknown`; `clearTimeout(handle: unknown): void` |
-| `OvpStrategy` | `calculate(text: string): number`, returning the preferred UTF-16 offset. Inject through a compatible tokenizer. |
+| `TimeDriver` | `now(): number` (finite milliseconds); `setTimeout(callback: () => void, ms: number): unknown`; `clearTimeout(handle: unknown): void`. |
 
-Concrete tokenizer and scheduler classes are available from `@rsvp-engine/core`. Its `DefaultTokenizer` uses `Intl.Segmenter` with a whitespace fallback; its default scheduler corrects ordinary lag and rebases after severe lag. The default time driver requires host timers. Custom schedulers without a deadline use nominal accounting; resume of an expired item advances or completes immediately instead of publishing `resumed`.
+Core's concrete tokenizer, OVP, scheduler, and time-driver classes are available from `@rsvp-engine/core`. Injected instances stay externally owned. Tokenizer and OVP callbacks must be synchronous and side-effect-free; engine mutation inside them is rejected. Custom schedulers should share the engine clock; without a deadline, accounting is nominal. The default driver requires host timers.
+
+### Presentation OVP overrides
+
+A controller `ovpStrategy` is independent of initial tokenizer offsets. `setOvpStrategy()` updates the selected string; upcoming and revisited strings are calculated when selected. Non-string items and `loadTokens()` offsets stay unchanged.
+
+```typescript
+controller.setOvpStrategy({ calculate: () => 0 });
+controller.setOvpStrategy(undefined); // Restore initial token offsets.
+```
+
+The preference survives Stop, reset, and replacement input. Changes preserve position and timing; only a changed selected offset publishes `ovpChanged`. Nonfatal assignment failures preserve the previous strategy and playback. Failures during later selection enter `ERROR`; failures during loading clear the session.
+
+## Errors
+
+Catch controller construction and synchronous command failures at their call site. Configure `onError` for timer and synchronous listener failures:
+
+```typescript
+const reader = createRsvpController({
+  data: "Read this text",
+  onError: (error) => console.error(error),
+});
+
+try {
+  reader.play();
+} catch (error) {
+  console.error(error);
+}
+```
+
+Construction and synchronous command failures never invoke `onError`. Without the callback, timer/listener failures reach the host as asynchronous unhandled errors. Listener failures are isolated, so other listeners and queued updates continue. If a command error escapes a listener, it becomes one `ListenerError` with that error as its cause.
+
+React re-exports the same Core error constructors for `instanceof` checks:
+
+| Error family | Meaning |
+| --- | --- |
+| `EngineError` | Base for command/playback errors; exposes readonly `isFatal` and original `cause`. |
+| `InvalidTransitionError`, `InvalidInputError`, `IndexOutOfBoundsError`, `EngineDestroyedError` | Rejected commands or input; ordinarily nonfatal. |
+| `TokenizationError`, `SessionLoadError` | Fatal input preparation or loading failure. |
+| `ItemSelectionError`, `PlaybackSchedulingError` | Fatal selection or scheduling failure. |
+| `ListenerError` | Separate `Error` subclass with `eventType` and `cause`; no engine fatality. |
+
+Concrete errors supply default messages and accept optional `ErrorOptionsWithMessage` (`{ message, cause }`) after domain arguments. The base accepts `new EngineError(message, { cause, isFatal })` using `EngineErrorOptions`. Source failures remain in `cause`; a fatal engine-error cause cannot be downgraded by wrapping it.
+
+Nonfatal validation failures preserve playback. Fatal failures cancel advancement and publish `ERROR` before error delivery. Fatal loading clears the session, including selection and progress; fatal playback/navigation preserves the last valid selection and progress. Speed and OVP preferences survive; recover with `reset()`. Snapshots contain no error details, so applications own messages and history.
+
+Callbacks are synchronous; handle rejected promises in asynchronous application work. A failing reporter produces an asynchronously reported `AggregateError` without recursive reporting.
+
+## Lifecycle and server rendering
+
+The application owns the controller. Provider/hook unmounts only detach subscriptions; playback continues. Pause when the reader becomes inactive and call `destroy()` when its owner releases it. Do not create or destroy controllers as render side effects.
+
+Detach consumers and capture required snapshots before destruction. All post-destroy reads, including `getServerSnapshot()`, are unsupported; commands and new subscriptions throw `EngineDestroyedError`. Destruction removes all subscriptions without publishing a final update. Repeated destruction and existing unsubscribe functions are safe; captured snapshots remain unchanged. Cancellation failure still ends the lifetime before throwing.
+
+For SSR, create one controller per request and use matching initial data on server and client. Selectors use the construction-time server snapshot during SSR and live state after hydration.
 
 ## Migration
 
+For upgrades across multiple major versions, apply these steps in version order. Removed APIs have no compatibility aliases.
+
+### React 1 → 2
+
+- React 2 uses Core 3. Catch all synchronous command failures and use `onError` for timer/listener failures. Replace `snapshot.error`, `clearError()`, `errorOccurred`, and `errorCleared` with application-owned diagnostics and `stateChanged` for fatal transitions.
+- Errors use the re-exported `EngineError` family and retain source failures in `cause`. Replace `new InvalidInputError(message)` with `new InvalidInputError({ message })`. Listener exceptions are isolated as `ListenerError`.
+- Include `ovpChanged` in exhaustive event handlers and `setOvpStrategy` in custom controller/action implementations. Tokenizer contracts and supplied offsets are unchanged.
+- Replace `currentItem.index` with `currentIndex`. Progress uses `currentIndex / totalItems` and reaches `1` only after the final display period.
+- Handle empty sessions after fatal loading; recover with `reset()`.
+- Capture snapshots and detach consumers before destruction; stop post-destroy reads.
+
 ### React 0 → 1
 
-Apply these changes when upgrading from React 0 to React 1, which uses Core 2; old APIs have no compatibility aliases. New integrations use the API described above.
+React 1 uses Core 2. Controller ownership and context hooks keep their roles.
 
 | Previous usage | Replacement |
 | --- | --- |
-| `getSnapshot().snapshot.progress` | `getSnapshot().progress`; snapshots are flat and include `error` and `timing`. |
+| `getSnapshot().snapshot.progress` | `getSnapshot().progress`; snapshots are flat. |
 | `({ snapshot }) => snapshot.progress` | `(snapshot) => snapshot.progress` in selectors. |
-| `subscribe(() => ...)` | Existing callbacks can remain; use `(snapshot, eventType) => ...` to receive the complete update and its operation. |
-| `Token.delayMultiplier` / `RsvpItem.delayMultiplier` | `durationMultiplier` in custom tokens, tokenizer output, and item reads. |
-| `sentenceDelay` / `clauseDelay` / `dashDelay` | `sentenceDurationMultiplier` / `clauseDurationMultiplier` / `dashDurationMultiplier` in Core tokenizer options. |
+| `subscribe(() => ...)` | Still valid; use `(snapshot, eventType) => ...` for update details. |
+| `Token.delayMultiplier` / `RsvpItem.delayMultiplier` | `durationMultiplier`. |
+| `sentenceDelay` / `clauseDelay` / `dashDelay` | `sentenceDurationMultiplier` / `clauseDurationMultiplier` / `dashDurationMultiplier`. |
 
-Successful `load/loadTokens()` and `reset()` now clear errors in the same notification; `clearError()` remains available. Check `state === "ERROR"` for fatal recovery rather than relying on an old error remaining after load/reset. Resume of an expired item publishes `advanced` or `completed`, not `resumed`.
+React 1 adds flat snapshot `error`/`timing` fields and clears stored errors on successful load/reset or `clearError()`; React 2 removes error storage. An expired-item resume publishes `advanced` or `completed`, not `resumed`. Multiplier values and pacing are unchanged.
 
-Controller ownership, context hooks, and `getServerSnapshot()` retain their roles. Multipliers retain their positive finite values and pacing. React 0 already uses `Rsvp`/`Ovp` names and `setWpm`; Core's earlier naming migration does not require changes to these React releases.
-
-## Exports and license
-
-The package exports the controller/context factories and their types, Core snapshot/item/timing and strategy types, speed constants, and `EngineDestroyedError`, `IndexOutOfBoundsError`, `InvalidInputError`, and `InvalidTransitionError`.
+## License
 
 [MIT](./LICENSE)

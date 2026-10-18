@@ -1,5 +1,5 @@
 import type { RsvpController, RsvpControllerSnapshot, RsvpStoreListener } from "./types";
-import type { RsvpEngineOptions, Token, UnsubscribeFn } from "@rsvp-engine/core";
+import type { OvpStrategy, RsvpEngineOptions, Token, UnsubscribeFn } from "@rsvp-engine/core";
 
 import { RsvpEngine } from "@rsvp-engine/core";
 
@@ -27,7 +27,8 @@ class RsvpControllerImpl<T> implements RsvpController<T> {
   readonly loadTokens = (tokens: Token<T>[]): void => this.#engine.loadTokens(tokens);
   readonly setWpm = (wpm: number): void => this.#engine.setWpm(wpm);
   readonly setMsPerItem = (ms: number): void => this.#engine.setMsPerItem(ms);
-  readonly clearError = (): void => this.#engine.clearError();
+  readonly setOvpStrategy = (strategy: OvpStrategy | undefined): void =>
+    this.#engine.setOvpStrategy(strategy);
   readonly destroy = (): void => this.#engine.destroy();
 }
 

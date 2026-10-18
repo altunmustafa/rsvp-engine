@@ -20,11 +20,10 @@ void timing;
 numberController.subscribe((snapshot, eventType) => {
   const value: number | undefined = snapshot.currentItem?.value;
   const multiplier: number | undefined = snapshot.currentItem?.durationMultiplier;
-  const error: Error | null = snapshot.error;
   const event: RsvpEventType = eventType;
-  void [value, error, event, multiplier];
+  void [value, event, multiplier];
   // @ts-expect-error The subscriber receives readonly Core state.
-  snapshot.error = null;
+  snapshot.currentIndex = 0;
 });
 const { RsvpProvider, useRsvpActions, useRsvpController, useRsvpSelector } =
   createRsvpContext<number>();

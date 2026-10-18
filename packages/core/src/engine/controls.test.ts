@@ -63,7 +63,6 @@ describe("retained playback controls", () => {
         currentIndex: 0,
         progress: 0,
         totalItems: 2,
-        error: null,
         timing: { totalDurationMs: 600, remainingDurationMs: 600 },
       });
       expect(stopped.currentItem).toBe(firstItem);
@@ -95,33 +94,6 @@ describe("retained playback controls", () => {
     },
   );
 
-  it.each(["IDLE", "STOPPED", "COMPLETED"] as const)(
-    "retains an existing error when stopping %s",
-    (state) => {
-      const engine = new RsvpEngine({ data: "one two", wpm: 600 });
-      if (state !== "IDLE") {
-        engine.play();
-      }
-      if (state === "STOPPED") {
-        engine.stop();
-      }
-      if (state === "COMPLETED") {
-        vi.advanceTimersByTime(200);
-      }
-      engine.seek(-1);
-      const error = engine.getSnapshot().error;
-      expect(error).toBeInstanceOf(IndexOutOfBoundsError);
-
-      engine.stop();
-      const stopped = engine.getSnapshot();
-      expect(stopped.error).toBe(error);
-      engine.stop();
-      expect(engine.getSnapshot()).toBe(stopped);
-      expect(vi.getTimerCount()).toBe(0);
-      engine.destroy();
-    },
-  );
-
   it.each([0, 1])("selects initial index %i without starting playback", (index) => {
     const tokenizer = new DefaultTokenizer<string>();
     const tokenize = vi.spyOn(tokenizer, "tokenize");
@@ -136,9 +108,8 @@ describe("retained playback controls", () => {
       state: "PAUSED",
       currentIndex: index,
       currentItem: { value: index === 0 ? "one" : "two." },
-      progress: (index + 1) / 2,
+      progress: index / 2,
       totalItems: 2,
-      error: null,
       timing: { totalDurationMs: 300, remainingDurationMs: index === 0 ? 300 : 200 },
     });
     expect(listener.mock.calls).toEqual([[selected, "navigated"]]);
@@ -171,12 +142,11 @@ describe("retained playback controls", () => {
       const listener = vi.fn();
       engine.subscribe(listener);
 
-      engine.seek(index);
+      expect(() => engine.seek(index)).toThrow(IndexOutOfBoundsError);
 
       const failed = engine.getSnapshot();
-      expect(failed).toEqual({ ...initial, error: failed.error });
-      expect(failed.error).toBeInstanceOf(IndexOutOfBoundsError);
-      expect(listener.mock.calls).toEqual([[failed, "errorOccurred"]]);
+      expect(failed).toBe(initial);
+      expect(listener).not.toHaveBeenCalled();
       expect(vi.getTimerCount()).toBe(0);
       engine.destroy();
     },
@@ -184,14 +154,13 @@ describe("retained playback controls", () => {
 
   it("rejects initial seek on empty input without creating a seekable session", () => {
     const engine = new RsvpEngine({ data: "   " });
-    engine.seek(0);
+    expect(() => engine.seek(0)).toThrow(IndexOutOfBoundsError);
     expect(engine.getSnapshot()).toMatchObject({
       state: "IDLE",
       currentIndex: 0,
       currentItem: null,
       progress: 0,
       totalItems: 0,
-      error: expect.any(IndexOutOfBoundsError),
       timing: { totalDurationMs: 0, remainingDurationMs: 0 },
     });
     expect(vi.getTimerCount()).toBe(0);
@@ -206,24 +175,23 @@ describe("retained playback controls", () => {
       cancel: vi.fn(),
     };
     const engine = new RsvpEngine({ data: "one two", scheduler });
-    engine.play();
+    expect(() => engine.play()).toThrow("Failed to schedule playback.");
     const failed = engine.getSnapshot();
     const listener = vi.fn();
     engine.subscribe(listener);
 
     if (command === "stop") {
-      engine.stop();
+      expect(() => engine.stop()).toThrow(InvalidTransitionError);
     } else {
-      engine.seek(1);
+      expect(() => engine.seek(1)).toThrow(InvalidTransitionError);
     }
 
     const rejected = engine.getSnapshot();
-    expect(rejected).toEqual({ ...failed, error: rejected.error });
-    expect(rejected.error).toBeInstanceOf(InvalidTransitionError);
-    expect(listener.mock.calls).toEqual([[rejected, "errorOccurred"]]);
+    expect(rejected).toBe(failed);
+    expect(listener).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
     engine.reset();
-    expect(engine.getSnapshot()).toMatchObject({ state: "IDLE", totalItems: 0, error: null });
+    expect(engine.getSnapshot()).toMatchObject({ state: "IDLE", totalItems: 0 });
     engine.destroy();
   });
 

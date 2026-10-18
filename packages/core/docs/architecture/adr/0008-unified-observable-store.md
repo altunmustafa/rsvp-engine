@@ -4,7 +4,9 @@
 
 ## Status
 
-Superseded by [ADR-0009](./0009-typed-store-notifications.md).
+Superseded
+
+- Superseded by [ADR-0009](./0009-typed-store-notifications.md).
 
 ## Context
 

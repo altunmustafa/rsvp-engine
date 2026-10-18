@@ -21,16 +21,24 @@ export type {
 export {
   DEFAULT_WPM,
   EngineDestroyedError,
+  EngineError,
   IndexOutOfBoundsError,
   InvalidInputError,
   InvalidTransitionError,
+  ItemSelectionError,
+  ListenerError,
   MAX_MS_PER_ITEM,
   MAX_WPM,
   MIN_MS_PER_ITEM,
   MIN_WPM,
+  PlaybackSchedulingError,
+  SessionLoadError,
+  TokenizationError,
 } from "@rsvp-engine/core";
 
 export type {
+  EngineErrorOptions,
+  ErrorOptionsWithMessage,
   OvpStrategy,
   RsvpEventType,
   RsvpItem,

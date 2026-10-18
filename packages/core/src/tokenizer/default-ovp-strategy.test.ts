@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DefaultOvpStrategy } from "./ovp";
+import { DefaultOvpStrategy } from "./default-ovp-strategy";
 
 describe("DefaultOvpStrategy", () => {
   const strategy = new DefaultOvpStrategy();
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("returns zero for empty text", () => {
@@ -43,14 +44,29 @@ describe("DefaultOvpStrategy", () => {
   it("uses a dependency-free grapheme fallback when Intl.Segmenter is unavailable", () => {
     vi.stubGlobal("Intl", {});
 
-    expect(strategy.calculate("👩‍💻coding")).toBe(5);
-    expect(strategy.calculate("e\u0301clair")).toBe(2);
+    const fallback = new DefaultOvpStrategy();
+    expect(fallback.calculate("👩‍💻coding")).toBe(5);
+    expect(fallback.calculate("e\u0301clair")).toBe(2);
   });
 
   it("uses the grapheme fallback when Intl itself is unavailable", () => {
     vi.stubGlobal("Intl", undefined);
 
-    expect(strategy.calculate("👩‍💻coding")).toBe(5);
-    expect(strategy.calculate("e\u0301clair")).toBe(2);
+    const fallback = new DefaultOvpStrategy();
+    expect(fallback.calculate("👩‍💻coding")).toBe(5);
+    expect(fallback.calculate("e\u0301clair")).toBe(2);
+  });
+
+  it("reuses one grapheme segmenter across words and independent calculations", () => {
+    const NativeSegmenter = Intl.Segmenter;
+    const createSegmenter = vi.spyOn(Intl, "Segmenter").mockImplementation(function (...args) {
+      return new NativeSegmenter(...args);
+    });
+    const reusable = new DefaultOvpStrategy();
+    expect(reusable.calculate("hello")).toBe(1);
+    expect(reusable.calculate("👩‍💻coding")).toBe(5);
+    expect(reusable.calculate("e\u0301clair")).toBe(2);
+    expect(createSegmenter).toHaveBeenCalledOnce();
+    expect(createSegmenter).toHaveBeenCalledWith(undefined, { granularity: "grapheme" });
   });
 });

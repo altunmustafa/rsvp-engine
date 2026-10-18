@@ -1,5 +1,6 @@
 /**
- * A processed token ready for presentation.
+ * Source content produced by a tokenizer or supplied through loadTokens().
+ * The viewing offset is the initial value, before any engine presentation override.
  */
 export interface Token<T> {
   readonly value: T;
@@ -24,6 +25,7 @@ export interface TokenizerStrategy<T> {
 export interface OvpStrategy {
   /**
    * Returns the zero-based UTF-16 offset of the preferred viewing position.
+   * Implementations must be synchronous and side-effect-free.
    */
   calculate(text: string): number;
 }

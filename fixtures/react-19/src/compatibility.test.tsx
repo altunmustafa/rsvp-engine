@@ -54,4 +54,23 @@ describe("React 19 compatibility", () => {
     ).toContain("one");
     controller.destroy();
   });
+
+  it("updates OVP through public actions and selectors", () => {
+    const controller = createRsvpController({ data: "hello world" });
+    const { RsvpProvider, useRsvpSelector, useRsvpActions } = createRsvpContext<string>();
+    function Word(): ReactNode {
+      const offset = useRsvpSelector((snapshot) => snapshot.currentItem?.ovpIndex);
+      const { setOvpStrategy } = useRsvpActions();
+      return <button onClick={() => setOvpStrategy({ calculate: () => 0 })}>{offset}</button>;
+    }
+    const rendered = render(
+      <RsvpProvider controller={controller}>
+        <Word />
+      </RsvpProvider>,
+    );
+    expect(rendered.container.textContent).toBe("1");
+    act(() => rendered.getByRole("button").click());
+    expect(rendered.container.textContent).toBe("0");
+    controller.destroy();
+  });
 });

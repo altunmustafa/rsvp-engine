@@ -4,7 +4,11 @@
 
 ## Status
 
-Accepted; supersedes [ADR-0008](./0008-unified-observable-store.md).
+Accepted
+
+- Supersedes [ADR-0008](./0008-unified-observable-store.md).
+- Superseded by [ADR-0018](./0018-caller-owned-errors-and-playback-snapshots.md) for error storage, error events, and command throw policy.
+- Superseded by [ADR-0019](./0019-isolated-listener-error-reporting.md) for listener failure policy.
 
 ## Context
 

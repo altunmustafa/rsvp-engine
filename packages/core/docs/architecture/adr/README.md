@@ -12,6 +12,15 @@ Core ADRs use the Michael Nygard sections `Status`, `Context`, `Decision`, and `
 | [ADR-0006](./0006-pause-resume-remaining-time.md) | Accepted | Preserve the current item's remaining time across pause and resume. |
 | [ADR-0007](./0007-preserve-speed-input-unit.md) | Accepted | Preserve speed inputs in their supplied unit and derive the other representation. |
 | [ADR-0008](./0008-unified-observable-store.md) | Superseded by ADR-0009 | Own cached playback/error state and one subscription in Core. |
-| [ADR-0009](./0009-typed-store-notifications.md) | Accepted | Publish one snapshot and operation type; preserve nested notifications in order. |
+| [ADR-0009](./0009-typed-store-notifications.md) | Accepted; error policy superseded by ADR-0018 and ADR-0019 | Publish one snapshot and operation type; preserve nested notifications in order. |
 | [ADR-0010](./0010-event-sampled-playback-timing.md) | Accepted | Sample playback durations in the existing store using constant-time calculations. |
-| [ADR-0011](./0011-retained-session-controls.md) | Accepted | Retain items across idempotent Stop and allow initial navigation without playback. |
+| [ADR-0011](./0011-retained-session-controls.md) | Accepted; progress superseded by ADR-0013, error retention by ADR-0018 | Retain items across idempotent Stop and allow initial navigation without playback. |
+| [ADR-0012](./0012-persistent-ovp-preferences.md) | Accepted | Separate tokenizer offsets from optional per-item presentation OVP overrides. |
+| [ADR-0013](./0013-position-based-progress.md) | Accepted | Derive progress from playback position and reach one after the final display period. |
+| [ADR-0014](./0014-terminal-destruction.md) | Accepted | End the instance lifetime and clear session buffers; leave post-destroy reads unguarded and unsupported. |
+| [ADR-0015](./0015-position-independent-presentation-items.md) | Accepted | Keep sequence position outside source tokens and presentation items. |
+| [ADR-0016](./0016-clear-failed-loads.md) | Accepted | Clear session data after fatal loading failures instead of retaining previous content. |
+| [ADR-0017](./0017-typed-engine-errors.md) | Accepted | Normalize operation failures into typed engine errors while preserving cause chains and fatality. |
+| [ADR-0018](./0018-caller-owned-errors-and-playback-snapshots.md) | Accepted | Throw command failures; report timer and listener failures through onError; publish playback state only. |
+| [ADR-0019](./0019-isolated-listener-error-reporting.md) | Accepted | Isolate subscriber failures and report them independently of playback. |
+| [ADR-0020](./0020-failure-safe-error-reporting.md) | Accepted | Preserve playback error boundaries when clocks, cancellation, or diagnostic transport fail. |

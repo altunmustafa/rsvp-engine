@@ -6,6 +6,9 @@
 
 Accepted
 
+- Superseded by [ADR-0013](./0013-position-based-progress.md) for progress calculation.
+- Superseded by [ADR-0018](./0018-caller-owned-errors-and-playback-snapshots.md) for error retention.
+
 ## Context
 
 Stop only accepts playing or paused sessions, so a consumer must reload completed content to return to the beginning without playback. That repeats tokenization and replaces item identities. Repeated Stop also records an error. Initial navigation requires a consumer to start playback first, even when it only wants to select an item.
