@@ -8,7 +8,22 @@ import {
   InvalidTransitionError,
   ItemSelectionError,
   ListenerError,
+  MissingTokenizerError,
 } from "./errors";
+
+describe("MissingTokenizerError", () => {
+  it("provides a nonfatal default and preserves custom context", () => {
+    const error = new MissingTokenizerError();
+    expect(error).toBeInstanceOf(EngineError);
+    expect(error.name).toBe("MissingTokenizerError");
+    expect(error.message).toBe("Cannot load data without a tokenizer.");
+    expect(error.isFatal).toBe(false);
+    const cause = new Error("No input converter configured");
+    const custom = new MissingTokenizerError({ message: "Tokenizer required.", cause });
+    expect(custom.message).toBe("Tokenizer required.");
+    expect(custom.cause).toBe(cause);
+  });
+});
 
 describe("InvalidTransitionError behavior", () => {
   it("is an instance of Error", () => {

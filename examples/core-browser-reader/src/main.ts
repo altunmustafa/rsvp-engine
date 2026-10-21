@@ -1,4 +1,9 @@
-import { RsvpEngine, type RsvpEventType, type RsvpSnapshot } from "@rsvp-engine/core";
+import {
+  DefaultTokenizer,
+  RsvpEngine,
+  type RsvpEventType,
+  type RsvpSnapshot,
+} from "@rsvp-engine/core";
 
 import "./styles.css";
 
@@ -16,10 +21,11 @@ const domElements = {
 };
 
 const engine = new RsvpEngine({
-  data: domElements.textInput.value,
+  tokenizer: new DefaultTokenizer<string>(),
   wpm: domElements.wpmInput.valueAsNumber,
   onError: showError,
 });
+engine.load(domElements.textInput.value);
 
 function showWord(item: { value: string; ovpIndex: number }): void {
   domElements.wordBefore.textContent = item.value.slice(0, item.ovpIndex);

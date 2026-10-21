@@ -12,6 +12,7 @@ import {
   PlaybackSchedulingError,
   TokenizationError,
 } from "../errors";
+import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
 
 import { RsvpEngine } from "./rsvp-engine";
 
@@ -24,7 +25,13 @@ describe("Core observable store", () => {
   });
 
   function createEngine(options: RsvpEngineOptions<string> = {}): RsvpEngine<string> {
-    return new RsvpEngine({ data: "one two", wpm: 600, ...options });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      ...options,
+    });
+    engine.load("one two");
+    return engine;
   }
 
   it("returns a flat cached immutable playback snapshot", () => {
@@ -204,8 +211,7 @@ describe("Core observable store", () => {
           : new InvalidInputError({
               cause: new EngineError("fatal source", { isFatal: true }),
             });
-      const engine = createEngine({
-        data: undefined,
+      const engine = new RsvpEngine({
         tokenizer: {
           tokenize: () => {
             throw failure;

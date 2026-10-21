@@ -39,6 +39,7 @@ export type { EngineErrorOptions, ErrorOptionsWithMessage } from "./errors";
 export {
   EngineError,
   ListenerError,
+  MissingTokenizerError,
   InvalidTransitionError,
   EngineDestroyedError,
   InvalidInputError,

@@ -16,28 +16,33 @@ createRsvpController
         └── useRsvpController non-reactive escape hatch
 ```
 
-## `createRsvpController<T>(options?)`
+## `createRsvpController<T = string, TMeta = unknown>(options?)`
 
-Creates the single owner of one Core engine. It delegates commands, cached snapshots, errors, and subscriptions to Core and retains the construction-time server snapshot.
+Creates the single owner of one empty Core engine. It delegates commands, cached snapshots, errors, and subscriptions to Core and retains the construction-time server snapshot with empty content.
 
 ```ts
+import { DefaultTokenizer } from "@rsvp-engine/core";
+
 const controller = createRsvpController({
-  data: "one two three",
+  tokenizer: new DefaultTokenizer<string>(),
   wpm: 300,
 });
+controller.load("one two three");
 ```
 
-`RsvpControllerOptions<T>` aliases Core's engine options, including the optional `ovpStrategy` presentation strategy and `onError` callback. See [Core options](../../core/docs/API-REFERENCE.md#options). The controller remains externally owned; the React Provider never calls `destroy()`.
+`RsvpControllerOptions<T, TMeta>` aliases Core's optional engine configuration, including `tokenizer`, `ovpStrategy`, and `onError`. Metadata is inferred from a supplied tokenizer or specified explicitly; `<T>` alone leaves it as `unknown`. A tokenizer is optional for any metadata type; `loadTokens()` works without one, while `load()` throws nonfatal `MissingTokenizerError` and preserves the session and snapshot. No tokenizer is selected automatically. See [Core options](../../core/docs/API-REFERENCE.md#options). The controller remains externally owned; the React Provider never calls `destroy()`.
 
-## `createRsvpContext<T>()`
+`getServerSnapshot()` retains empty content even after loading. SSR and initial hydration select that snapshot, then React switches to live state. Use matching configuration on server and client. A client-only application can synchronously load before rendering and show content on its first render.
 
-Creates one isolated, item-type-safe Context bundle:
+## `createRsvpContext<T = string, TMeta = unknown>()`
+
+Creates one isolated Context bundle with fixed item and metadata types:
 
 ```tsx
 const { RsvpProvider, useRsvpSelector, useRsvpActions, useRsvpController } = createRsvpContext<string>();
 ```
 
-Create the bundle once at module scope. Every hook must be used under the matching Provider.
+Create the bundle once at module scope. Every hook must be used under the matching Provider. The context creates no engine and never requires a tokenizer; its Provider requires a controller with compatible item and metadata types.
 
 ### `RsvpProvider`
 
@@ -53,7 +58,7 @@ Changing the `controller` prop moves selector subscriptions to the new controlle
 
 ### `useRsvpSelector(selector, equalityFn?)`
 
-Selects reactive data from the flat `RsvpSnapshot<T>`:
+Selects reactive data from the flat `RsvpSnapshot<T, TMeta>`:
 
 ```tsx
 const progress = useRsvpSelector((snapshot) => snapshot.progress);
@@ -74,7 +79,9 @@ Selectors must be pure because React may evaluate them more than once.
 
 Select `snapshot.timing` for the frozen `RsvpTiming` sample, or `snapshot.timing.remainingDurationMs` for a nullable remaining duration. The controller delegates samples to Core without adding a timer; its server snapshot retains the construction-time sample. See [Core duration estimates](../../core/docs/API-REFERENCE.md#duration-estimates) for sampling, clock, and countdown semantics.
 
-`snapshot.currentItem` is an `RsvpItem<T> | null` containing the presentation value, effective OVP, and duration multiplier. Source `Token<T>` values supplied to `loadTokens()` retain their initial offsets. Items carry no sequence position; select `snapshot.currentIndex` for it.
+`snapshot.currentItem` is an `RsvpItem<T, TMeta> | null` containing the presentation value, effective OVP, duration multiplier, and application metadata. Its `meta` is required unless `TMeta` accepts `undefined`. Source `Token<T, TMeta>` values supplied to `loadTokens()` retain their initial offsets. Items carry no sequence position; select `snapshot.currentIndex` for it.
+
+Metadata remains typed through subscriptions, Provider props, actions, and selectors. Use `createRsvpContext<T, TMeta>()` with a compatible controller. Metadata selectors use the usual equality check: OVP-only changes retain the metadata reference. `getServerSnapshot()` has no current item or metadata. See the [metadata example](../README.md#application-metadata) and [Core ownership contract](../../core/docs/API-REFERENCE.md#application-metadata).
 
 ### `useRsvpActions()`
 
@@ -89,7 +96,7 @@ The hook reads Context but does not subscribe to controller state. A controls-on
 const { play, pause } = useRsvpActions();
 ```
 
-Lifecycle ownership remains explicit, so `destroy` is intentionally absent.
+Lifecycle ownership remains explicit, so `destroy` is intentionally absent. `loadTokens(tokens: Token<T, TMeta>[])` requires metadata compatible with the context's fixed type; omission is permitted only when that type accepts `undefined`.
 
 `seek()` requires a finite integer in `[0, totalItems)` and `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED`. It enters `PAUSED` without scheduling, gives the selected item a full display period, and allows choosing a position before the first playback. Progress is `currentIndex / totalItems`, excluding the selected item; `play()` continues from it. Progress reaches `1` after the final display period ends, and fatal playback or navigation errors retain the last published progress. Invalid indices throw `IndexOutOfBoundsError` before checking state without changing selection, progress, or scheduling. Empty input has no valid seek index. Pause active playback before seeking.
 
@@ -123,7 +130,7 @@ Synchronous subscriber failures are isolated as `ListenerError extends Error`, w
 
 Without `onError`, failures reach the host asynchronously through a microtask or injected timer. A failing reporter produces an asynchronous `AggregateError` without recursive reporting. Returned promises are not observed. If host reporting cannot be scheduled, delivery finishes before a diagnostic aggregate escapes synchronously; committed playback remains intact and an existing command failure retains priority.
 
-React re-exports Core's error constructors, including `EngineError`, `ListenerError`, and the fatal operation types `TokenizationError`, `SessionLoadError`, `ItemSelectionError`, and `PlaybackSchedulingError`. The same constructors support `instanceof` checks across packages. Normalization preserves engine errors and complete cause chains; a fatal cause cannot be downgraded. Concrete errors accept optional final `ErrorOptionsWithMessage` containing `{ message, cause }`; the base accepts `EngineErrorOptions` with `cause` and `isFatal`. See [Core error constructors and reporting](../../core/docs/API-REFERENCE.md#errors) for signatures and classification.
+React re-exports Core's error constructors, including `EngineError`, `ListenerError`, `MissingTokenizerError`, and the fatal operation types `TokenizationError`, `SessionLoadError`, `ItemSelectionError`, and `PlaybackSchedulingError`. The same constructors support `instanceof` checks across packages. Normalization preserves engine errors and complete cause chains; a fatal cause cannot be downgraded. Concrete errors accept optional final `ErrorOptionsWithMessage` containing `{ message, cause }`; the base accepts `EngineErrorOptions` with `cause` and `isFatal`. See [Core error constructors and reporting](../../core/docs/API-REFERENCE.md#errors) for signatures and classification.
 
 Fatal loading failures publish an empty `ERROR` session before throwing: no current item or loaded tokens, index and progress `0`, total duration `0`, and remaining duration `null`. Speed and OVP preferences survive. Nonfatal input validation and OVP assignment failures preserve the session; fatal playback/navigation failures retain the last valid selection and progress. Recovery requires `reset()`.
 
@@ -137,11 +144,11 @@ Detach consumers before destroying their controller. Destroy cancels playback, c
 
 ## Public types
 
-- `RsvpController<T>` and `RsvpControllerOptions<T>`
-- `RsvpControllerSnapshot<T>`, `RsvpStoreListener<T>`, and `RsvpEventType`
-- `RsvpActions<T>`
-- `RsvpProviderProps<T>` and `RsvpContextBundle<T>`
-- `RsvpSelector<T, Selected>`, `RsvpEqualityFn<Selected>`, and `UseRsvpSelector<T>`
+- `RsvpController<T, TMeta>` and `RsvpControllerOptions<T, TMeta>`
+- `RsvpControllerSnapshot<T, TMeta>`, `RsvpStoreListener<T, TMeta>`, and `RsvpEventType`
+- `RsvpActions<T, TMeta>`
+- `RsvpProviderProps<T, TMeta>` and `RsvpContextBundle<T, TMeta>`
+- `RsvpSelector<T, Selected, TMeta>`, `RsvpEqualityFn<Selected>`, and `UseRsvpSelector<T, TMeta>`
 - Re-exported Core snapshot, item, strategy, scheduler, token, state, and error types, including `EngineErrorOptions` and `ErrorOptionsWithMessage`
 
 ## Portability

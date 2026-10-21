@@ -1,4 +1,4 @@
-import type { RsvpContextBundle, RsvpController, RsvpProviderProps } from "./types";
+import type { RsvpActions, RsvpContextBundle, RsvpController, RsvpProviderProps } from "./types";
 import type { ReactElement } from "react";
 
 import { createContext, createElement, useContext, useMemo } from "react";
@@ -7,17 +7,17 @@ import { useControllerSelector } from "./hooks";
 
 const defaultEquality = Object.is;
 
-/** Creates an isolated, item-type-safe RSVP Provider and consumer hook pair. */
-export function createRsvpContext<T = string>(): RsvpContextBundle<T> {
-  const ControllerContext = createContext<RsvpController<T> | null>(null);
+/** Creates an isolated RSVP Provider and hooks with fixed item and metadata types. */
+export function createRsvpContext<T = string, TMeta = unknown>(): RsvpContextBundle<T, TMeta> {
+  const ControllerContext = createContext<RsvpController<T, TMeta> | null>(null);
 
-  function RsvpProvider({ controller, children }: RsvpProviderProps<T>): ReactElement {
+  function RsvpProvider({ controller, children }: RsvpProviderProps<T, TMeta>): ReactElement {
     return createElement(ControllerContext.Provider, { value: controller }, children);
   }
 
   RsvpProvider.displayName = "RsvpProvider";
 
-  function useRsvpController(): RsvpController<T> {
+  function useRsvpController(): RsvpController<T, TMeta> {
     const controller = useContext(ControllerContext);
 
     if (controller === null) {
@@ -28,13 +28,13 @@ export function createRsvpContext<T = string>(): RsvpContextBundle<T> {
   }
 
   function useRsvpSelector<Selected>(
-    selector: (state: ReturnType<RsvpController<T>["getSnapshot"]>) => Selected,
+    selector: (state: ReturnType<RsvpController<T, TMeta>["getSnapshot"]>) => Selected,
     equalityFn: (left: Selected, right: Selected) => boolean = defaultEquality,
   ): Selected {
     return useControllerSelector(useRsvpController(), selector, equalityFn);
   }
 
-  function useRsvpActions() {
+  function useRsvpActions(): RsvpActions<T, TMeta> {
     const controller = useRsvpController();
 
     return useMemo(

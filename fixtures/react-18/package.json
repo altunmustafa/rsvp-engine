@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@rsvp-engine/core": "workspace:*",
     "@rsvp-engine/react": "workspace:*",
     "react": "catalog:react18",
     "react-dom": "catalog:react18"

@@ -6,6 +6,8 @@
 
 Accepted
 
+- Superseded by [ADR-0022](./0022-explicit-content-loading.md) for automatic tokenizer selection.
+
 ## Context
 
 Playback depends on host clocks and timers, scheduling policy, and input tokenization. Hard-coding these concerns would make tests nondeterministic and prevent use in non-standard runtimes or specialized applications.

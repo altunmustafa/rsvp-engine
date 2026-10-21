@@ -35,6 +35,17 @@ export class EngineError extends Error {
   }
 }
 
+/** Thrown when raw input is loaded without a configured tokenizer. */
+export class MissingTokenizerError extends EngineError {
+  constructor(options: ErrorOptionsWithMessage = {}) {
+    super(options.message ?? "Cannot load data without a tokenizer.", {
+      ...options,
+      isFatal: false,
+    });
+    this.name = "MissingTokenizerError";
+  }
+}
+
 /** Thrown when tokenization fails and the session must be cleared. */
 export class TokenizationError extends EngineError {
   constructor(options: ErrorOptionsWithMessage = {}) {

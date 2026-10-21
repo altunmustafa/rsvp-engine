@@ -27,6 +27,7 @@ export {
   InvalidTransitionError,
   ItemSelectionError,
   ListenerError,
+  MissingTokenizerError,
   MAX_MS_PER_ITEM,
   MAX_WPM,
   MIN_MS_PER_ITEM,

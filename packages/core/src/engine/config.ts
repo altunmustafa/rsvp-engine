@@ -2,18 +2,14 @@ import type { EngineError, ListenerError } from "../errors";
 import type { SchedulerStrategy, TimeDriver } from "../scheduler/types";
 import type { OvpStrategy, TokenizerStrategy } from "../tokenizer/types";
 
-/**
- * Configuration options for the RSVP Engine.
- */
-export interface RsvpEngineOptions<T = string> {
-  /** Raw text string, single generic item, or generic item array. */
-  readonly data?: T | T[];
+/** Engine configuration, independent of session content. */
+export interface RsvpEngineOptions<T = string, TMeta = unknown> {
   /** Target WPM, preserved exactly unless msPerItem is supplied. Defaults to 300. */
   readonly wpm?: number;
   /** Direct ms-per-item override. Takes precedence over `wpm`. */
   readonly msPerItem?: number;
-  /** Custom tokenizer strategy. Defaults to `DefaultTokenizer`. */
-  readonly tokenizer?: TokenizerStrategy<T>;
+  /** Converts raw input for `load()`. Optional when only using `loadTokens()`. */
+  readonly tokenizer?: TokenizerStrategy<T, TMeta>;
   /**
    * Overrides string viewing offsets when selected in sessions loaded through `load()`,
    * independently of the tokenizer's initial OVP calculation. Stored token offsets and

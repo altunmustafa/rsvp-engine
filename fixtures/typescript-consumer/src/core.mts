@@ -6,6 +6,7 @@ import {
   type ErrorOptionsWithMessage,
   ItemSelectionError,
   ListenerError,
+  MissingTokenizerError,
   PlaybackSchedulingError,
   RsvpEngine,
   type RsvpEventType,
@@ -28,6 +29,7 @@ const optionsWithMessage: ErrorOptionsWithMessage = {
 };
 new ListenerError("advanced", optionsWithMessage);
 const operationErrors: EngineError[] = [
+  new MissingTokenizerError(optionsWithMessage),
   new TokenizationError(optionsWithMessage),
   new SessionLoadError(),
   new ItemSelectionError(1, optionsWithMessage),
@@ -64,10 +66,10 @@ const engine = new RsvpEngine({
     }
   },
   tokenizer,
-  data: "one two",
   wpm: 225,
   ovpStrategy: new DefaultOvpStrategy(),
 });
+engine.load("one two");
 engine.setWpm(425);
 engine.setOvpStrategy(new DefaultOvpStrategy());
 engine.setOvpStrategy(undefined);

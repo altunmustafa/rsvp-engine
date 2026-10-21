@@ -1,4 +1,9 @@
-import { RsvpEngine, type RsvpEventType, type RsvpSnapshot } from "@rsvp-engine/core";
+import {
+  DefaultTokenizer,
+  RsvpEngine,
+  type RsvpEventType,
+  type RsvpSnapshot,
+} from "@rsvp-engine/core";
 
 import { extractReadableArticle, fetchHtmlSource } from "./extract";
 import "./styles.css";
@@ -29,10 +34,11 @@ const domElements = {
 let fetchController: AbortController | undefined;
 
 const engine = new RsvpEngine({
-  data: domElements.extractedText.value,
+  tokenizer: new DefaultTokenizer<string>(),
   wpm: domElements.wpmInput.valueAsNumber,
   onError: showError,
 });
+engine.load(domElements.extractedText.value);
 
 function showWord(item: { value: string; ovpIndex: number }): void {
   domElements.wordBefore.textContent = item.value.slice(0, item.ovpIndex);

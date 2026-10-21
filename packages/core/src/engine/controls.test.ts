@@ -16,7 +16,11 @@ describe("retained playback controls", () => {
   });
 
   it.each([undefined, "", "   ", "one two."])("keeps Stop inert in IDLE for input %j", (data) => {
-    const engine = new RsvpEngine({ data, wpm: 600 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    engine.load(data);
     const initial = engine.getSnapshot();
     const listener = vi.fn();
     engine.subscribe(listener);
@@ -36,7 +40,11 @@ describe("retained playback controls", () => {
     (state) => {
       const tokenizer = new DefaultTokenizer<string>();
       const tokenize = vi.spyOn(tokenizer, "tokenize");
-      const engine = new RsvpEngine({ data: "one two.", tokenizer, wpm: 600 });
+      const engine = new RsvpEngine({
+        tokenizer,
+        wpm: 600,
+      });
+      engine.load("one two.");
       const firstItem = engine.currentItem;
       engine.play();
       vi.advanceTimersByTime(150);
@@ -97,7 +105,11 @@ describe("retained playback controls", () => {
   it.each([0, 1])("selects initial index %i without starting playback", (index) => {
     const tokenizer = new DefaultTokenizer<string>();
     const tokenize = vi.spyOn(tokenizer, "tokenize");
-    const engine = new RsvpEngine({ data: "one two.", tokenizer, wpm: 600 });
+    const engine = new RsvpEngine({
+      tokenizer,
+      wpm: 600,
+    });
+    engine.load("one two.");
     const listener = vi.fn();
     engine.subscribe(listener);
 
@@ -137,7 +149,11 @@ describe("retained playback controls", () => {
   it.each([NaN, Infinity, 0.5, -1, 2])(
     "preserves initial selection when seek(%s) is invalid",
     (index) => {
-      const engine = new RsvpEngine({ data: "one two", wpm: 600 });
+      const engine = new RsvpEngine({
+        tokenizer: new DefaultTokenizer<string>(),
+        wpm: 600,
+      });
+      engine.load("one two");
       const initial = engine.getSnapshot();
       const listener = vi.fn();
       engine.subscribe(listener);
@@ -153,7 +169,10 @@ describe("retained playback controls", () => {
   );
 
   it("rejects initial seek on empty input without creating a seekable session", () => {
-    const engine = new RsvpEngine({ data: "   " });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    engine.load("   ");
     expect(() => engine.seek(0)).toThrow(IndexOutOfBoundsError);
     expect(engine.getSnapshot()).toMatchObject({
       state: "IDLE",
@@ -174,7 +193,11 @@ describe("retained playback controls", () => {
       },
       cancel: vi.fn(),
     };
-    const engine = new RsvpEngine({ data: "one two", scheduler });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      scheduler,
+    });
+    engine.load("one two");
     expect(() => engine.play()).toThrow("Failed to schedule playback.");
     const failed = engine.getSnapshot();
     const listener = vi.fn();
@@ -198,12 +221,13 @@ describe("retained playback controls", () => {
   it("ignores cancelled callbacks after stopping, seeking, and resuming", () => {
     const tasks: (() => void)[] = [];
     const engine = new RsvpEngine({
-      data: "one two",
+      tokenizer: new DefaultTokenizer<string>(),
       scheduler: {
         schedule: (task) => tasks.push(task),
         cancel: vi.fn(),
       },
     });
+    engine.load("one two");
     engine.play();
     tasks[0]();
     engine.stop();

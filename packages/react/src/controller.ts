@@ -3,18 +3,18 @@ import type { OvpStrategy, RsvpEngineOptions, Token, UnsubscribeFn } from "@rsvp
 
 import { RsvpEngine } from "@rsvp-engine/core";
 
-class RsvpControllerImpl<T> implements RsvpController<T> {
-  readonly #engine: RsvpEngine<T>;
-  readonly #serverSnapshot: RsvpControllerSnapshot<T>;
+class RsvpControllerImpl<T, TMeta> implements RsvpController<T, TMeta> {
+  readonly #engine: RsvpEngine<T, TMeta>;
+  readonly #serverSnapshot: RsvpControllerSnapshot<T, TMeta>;
 
-  constructor(options: RsvpEngineOptions<T>) {
-    this.#engine = new RsvpEngine(options);
+  constructor(options: RsvpEngineOptions<T, TMeta>) {
+    this.#engine = new RsvpEngine<T, TMeta>(options);
     this.#serverSnapshot = this.#engine.getSnapshot();
   }
 
-  readonly getSnapshot = (): RsvpControllerSnapshot<T> => this.#engine.getSnapshot();
-  readonly getServerSnapshot = (): RsvpControllerSnapshot<T> => this.#serverSnapshot;
-  readonly subscribe = (listener: RsvpStoreListener<T>): UnsubscribeFn =>
+  readonly getSnapshot = (): RsvpControllerSnapshot<T, TMeta> => this.#engine.getSnapshot();
+  readonly getServerSnapshot = (): RsvpControllerSnapshot<T, TMeta> => this.#serverSnapshot;
+  readonly subscribe = (listener: RsvpStoreListener<T, TMeta>): UnsubscribeFn =>
     this.#engine.subscribe(listener);
   readonly play = (): void => this.#engine.play();
   readonly pause = (): void => this.#engine.pause();
@@ -24,7 +24,7 @@ class RsvpControllerImpl<T> implements RsvpController<T> {
   readonly previous = (): void => this.#engine.previous();
   readonly reset = (): void => this.#engine.reset();
   readonly load = (data: T | T[]): void => this.#engine.load(data);
-  readonly loadTokens = (tokens: Token<T>[]): void => this.#engine.loadTokens(tokens);
+  readonly loadTokens = (tokens: Token<T, TMeta>[]): void => this.#engine.loadTokens(tokens);
   readonly setWpm = (wpm: number): void => this.#engine.setWpm(wpm);
   readonly setMsPerItem = (ms: number): void => this.#engine.setMsPerItem(ms);
   readonly setOvpStrategy = (strategy: OvpStrategy | undefined): void =>
@@ -32,9 +32,9 @@ class RsvpControllerImpl<T> implements RsvpController<T> {
   readonly destroy = (): void => this.#engine.destroy();
 }
 
-/** Creates a headless controller that owns one Core engine. */
-export function createRsvpController<T = string>(
-  options: RsvpEngineOptions<T> = {},
-): RsvpController<T> {
-  return new RsvpControllerImpl(options);
+/** Creates an empty headless controller that owns one Core engine. Load content separately. */
+export function createRsvpController<T = string, TMeta = unknown>(
+  options: RsvpEngineOptions<T, TMeta> = {},
+): RsvpController<T, TMeta> {
+  return new RsvpControllerImpl<T, TMeta>(options);
 }

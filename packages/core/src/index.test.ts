@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DefaultTokenizer } from "./tokenizer/default-tokenizer";
+
 import { EngineDestroyedError, InvalidTransitionError, RsvpEngine } from "./index";
 
 describe("Public API integration", () => {
@@ -14,9 +16,10 @@ describe("Public API integration", () => {
 
   it("completes a full playback lifecycle successfully", () => {
     const engine = new RsvpEngine({
-      data: "This is a complete test.",
-      wpm: 600, // 100ms per token
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
     });
+    engine.load("This is a complete test.");
 
     const states: string[] = [];
     const presentedItems: string[] = [];
@@ -70,9 +73,10 @@ describe("Public API integration", () => {
 
   it("handles seeking and navigation accurately", () => {
     const engine = new RsvpEngine({
-      data: "one two three four",
+      tokenizer: new DefaultTokenizer<string>(),
       wpm: 600,
     });
+    engine.load("one two three four");
 
     engine.play();
     engine.pause();
@@ -99,7 +103,11 @@ describe("Public API integration", () => {
   });
 
   it("gracefully handles errors and destroys", () => {
-    const engine = new RsvpEngine({ data: "hello", wpm: 300 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 300,
+    });
+    engine.load("hello");
 
     expect(() => {
       engine.pause(); // Invalid transition from IDLE

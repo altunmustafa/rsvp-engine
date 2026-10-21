@@ -21,10 +21,10 @@ pnpm add @rsvp-engine/core
 ## Quick start
 
 ```typescript
-import { RsvpEngine } from "@rsvp-engine/core";
+import { DefaultTokenizer, RsvpEngine } from "@rsvp-engine/core";
 
 const engine = new RsvpEngine({
-  data: "Rapid Serial Visual Presentation powers modern speed reading.",
+  tokenizer: new DefaultTokenizer<string>(),
   wpm: 300,
   onError: (error) => console.error(error),
 });
@@ -33,6 +33,7 @@ const unsubscribe = engine.subscribe((snapshot, eventType) => {
   console.log(eventType, snapshot.currentItem?.value, snapshot.progress, snapshot.state);
 });
 
+engine.load("Rapid Serial Visual Presentation powers modern speed reading.");
 engine.play();
 ```
 
@@ -40,14 +41,13 @@ Call `unsubscribe()` to detach this listener. `engine.destroy()` cancels playbac
 
 ## Configuration and commands
 
-`new RsvpEngine<T = string>(options?)` accepts optional `RsvpEngineOptions<T>`:
+`new RsvpEngine<T = string, TMeta = unknown>(options?)` accepts optional `RsvpEngineOptions<T, TMeta>` and starts empty. Supply a tokenizer to use `load()`, or use `loadTokens()` without one. The engine never selects a tokenizer automatically.
 
 | Option | Purpose |
 | --- | --- |
-| `data: T \| T[]` | Initial input; omit to start empty. |
 | `wpm: number` | Base items per minute; defaults to `DEFAULT_WPM`. |
 | `msPerItem: number` | Base display duration; takes precedence over `wpm`. |
-| `tokenizer: TokenizerStrategy<T>` | Converts input into tokens; defaults to `DefaultTokenizer`. |
+| `tokenizer: TokenizerStrategy<T, TMeta>` | Optional raw-input converter for `load()`; must produce tokens compatible with `TMeta`. |
 | `ovpStrategy: OvpStrategy` | Optional presentation override for strings loaded through `load()`. |
 | `scheduler: SchedulerStrategy` | Schedules playback; defaults to `DriftCorrectedScheduler`. |
 | `timeDriver: TimeDriver` | Supplies clock and timers; defaults to `SystemTimeDriver`. |
@@ -62,7 +62,7 @@ All commands return `void`; invalid commands throw.
 | `stop()` | Returns to `STOPPED` at index/progress `0`, retaining items and restoring full duration. No-op in `IDLE`/`STOPPED`; invalid in `ERROR`. |
 | `seek(index)` | Selects a finite integer in `[0, totalItems)` from `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED`; enters `PAUSED` with a full item duration. |
 | `next()` / `previous()` | Moves one item while `PAUSED`; no-op at an endpoint. |
-| `load(data)` / `loadTokens(tokens)` | Replaces input and enters `IDLE`; rejected in `PLAYING` or `ERROR`. |
+| `load(data)` / `loadTokens(tokens)` | Replaces input and enters `IDLE`; rejected in `PLAYING` or `ERROR`. `load()` requires a configured tokenizer; `loadTokens()` does not. |
 | `setWpm(wpm)` / `setMsPerItem(ms)` | Changes speed for future display periods, preserving the active or paused period. |
 | `setOvpStrategy(strategy)` | Sets the presentation override; `undefined` restores original offsets. Rejected in `ERROR`. |
 | `reset()` | Valid only in `ERROR`; clears data and returns to empty `IDLE`. |
@@ -74,19 +74,19 @@ Pause before seeking during playback; pause or stop before replacing playing dat
 
 ## Snapshots and subscriptions
 
-`getSnapshot(): RsvpSnapshot<T>` returns cached, readonly playback state. Its reference stays stable until observable state changes. `state`, `currentIndex`, `currentItem`, `progress`, `totalItems`, `wpm`, and `msPerItem` are also engine getters.
+`getSnapshot(): RsvpSnapshot<T, TMeta>` returns cached, readonly playback state. Its reference stays stable until observable state changes. `state`, `currentIndex`, `currentItem`, `progress`, `totalItems`, `wpm`, and `msPerItem` are also engine getters.
 
-| Field                          | Meaning                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| `state`                        | `IDLE`, `PLAYING`, `PAUSED`, `STOPPED`, `COMPLETED`, or fatal `ERROR`.     |
-| `currentIndex` / `currentItem` | Zero-based selected position and `RsvpItem<T>`; `0` and `null` when empty. |
-| `progress` / `totalItems`      | Playback-position fraction and loaded item count.                          |
-| `wpm` / `msPerItem`            | Base rate and duration before item multipliers.                            |
-| `timing`                       | Cached duration estimate described below.                                  |
+| Field                          | Meaning                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| `state`                        | `IDLE`, `PLAYING`, `PAUSED`, `STOPPED`, `COMPLETED`, or fatal `ERROR`.            |
+| `currentIndex` / `currentItem` | Zero-based selected position and `RsvpItem<T, TMeta>`; `0` and `null` when empty. |
+| `progress` / `totalItems`      | Playback-position fraction and loaded item count.                                 |
+| `wpm` / `msPerItem`            | Base rate and duration before item multipliers.                                   |
+| `timing`                       | Cached duration estimate described below.                                         |
 
 Progress is `currentIndex / totalItems`, or `0` when empty, until `COMPLETED` sets it to `1`. The first item is presented immediately; completion waits for the final item's display period. Seeking measures position, not reading history. Use `state === "COMPLETED"` for completion.
 
-`subscribe(listener: RsvpStoreListener<T>): UnsubscribeFn` calls `listener(snapshot, eventType)` synchronously on changes. It does not call the listener immediately; read `getSnapshot()` for initial state.
+`subscribe(listener: RsvpStoreListener<T, TMeta>): UnsubscribeFn` calls `listener(snapshot, eventType)` synchronously on changes. It does not call the listener immediately; read `getSnapshot()` for initial state.
 
 | `RsvpEventType`               | Operation                                    |
 | ----------------------------- | -------------------------------------------- |
@@ -100,7 +100,7 @@ Progress is `currentIndex / totalItems`, or `0` when empty, until `COMPLETED` se
 
 Updates include completed scheduling. No-ops and rejected nonfatal commands do not notify. Nested commands deliver their snapshots in order; use the callback's snapshot because `getSnapshot()` may already reflect a nested command. Resuming an expired item publishes `advanced` or `completed` immediately.
 
-Snapshots and item objects are frozen; generic `value` objects are not deeply frozen. Synchronous listener failures are isolated; see [Errors](#errors).
+Snapshots and item objects are frozen; application-owned `value` and `meta` objects are not deeply frozen. Synchronous listener failures are isolated; see [Errors](#errors).
 
 ## Duration estimates
 
@@ -120,7 +120,7 @@ Estimates exclude pauses and future host delays. For a countdown, share the engi
 
 `DefaultTokenizer` splits strings with `Intl.Segmenter`, falling back to whitespace. Array elements and non-string values are individual tokens; `nestedTokenize: true` also tokenizes array contents. Configure punctuation through `sentenceDurationMultiplier`, `clauseDurationMultiplier`, and `dashDurationMultiplier`, or inject a tokenizer `ovpStrategy` for initial offsets.
 
-A source `Token<T>` and its presented `RsvpItem<T>` share readonly fields: `value: T`, `ovpIndex: number`, and `durationMultiplier: number`. The OVP is a non-negative integer UTF-16 offset, at most the string length, suitable for `slice()`. The multiplier must be positive and finite; display duration is `msPerItem * durationMultiplier`. Position belongs to `currentIndex`.
+A source `Token<T, TMeta = unknown>` and its presented `RsvpItem<T, TMeta>` share readonly fields: `value: T`, `ovpIndex: number`, `durationMultiplier: number`, and application metadata `meta`. Metadata is required unless `TMeta` accepts `undefined`. The OVP is a non-negative integer UTF-16 offset, at most the string length, suitable for `slice()`. The multiplier must be positive and finite; display duration is `msPerItem * durationMultiplier`. Position belongs to `currentIndex`.
 
 Use `loadTokens()` for prepared input, including asynchronous work done outside the engine:
 
@@ -131,7 +131,7 @@ reader.loadTokens([{ value: { label: "One" }, ovpIndex: 0, durationMultiplier: 1
 
 | Strategy | Contract |
 | --- | --- |
-| `TokenizerStrategy<T>` | `tokenize(input: T \| T[]): Token<T>[]`; produces initial offsets and multipliers. |
+| `TokenizerStrategy<T, TMeta>` | `tokenize(input: T \| T[]): Token<T, TMeta>[]`; produces initial offsets, multipliers, and metadata governed by `TMeta`. |
 | `OvpStrategy` | `calculate(text: string): number`; chooses a viewing offset. `DefaultOvpStrategy` is grapheme-aware. |
 | `SchedulerStrategy` | `schedule(task: () => void, delayMs: number): void`; `cancel(): void`; optional `getDeadline(): number \| null` in the engine clock. |
 | `TimeDriver` | `now(): number` (finite milliseconds); `setTimeout(callback: () => void, ms: number): unknown`; `clearTimeout(handle: unknown): void`. |
@@ -139,6 +139,37 @@ reader.loadTokens([{ value: { label: "One" }, ovpIndex: 0, durationMultiplier: 1
 Injected instances remain externally owned. Tokenizer and OVP callbacks must be synchronous and side-effect-free; engine mutation inside them is rejected.
 
 The default scheduler corrects ordinary lag and rebases after severe delays. A custom scheduler should share the engine clock; without a deadline, accounting is nominal. `SystemTimeDriver` uses `performance.now()` or `Date.now()` and requires host timers.
+
+### Application metadata
+
+Use `meta` to associate each token with application data, such as a position in the original text. The engine preserves metadata through loading, OVP changes, navigation, and snapshots without interpreting it. `DefaultTokenizer` does not produce metadata; source mapping and sentence navigation belong to the application.
+
+```typescript
+import { RsvpEngine } from "@rsvp-engine/core";
+
+interface SourceSpan {
+  readonly start: number;
+  readonly end: number;
+}
+
+const source = "echo 😀 echo";
+const reader = new RsvpEngine<string, SourceSpan>();
+reader.loadTokens([
+  { value: "echo", ovpIndex: 0, durationMultiplier: 1, meta: { start: 0, end: 4 } },
+  { value: "😀", ovpIndex: 0, durationMultiplier: 1, meta: { start: 5, end: 7 } },
+  { value: "echo", ovpIndex: 0, durationMultiplier: 1, meta: { start: 8, end: 12 } },
+]);
+const span = reader.currentItem?.meta;
+if (span) console.log(source.slice(span.start, span.end));
+```
+
+This consumer-defined span uses JavaScript UTF-16 offsets with an inclusive start and exclusive end. With `TMeta = SourceSpan`, every token from a configured tokenizer or `loadTokens()` must include metadata. Once `currentItem` is non-null, its `meta` is a `SourceSpan`. `SourceSpan | undefined` permits metadata-free tokens and an explicitly supplied `DefaultTokenizer`. `TMeta` can also be a primitive or a union.
+
+A custom `TokenizerStrategy<T, TMeta>` lets `new RsvpEngine({ tokenizer })` infer both types. Supply both `<T, TMeta>` when specifying them explicitly; supplying only `<T>` leaves metadata as `unknown`, which requires narrowing before reading fields.
+
+These requirements are enforced by TypeScript; the engine does not validate metadata at runtime. Include `undefined` in `TMeta` when metadata may be absent. The default `unknown` type also permits absence.
+
+Loading copies the token's fields but retains `value` and `meta` by reference. An omitted `meta` stays absent, while explicit `undefined` is preserved. The engine does not clone or freeze metadata: keep it immutable while in use, because in-place mutations do not notify subscribers.
 
 ### Presentation OVP overrides
 
@@ -168,6 +199,7 @@ Timer and synchronous listener failures use `onError(error: EngineError | Listen
 | Error family | Meaning |
 | --- | --- |
 | `EngineError` | Base for command/playback errors; exposes readonly `isFatal` and original `cause`. |
+| `MissingTokenizerError` | `load()` needs a configured tokenizer; nonfatal and preserves the session and cached snapshot. Use `loadTokens()` for prepared input. |
 | `InvalidTransitionError`, `InvalidInputError`, `IndexOutOfBoundsError`, `EngineDestroyedError` | Rejected commands or input; ordinarily nonfatal. |
 | `TokenizationError`, `SessionLoadError` | Fatal input preparation or loading failure. |
 | `ItemSelectionError`, `PlaybackSchedulingError` | Fatal selection or scheduling failure. |
@@ -189,6 +221,7 @@ For upgrades across multiple major versions, apply these steps in version order.
 
 ### Core 2 → 3
 
+- Remove constructor `data` and call `load(data)` or `loadTokens(tokens)` after construction. To keep built-in tokenization, pass `tokenizer: new DefaultTokenizer<T>()` explicitly; otherwise `load()` throws nonfatal `MissingTokenizerError`.
 - Catch all synchronous command failures; use `onError` for timer/listener failures. Replace `snapshot.error`, `clearError()`, `errorOccurred`, and `errorCleared` with application-owned diagnostics and `stateChanged` for fatal transitions.
 - Errors use the `EngineError` family and retain source failures in `cause`. Replace `new InvalidInputError(message)` with `new InvalidInputError({ message })`. Listener exceptions are isolated as `ListenerError`.
 - Include `ovpChanged` in exhaustive event handlers; use `ovpStrategy`/`setOvpStrategy()` for presentation overrides. Tokenizer contracts and supplied token offsets are unchanged.

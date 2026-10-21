@@ -1,3 +1,4 @@
+import { DefaultTokenizer } from "@rsvp-engine/core";
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -16,7 +17,10 @@ afterEach(() => {
 
 describe("controller selector hook", () => {
   it("delegates concurrent-safe selection to React's official external-store hook", () => {
-    const controller = createRsvpController({ data: "one two" });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    controller.load("one two");
     const selector = () => "local selection";
     const equalityFn = Object.is;
 

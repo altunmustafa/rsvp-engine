@@ -7,7 +7,7 @@ Core ADRs use the Michael Nygard sections `Status`, `Context`, `Decision`, and `
 | [ADR-0001](./0001-zero-dependency-headless-core.md) | Accepted | Keep core zero-dependency and headless. |
 | [ADR-0002](./0002-drift-corrected-scheduling.md) | Accepted | Correct ordinary timer drift and rebase after large delays. |
 | [ADR-0003](./0003-synchronous-tokenization-boundary.md) | Accepted | Keep asynchronous tokenization outside core. |
-| [ADR-0004](./0004-dependency-injection-boundaries.md) | Accepted | Inject time, scheduling, and tokenization at explicit boundaries. |
+| [ADR-0004](./0004-dependency-injection-boundaries.md) | Accepted; automatic tokenizer selection superseded by ADR-0022 | Inject time, scheduling, and tokenization at explicit boundaries. |
 | [ADR-0005](./0005-unicode-segmentation-fallbacks.md) | Accepted | Prefer platform Unicode segmentation with dependency-free fallbacks. |
 | [ADR-0006](./0006-pause-resume-remaining-time.md) | Accepted | Preserve the current item's remaining time across pause and resume. |
 | [ADR-0007](./0007-preserve-speed-input-unit.md) | Accepted | Preserve speed inputs in their supplied unit and derive the other representation. |
@@ -24,3 +24,5 @@ Core ADRs use the Michael Nygard sections `Status`, `Context`, `Decision`, and `
 | [ADR-0018](./0018-caller-owned-errors-and-playback-snapshots.md) | Accepted | Throw command failures; report timer and listener failures through onError; publish playback state only. |
 | [ADR-0019](./0019-isolated-listener-error-reporting.md) | Accepted | Isolate subscriber failures and report them independently of playback. |
 | [ADR-0020](./0020-failure-safe-error-reporting.md) | Accepted | Preserve playback error boundaries when clocks, cancellation, or diagnostic transport fail. |
+| [ADR-0021](./0021-consumer-defined-token-metadata.md) | Accepted | Preserve consumer-defined metadata with a fixed type that determines its presence. |
+| [ADR-0022](./0022-explicit-content-loading.md) | Accepted | Start empty and load content explicitly; require a tokenizer only for raw loading. |
