@@ -21,10 +21,10 @@ createRsvpController
 Creates the single owner of one empty Core engine. It delegates commands, cached snapshots, errors, and subscriptions to Core and retains the construction-time server snapshot with empty content.
 
 ```ts
-import { DefaultTokenizer } from "@rsvp-engine/core";
+import { TextTokenizer } from "@rsvp-engine/react/core";
 
 const controller = createRsvpController({
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
   wpm: 300,
 });
 controller.load("one two three");
@@ -130,7 +130,7 @@ Synchronous subscriber failures are isolated as `ListenerError extends Error`, w
 
 Without `onError`, failures reach the host asynchronously through a microtask or injected timer. A failing reporter produces an asynchronous `AggregateError` without recursive reporting. Returned promises are not observed. If host reporting cannot be scheduled, delivery finishes before a diagnostic aggregate escapes synchronously; committed playback remains intact and an existing command failure retains priority.
 
-React re-exports Core's error constructors, including `EngineError`, `ListenerError`, `MissingTokenizerError`, and the fatal operation types `TokenizationError`, `SessionLoadError`, `ItemSelectionError`, and `PlaybackSchedulingError`. The same constructors support `instanceof` checks across packages. Normalization preserves engine errors and complete cause chains; a fatal cause cannot be downgraded. Concrete errors accept optional final `ErrorOptionsWithMessage` containing `{ message, cause }`; the base accepts `EngineErrorOptions` with `cause` and `isFatal`. See [Core error constructors and reporting](../../core/docs/API-REFERENCE.md#errors) for signatures and classification.
+`@rsvp-engine/react/core` re-exports Core's error constructors, including `EngineError`, `ListenerError`, `MissingTokenizerError`, and the fatal operation types `TokenizationError`, `SessionLoadError`, `ItemSelectionError`, and `PlaybackSchedulingError`. The same constructors support `instanceof` checks across packages. Normalization preserves engine errors and complete cause chains; a fatal cause cannot be downgraded. Concrete errors accept optional final `ErrorOptionsWithMessage` containing `{ message, cause }`; the base accepts `EngineErrorOptions` with `cause` and `isFatal`. See [Core error constructors and reporting](../../core/docs/API-REFERENCE.md#errors) for signatures and classification.
 
 Fatal loading failures publish an empty `ERROR` session before throwing: no current item or loaded tokens, index and progress `0`, total duration `0`, and remaining duration `null`. Speed and OVP preferences survive. Nonfatal input validation and OVP assignment failures preserve the session; fatal playback/navigation failures retain the last valid selection and progress. Recovery requires `reset()`.
 
@@ -145,11 +145,10 @@ Detach consumers before destroying their controller. Destroy cancels playback, c
 ## Public types
 
 - `RsvpController<T, TMeta>` and `RsvpControllerOptions<T, TMeta>`
-- `RsvpControllerSnapshot<T, TMeta>`, `RsvpStoreListener<T, TMeta>`, and `RsvpEventType`
+- `RsvpControllerSnapshot<T, TMeta>`
 - `RsvpActions<T, TMeta>`
 - `RsvpProviderProps<T, TMeta>` and `RsvpContextBundle<T, TMeta>`
-- `RsvpSelector<T, Selected, TMeta>`, `RsvpEqualityFn<Selected>`, and `UseRsvpSelector<T, TMeta>`
-- Re-exported Core snapshot, item, strategy, scheduler, token, state, and error types, including `EngineErrorOptions` and `ErrorOptionsWithMessage`
+- `RsvpSelector<T, Selected, TMeta>`, `RsvpEqualityFn<Selected>`, and `UseRsvpSelector<T, TMeta>` Core's complete public API is exported from `@rsvp-engine/react/core`, including `RsvpStoreListener`, `RsvpEventType`, snapshot, item, strategy, scheduler, token, state, and error types. The subpath forwards the installed Core dependency without bundling a copy or importing React; the root exports only the React APIs above.
 
 ## Portability
 

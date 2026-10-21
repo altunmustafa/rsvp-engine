@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import { DefaultTokenizer } from "@rsvp-engine/core";
 import { createRsvpContext, createRsvpController } from "@rsvp-engine/react";
+import { TextTokenizer } from "@rsvp-engine/react/core";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { act, version as reactVersion } from "react";
 import { renderToString } from "react-dom/server";
@@ -71,7 +71,7 @@ describe("React 19 compatibility", () => {
 
   it("renders and updates through the public package API", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 300,
     });
     controller.load("one two");
@@ -96,7 +96,7 @@ describe("React 19 compatibility", () => {
 
   it("updates OVP through public actions and selectors", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     controller.load("hello world");
     const { RsvpProvider, useRsvpSelector, useRsvpActions } = createRsvpContext<string>();

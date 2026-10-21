@@ -1,6 +1,5 @@
 import {
   DefaultOvpStrategy,
-  DefaultTokenizer,
   EngineError,
   type EngineErrorOptions,
   type ErrorOptionsWithMessage,
@@ -15,6 +14,8 @@ import {
   type RsvpStoreListener,
   type RsvpTiming,
   SessionLoadError,
+  TextTokenizer,
+  type TextTokenizerOptions,
   type Token,
   TokenizationError,
   type TokenizerStrategy,
@@ -40,11 +41,18 @@ void operationErrors;
 const token: Token<string> = { value: "word", ovpIndex: 1, durationMultiplier: 1.5 };
 // @ts-expect-error Token duration multipliers are readonly.
 token.durationMultiplier = 2;
-new DefaultTokenizer({
+const textOptions: TextTokenizerOptions = {
   sentenceDurationMultiplier: 3,
   clauseDurationMultiplier: 2,
   dashDurationMultiplier: 1.5,
-});
+};
+const textTokenizer = new TextTokenizer(textOptions);
+const textTokens: Token<string>[] = textTokenizer.tokenize(["one two", "three"]);
+const textEngine = new RsvpEngine({ tokenizer: textTokenizer });
+textEngine.load(["one two", "three"]);
+const textValue: string | undefined = textEngine.currentItem?.value;
+void [textTokens, textValue];
+textEngine.destroy();
 
 const tokenizer: TokenizerStrategy<string> = {
   tokenize: (input) =>

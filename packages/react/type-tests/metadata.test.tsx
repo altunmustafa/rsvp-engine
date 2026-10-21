@@ -6,10 +6,9 @@ import type {
   RsvpControllerSnapshot,
   RsvpProviderProps,
   RsvpSelector,
-  RsvpStoreListener,
-  TokenizerStrategy,
   UseRsvpSelector,
 } from "../src";
+import type { RsvpStoreListener, TokenizerStrategy } from "../src/core";
 
 import { createRsvpContext, createRsvpController } from "../src";
 

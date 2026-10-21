@@ -9,7 +9,7 @@ import {
   ItemSelectionError,
 } from "../errors";
 import { DefaultOvpStrategy } from "../tokenizer/default-ovp-strategy";
-import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
+import { TextTokenizer } from "../tokenizer/text-tokenizer";
 
 import { RsvpEngine } from "./rsvp-engine";
 
@@ -58,7 +58,7 @@ describe("Presentation OVP strategies", () => {
 
   it("keeps tokenizer offsets and only calculates presentation for the selected word", () => {
     const oldCalculate = vi.fn(() => 1);
-    const tokenizer = new DefaultTokenizer<string>({ ovpStrategy: { calculate: oldCalculate } });
+    const tokenizer = new TextTokenizer({ ovpStrategy: { calculate: oldCalculate } });
     const engine = new RsvpEngine({ tokenizer });
     const calculate = vi.fn(() => 0);
     engine.setOvpStrategy({ calculate });
@@ -76,7 +76,7 @@ describe("Presentation OVP strategies", () => {
     (state) => {
       const calculate = vi.fn(lastCharacter.calculate);
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 1000,
         ovpStrategy: { calculate },
       });
@@ -121,7 +121,7 @@ describe("Presentation OVP strategies", () => {
   it("clears the selected item for empty replacement input and prepares later raw input", () => {
     const calculate = vi.fn(lastCharacter.calculate);
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       ovpStrategy: { calculate },
     });
     engine.load("hello world");
@@ -147,7 +147,7 @@ describe("Presentation OVP strategies", () => {
 
   it("clears the session when preparing replacement input fails", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 1000,
     });
     engine.load("hello world");
@@ -191,7 +191,7 @@ describe("Presentation OVP strategies", () => {
 
   it("clears a pre-tokenized session when replacement presentation throws", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     const failure = new Error("OVP calculation failed");
     engine.setOvpStrategy({
@@ -217,7 +217,7 @@ describe("Presentation OVP strategies", () => {
 
   it("updates presentation atomically without rescheduling or resampling active playback", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("hello world.");
@@ -248,7 +248,7 @@ describe("Presentation OVP strategies", () => {
 
   it("preserves paused remainder and updates previously presented items", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("hello world");
@@ -277,7 +277,7 @@ describe("Presentation OVP strategies", () => {
     "updates a raw-input session in %s without changing its lifecycle",
     (state) => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 600,
       });
       engine.load("hello world");
@@ -336,7 +336,7 @@ describe("Presentation OVP strategies", () => {
 
   it("never rewrites pre-tokenized offsets, including after strategy changes and replay", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("hello world");
@@ -371,7 +371,7 @@ describe("Presentation OVP strategies", () => {
 
   it("preserves unchanged item and snapshot references but commits future-only preferences", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("hello world");
@@ -395,7 +395,12 @@ describe("Presentation OVP strategies", () => {
   it("re-evaluates the same strategy instance and leaves generic items untouched", () => {
     const value = { image: "cover" };
     const engine = new RsvpEngine<string | typeof value>({
-      tokenizer: new DefaultTokenizer<string | typeof value>(),
+      tokenizer: {
+        tokenize: () => [
+          { value, ovpIndex: 0, durationMultiplier: 1 },
+          { value: "hello", ovpIndex: 1, durationMultiplier: 1 },
+        ],
+      },
     });
     engine.load([value, "hello"]);
     const item = engine.currentItem;
@@ -417,7 +422,7 @@ describe("Presentation OVP strategies", () => {
 
   it("applies grapheme-aware UTF-16 offsets to loaded and subsequent raw input", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     engine.load(["Café", "👩🏽‍💻"]);
     engine.setOvpStrategy({ calculate: () => 0 });
@@ -434,7 +439,7 @@ describe("Presentation OVP strategies", () => {
     "rejects offset %s atomically and retains the earlier strategy",
     (invalid) => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 600,
       });
       engine.load("hello world");
@@ -462,7 +467,7 @@ describe("Presentation OVP strategies", () => {
 
   it("rethrows strategy failures without interrupting playback or committing partial results", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("hello world");
@@ -496,7 +501,7 @@ describe("Presentation OVP strategies", () => {
 
   it("clears the session when replacement presentation has an invalid OVP offset", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     engine.setOvpStrategy({ calculate: () => 100 });
     engine.loadTokens([{ value: "hello", ovpIndex: 2, durationMultiplier: 1 }]);
@@ -525,7 +530,7 @@ describe("Presentation OVP strategies", () => {
 
   it("keeps raw-input ownership after a rejected pre-tokenized load", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     engine.load("hello");
     expect(() =>
@@ -546,7 +551,7 @@ describe("Presentation OVP strategies", () => {
     },
   ])("rejects reentrant $command during strategy preparation", ({ run }) => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("hello world");
@@ -571,7 +576,7 @@ describe("Presentation OVP strategies", () => {
 
   it("rejects strategy mutation during raw-input preparation and releases the guard on failure", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     engine.setOvpStrategy({
       calculate: () => {
@@ -595,7 +600,7 @@ describe("Presentation OVP strategies", () => {
 
   it("rejects invalid strategy shapes even when no applicable items are loaded", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     for (const strategy of [null, {}, { calculate: 0 }]) {
       expect(() => engine.setOvpStrategy(strategy as unknown as OvpStrategy)).toThrow(
@@ -607,7 +612,7 @@ describe("Presentation OVP strategies", () => {
 
   it("rejects strategy changes in fatal ERROR and after destruction", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     engine.load("hello");
     engine.play();
@@ -641,7 +646,7 @@ describe("Presentation OVP strategies", () => {
   it("accepts an optional constructor strategy and reuses the current result across notifications", () => {
     const calculate = vi.fn(lastCharacter.calculate);
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 1000,
       ovpStrategy: { calculate },
     });
@@ -667,7 +672,7 @@ describe("Presentation OVP strategies", () => {
 
   it("restores original tokenizer offsets when the presentation strategy is removed", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 1000,
     });
     engine.load("hello world");
@@ -702,7 +707,7 @@ describe("Presentation OVP strategies", () => {
       });
       const onError = vi.fn();
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 1000,
         onError,
       });
@@ -735,7 +740,7 @@ describe("Presentation OVP strategies", () => {
 
   it("reports navigation calculation failures without publishing a mismatched item and index", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     engine.load("hello world");
     engine.setOvpStrategy({ calculate: (text) => (text === "world" ? -1 : 4) });
@@ -760,7 +765,7 @@ describe("Presentation OVP strategies", () => {
   it("recalculates revisited words while preserving the selected result on repeated seek", () => {
     const calculate = vi.fn(lastCharacter.calculate);
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 1000,
       ovpStrategy: { calculate },
     });
@@ -789,7 +794,7 @@ describe("Presentation OVP strategies", () => {
 
   it.each(["stop", "replay"])("enters ERROR when OVP preparation fails during %s", (command) => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 1000,
     });
     engine.load("hello world");
@@ -844,7 +849,7 @@ describe("Presentation OVP strategies", () => {
   it("rejects reentrant engine commands while preparing a future word", () => {
     const onError = vi.fn();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 1000,
       onError,
     });
@@ -869,7 +874,7 @@ describe("Presentation OVP strategies", () => {
     "allows a queued pause after strategy %s without retaining the execution guard",
     async (outcome) => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 1000,
       });
       engine.load("hello world");
@@ -908,7 +913,7 @@ describe("Presentation OVP strategies", () => {
 
   it("permits subscriber commands after publishing the prepared OVP result", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 1000,
     });
     engine.load("hello world");

@@ -5,75 +5,56 @@ import { InvalidInputError } from "../errors";
 import { DefaultOvpStrategy } from "./default-ovp-strategy";
 
 /**
- * Options for configuring `DefaultTokenizer`.
+ * Options for configuring `TextTokenizer`.
  */
-export interface DefaultTokenizerOptions {
+export interface TextTokenizerOptions {
   /** Multiplier for sentence-ending punctuation (`.`, `!`, `?`). Defaults to `2.0`. */
   readonly sentenceDurationMultiplier?: number;
   /** Multiplier for clause-ending punctuation (`,`, `;`, `:`). Defaults to `1.5`. */
   readonly clauseDurationMultiplier?: number;
   /** Multiplier for dashes (`—`, `–`). Defaults to `1.3`. */
   readonly dashDurationMultiplier?: number;
-  /** Whether array elements and nested inputs should be recursively tokenized. Defaults to `false`. */
-  readonly nestedTokenize?: boolean;
   /** Strategy used to calculate viewing positions for string tokens. */
   readonly ovpStrategy?: OvpStrategy;
 }
 
 /**
- * Default configurable tokenizer for text, items, and array inputs.
- * Splits text on whitespace and assigns duration multipliers based on punctuation.
- * Wraps generic values or arrays into source tokens.
- * @typeParam T - The type of items being presented (defaults to `string`).
+ * Converts text or a flat array of texts into words with viewing offsets and punctuation timing.
+ * Each text is segmented independently; empty texts produce no tokens.
  */
-export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
+export class TextTokenizer implements TokenizerStrategy<string> {
   readonly #sentenceDurationMultiplier: number;
   readonly #clauseDurationMultiplier: number;
   readonly #dashDurationMultiplier: number;
-  readonly #nestedTokenize: boolean;
   readonly #ovpStrategy: OvpStrategy;
 
-  constructor(options: DefaultTokenizerOptions = {}) {
+  constructor(options: TextTokenizerOptions = {}) {
     this.#sentenceDurationMultiplier = options.sentenceDurationMultiplier ?? 2.0;
     this.#clauseDurationMultiplier = options.clauseDurationMultiplier ?? 1.5;
     this.#dashDurationMultiplier = options.dashDurationMultiplier ?? 1.3;
-    this.#nestedTokenize = options.nestedTokenize ?? false;
     this.#ovpStrategy = options.ovpStrategy ?? new DefaultOvpStrategy();
     this.#validateOptions();
   }
 
-  public tokenize(input: T | T[]): Omit<Token<T>, "meta">[] {
-    if (input === null || input === undefined) {
-      return [];
+  /**
+   * Segments each text independently and concatenates its words in input order.
+   * @throws InvalidInputError - When input is not text or a flat, dense array of texts.
+   */
+  public tokenize(input: string | string[]): Omit<Token<string>, "meta">[] {
+    const texts = typeof input === "string" ? [input] : input;
+    if (!Array.isArray(texts)) {
+      throw new InvalidInputError({
+        message: "TextTokenizer expects a string or a flat array of strings.",
+      });
     }
-
-    if (Array.isArray(input)) {
-      return this.#tokenizeArray(input);
+    for (const text of texts) {
+      if (typeof text !== "string") {
+        throw new InvalidInputError({
+          message: "TextTokenizer expects a string or a flat array of strings.",
+        });
+      }
     }
-
-    if (typeof input === "string") {
-      return this.#tokenizeText(input) as Omit<Token<T>, "meta">[];
-    }
-
-    return [
-      {
-        value: input,
-        ovpIndex: 0,
-        durationMultiplier: this.#calculateDurationMultiplier(input),
-      },
-    ];
-  }
-
-  #tokenizeArray(values: T[]): Omit<Token<T>, "meta">[] {
-    if (this.#nestedTokenize) {
-      return values.flatMap((value) => this.tokenize(value));
-    }
-
-    return values.map((value) => ({
-      value,
-      ovpIndex: typeof value === "string" ? this.#ovpStrategy.calculate(value) : 0,
-      durationMultiplier: this.#calculateDurationMultiplier(value),
-    }));
+    return texts.flatMap((text) => this.#tokenizeText(text));
   }
 
   #tokenizeText(text: string): Omit<Token<string>, "meta">[] {
@@ -90,20 +71,16 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     }));
   }
 
-  #calculateDurationMultiplier(value: unknown): number {
-    if (typeof value === "string") {
-      if (/[.!?。！？…]+[\p{Pe}\p{Pf}"']*$/u.test(value)) {
-        return this.#sentenceDurationMultiplier;
-      }
-      if (/[,;:，、；：]+[\p{Pe}\p{Pf}"']*$/u.test(value)) {
-        return this.#clauseDurationMultiplier;
-      }
-      if (/\p{Pd}+[\p{Pe}\p{Pf}"']*$/u.test(value)) {
-        return this.#dashDurationMultiplier;
-      }
-      return 1.0;
+  #calculateDurationMultiplier(value: string): number {
+    if (/[.!?。！？…]+[\p{Pe}\p{Pf}"']*$/u.test(value)) {
+      return this.#sentenceDurationMultiplier;
     }
-
+    if (/[,;:，、；：]+[\p{Pe}\p{Pf}"']*$/u.test(value)) {
+      return this.#clauseDurationMultiplier;
+    }
+    if (/\p{Pd}+[\p{Pe}\p{Pf}"']*$/u.test(value)) {
+      return this.#dashDurationMultiplier;
+    }
     return 1.0;
   }
 

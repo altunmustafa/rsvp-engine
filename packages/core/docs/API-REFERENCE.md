@@ -20,7 +20,7 @@ Construction starts an empty session and accepts optional configuration for any 
 | `timeDriver` | `TimeDriver` | `SystemTimeDriver` | Clock used by scheduling and pause/resume accounting. |
 | `onError` | `(error: EngineError \| ListenerError) => void` | asynchronous host reporting | Handles timer and listener failures; command failures are thrown. |
 
-The constructor does not tokenize input. `load()` without a configured tokenizer throws nonfatal `MissingTokenizerError`, preserving the session and cached snapshot without notifying. It is not wrapped in `TokenizationError`. Existing lifecycle restrictions still apply: loading is rejected in `PLAYING`, `ERROR`, or after destruction. `loadTokens()` requires no tokenizer. Select `DefaultTokenizer` explicitly for built-in conversion.
+The constructor does not tokenize input. `load()` without a configured tokenizer throws nonfatal `MissingTokenizerError`, preserving the session and cached snapshot without notifying. It is not wrapped in `TokenizationError`. Existing lifecycle restrictions still apply: loading is rejected in `PLAYING`, `ERROR`, or after destruction. `loadTokens()` requires no tokenizer. Select `TextTokenizer` explicitly for built-in conversion.
 
 ### Playback methods
 
@@ -182,9 +182,9 @@ Fatal tokenization or loading failures clear the session before publication, inc
 
 ## Tokenization
 
-`DefaultTokenizer` uses `Intl.Segmenter` for word boundaries when the runtime provides it and falls back to whitespace segmentation. `DefaultOvpStrategy` produces grapheme-aware JavaScript string offsets so consumers can safely use `slice()`.
+`TextTokenizer` is a non-generic `TokenizerStrategy<string>`. It accepts `string | string[]`, segments each text independently, and combines words in input order. Empty strings, whitespace-only strings, and empty arrays produce no tokens. It uses `Intl.Segmenter` for word boundaries when the runtime provides it and falls back to whitespace segmentation. Other values, mixed arrays, nested arrays, and sparse arrays throw `InvalidInputError` when tokenized directly. Through `load()`, tokenizer failures follow the fatal `TokenizationError` contract. `DefaultOvpStrategy` produces grapheme-aware JavaScript string offsets so consumers can safely use `slice()`.
 
-Supported options are `sentenceDurationMultiplier`, `clauseDurationMultiplier`, `dashDurationMultiplier`, `nestedTokenize`, and `ovpStrategy`. Duration multipliers must be positive and finite. Custom OVP strategies implement `OvpStrategy` and can be injected without replacing the tokenizer:
+Supported options are `sentenceDurationMultiplier`, `clauseDurationMultiplier`, `dashDurationMultiplier`, and `ovpStrategy`. Duration multipliers must be positive and finite. Custom OVP strategies implement `OvpStrategy` and can be injected without replacing the tokenizer:
 
 ```typescript
 class LastCharacterOvpStrategy implements OvpStrategy {
@@ -193,7 +193,7 @@ class LastCharacterOvpStrategy implements OvpStrategy {
   }
 }
 
-const tokenizer = new DefaultTokenizer({
+const tokenizer = new TextTokenizer({
   ovpStrategy: new LastCharacterOvpStrategy(),
 });
 ```
@@ -206,11 +206,11 @@ const tokenizer = new DefaultTokenizer({
 
 `TMeta` is inferred from the configured tokenizer or supplied explicitly. It defaults to `unknown`, including when only `<T>` is specified. Metadata is optional exactly when `undefined` is assignable to `TMeta`; otherwise every token must carry it. The tokenizer is optional independently of metadata presence, and any supplied tokenizer must produce compatible tokens. These are TypeScript requirements; metadata has no shape restriction or runtime validation.
 
-The same fixed type reaches items, snapshots, subscriptions, and `loadTokens()`. For `TMeta = SourceSpan`, a non-null item's `meta` is a `SourceSpan`. `SourceSpan | undefined` permits metadata-free tokens and an explicitly supplied `DefaultTokenizer`. `currentItem` may still be null for an empty session, regardless of metadata type.
+The same fixed type reaches items, snapshots, subscriptions, and `loadTokens()`. For `TMeta = SourceSpan`, a non-null item's `meta` is a `SourceSpan`. `SourceSpan | undefined` permits metadata-free tokens and an explicitly supplied `TextTokenizer`. `currentItem` may still be null for an empty session, regardless of metadata type.
 
 Loading copies only the declared token fields, preserving a supplied `meta` by reference and distinguishing absence from explicit `undefined`. Presentation overrides retain that reference. Metadata is not cloned, deeply frozen, or observed for mutations; applications must treat it as immutable while in use.
 
-`DefaultTokenizer<T>.tokenize()` returns `Omit<Token<T>, "meta">[]` and never adds metadata. Applications supply source spans through custom tokenizers or pre-tokenized input; Core defines no span format or sentence navigation. See the [source-span example](../README.md#application-metadata) for consumer-defined UTF-16 `[start, end)` offsets.
+`TextTokenizer.tokenize()` returns `Omit<Token<string>, "meta">[]` and never adds metadata. Applications supply source spans through custom tokenizers or pre-tokenized input; Core defines no span format or sentence navigation. See the [source-span example](../README.md#application-metadata) for consumer-defined UTF-16 `[start, end)` offsets.
 
 ### Runtime OVP preferences
 

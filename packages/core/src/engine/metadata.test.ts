@@ -2,7 +2,7 @@ import type { Token, TokenizerStrategy } from "../tokenizer/types";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
+import { TextTokenizer } from "../tokenizer/text-tokenizer";
 
 import { RsvpEngine } from "./rsvp-engine";
 
@@ -55,7 +55,7 @@ describe("consumer-defined token metadata", () => {
 
   it("does not add metadata to tokens that omit it, including default-tokenized input", () => {
     const engine = new RsvpEngine<string, SourceSpan | undefined>({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     engine.load("echo");
     expect(Object.hasOwn(engine.currentItem!, "meta")).toBe(false);

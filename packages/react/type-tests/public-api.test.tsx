@@ -1,23 +1,23 @@
-import type {
-  RsvpActions,
-  RsvpController,
-  RsvpControllerSnapshot,
-  RsvpEventType,
-  RsvpSnapshot,
-  RsvpTiming,
-} from "../src";
+import type { RsvpActions, RsvpController, RsvpControllerSnapshot } from "../src";
+import type { RsvpEventType, RsvpSnapshot, RsvpTiming } from "../src/core";
 import type { ReactNode } from "react";
 
-import { DefaultTokenizer } from "@rsvp-engine/core";
-
 import { createRsvpContext, createRsvpController } from "../src";
+import { TextTokenizer } from "../src/core";
 
 const numberController = createRsvpController({
-  tokenizer: new DefaultTokenizer<number>(),
+  tokenizer: {
+    tokenize: (input: number | number[]) =>
+      (Array.isArray(input) ? input : [input]).map((value) => ({
+        value,
+        ovpIndex: 0,
+        durationMultiplier: 1,
+      })),
+  },
 });
 numberController.load([1, 2, 3]);
 const stringController = createRsvpController({
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
 });
 stringController.load("one two");
 const typedController: RsvpController<number> = numberController;

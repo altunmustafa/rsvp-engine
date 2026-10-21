@@ -4,7 +4,7 @@ import type { SchedulerStrategy } from "../scheduler/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InvalidInputError, ListenerError, PlaybackSchedulingError } from "../errors";
-import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
+import { TextTokenizer } from "../tokenizer/text-tokenizer";
 
 import { RsvpEngine } from "./rsvp-engine";
 
@@ -17,7 +17,7 @@ describe("subscription event types", () => {
 
   it("distinguishes starting, resuming, advancement, navigation, and completion", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("one two three");
@@ -55,7 +55,7 @@ describe("subscription event types", () => {
 
   it.each(["load", "loadTokens"] as const)("reports successful %s once", (method) => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     engine.load("old");
     const listener = vi.fn();
@@ -71,7 +71,7 @@ describe("subscription event types", () => {
 
   it("reports effective speed and presentation changes, skipping no-ops and rejected commands", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("one two");
@@ -94,7 +94,7 @@ describe("subscription event types", () => {
   it("throws invalid controls without notifying subscribers or onError", () => {
     const onError = vi.fn();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       onError,
     });
     engine.load("one");
@@ -128,7 +128,7 @@ describe("subscription event types", () => {
     };
     const onError = vi.fn();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       scheduler,
       wpm: 600,
       onError,
@@ -149,7 +149,7 @@ describe("subscription event types", () => {
     engine.destroy();
 
     const failed = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       onError,
       scheduler: {
         cancel: vi.fn(),
@@ -169,7 +169,7 @@ describe("subscription event types", () => {
 
   it("keeps every reentrant notification paired with its snapshot, in order", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("one two");
@@ -203,7 +203,7 @@ describe("subscription event types", () => {
   it("reports a resume scheduling failure without a resumed notification", () => {
     let schedules = 0;
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       scheduler: {
         cancel: vi.fn(),
         schedule: () => {
@@ -227,7 +227,7 @@ describe("subscription event types", () => {
   it("reports subscriber failures and delivers pending notifications in order", () => {
     const onError = vi.fn();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       onError,
     });
     engine.load("one");
@@ -262,7 +262,7 @@ describe("subscription event types", () => {
     (caught) => {
       const onError = vi.fn();
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         onError,
       });
       engine.load("one");

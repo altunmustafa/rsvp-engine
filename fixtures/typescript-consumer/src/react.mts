@@ -1,4 +1,5 @@
-import { DefaultTokenizer } from "@rsvp-engine/core";
+import { createRsvpContext, createRsvpController } from "@rsvp-engine/react";
+import { TextTokenizer } from "@rsvp-engine/react/core";
 import {
   EngineError,
   type EngineErrorOptions,
@@ -10,9 +11,7 @@ import {
   type RsvpEventType,
   SessionLoadError,
   TokenizationError,
-  createRsvpContext,
-  createRsvpController,
-} from "@rsvp-engine/react";
+} from "@rsvp-engine/react/core";
 
 const errorOptions: EngineErrorOptions = { cause: new Error("source failure"), isFatal: true };
 new EngineError("Consumer failure", errorOptions);
@@ -31,7 +30,7 @@ const operationErrors: EngineError[] = [
 void operationErrors;
 
 const controller = createRsvpController({
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
   wpm: 225,
   onError: (error) => {
     const failure: EngineError | ListenerError = error;

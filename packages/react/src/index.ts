@@ -14,42 +14,5 @@ export type {
   RsvpEqualityFn,
   RsvpProviderProps,
   RsvpSelector,
-  RsvpStoreListener,
   UseRsvpSelector,
 } from "./types";
-
-export {
-  DEFAULT_WPM,
-  EngineDestroyedError,
-  EngineError,
-  IndexOutOfBoundsError,
-  InvalidInputError,
-  InvalidTransitionError,
-  ItemSelectionError,
-  ListenerError,
-  MissingTokenizerError,
-  MAX_MS_PER_ITEM,
-  MAX_WPM,
-  MIN_MS_PER_ITEM,
-  MIN_WPM,
-  PlaybackSchedulingError,
-  SessionLoadError,
-  TokenizationError,
-} from "@rsvp-engine/core";
-
-export type {
-  EngineErrorOptions,
-  ErrorOptionsWithMessage,
-  OvpStrategy,
-  RsvpEventType,
-  RsvpItem,
-  RsvpEngineOptions,
-  RsvpSnapshot,
-  RsvpTiming,
-  RsvpState,
-  SchedulerStrategy,
-  TimeDriver,
-  Token,
-  TokenizerStrategy,
-  UnsubscribeFn,
-} from "@rsvp-engine/core";

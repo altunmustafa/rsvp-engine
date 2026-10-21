@@ -1,8 +1,8 @@
 import {
-  DefaultTokenizer,
   RsvpEngine,
   type RsvpEventType,
   type RsvpSnapshot,
+  TextTokenizer,
 } from "@rsvp-engine/core";
 
 import "./styles.css";
@@ -21,7 +21,7 @@ const domElements = {
 };
 
 const engine = new RsvpEngine({
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
   wpm: domElements.wpmInput.valueAsNumber,
   onError: showError,
 });

@@ -26,8 +26,8 @@ export type { StateMachineAction } from "./state/types";
 // Tokenizer & OVP
 export type { OvpStrategy, Token, TokenizerStrategy } from "./tokenizer/types";
 export { DefaultOvpStrategy } from "./tokenizer/default-ovp-strategy";
-export { DefaultTokenizer } from "./tokenizer/default-tokenizer";
-export type { DefaultTokenizerOptions } from "./tokenizer/default-tokenizer";
+export { TextTokenizer } from "./tokenizer/text-tokenizer";
+export type { TextTokenizerOptions } from "./tokenizer/text-tokenizer";
 
 // Scheduler & Time Driver
 export type { SchedulerStrategy, TimeDriver } from "./scheduler/types";

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DefaultTokenizer } from "./tokenizer/default-tokenizer";
+import { TextTokenizer } from "./tokenizer/text-tokenizer";
 
 import { EngineDestroyedError, InvalidTransitionError, RsvpEngine } from "./index";
 
@@ -16,7 +16,7 @@ describe("Public API integration", () => {
 
   it("completes a full playback lifecycle successfully", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("This is a complete test.");
@@ -73,7 +73,7 @@ describe("Public API integration", () => {
 
   it("handles seeking and navigation accurately", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     engine.load("one two three four");
@@ -104,7 +104,7 @@ describe("Public API integration", () => {
 
   it("gracefully handles errors and destroys", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 300,
     });
     engine.load("hello");

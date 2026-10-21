@@ -28,5 +28,5 @@ Package verification includes the [TypeScript consumer fixture](../../fixtures/t
 - Write the behavior-defining test before its implementation.
 - Cover valid state transitions and invalid-transition behavior.
 - Use fake timers for scheduling tests, including delayed callbacks and drift recovery.
-- Cover tokenizer boundaries such as empty input, whitespace, punctuation, and non-string tokens.
+- Cover tokenizer boundaries such as empty input, whitespace, punctuation, text arrays, and invalid runtime input.
 - Restore timers and mocks and remove subscriptions after each test.
