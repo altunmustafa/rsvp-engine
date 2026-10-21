@@ -28,6 +28,7 @@
     "verify": "turbo run verify"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",

@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
-  "changelog": "@changesets/cli/changelog",
+  "changelog": [
+    "@changesets/changelog-github",
+    { "repo": "altunmustafa/rsvp-engine", "disableThanks": true }
+  ],
   "commit": false,
   "format": "auto",
   "fixed": [],
