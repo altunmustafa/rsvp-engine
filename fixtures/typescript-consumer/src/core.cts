@@ -4,6 +4,7 @@ import {
   type ErrorOptionsWithMessage,
   ItemSelectionError,
   ListenerError,
+  MissingTokenizerError,
   PlaybackSchedulingError,
   RsvpEngine,
   type RsvpEventType,
@@ -24,6 +25,7 @@ const optionsWithMessage: ErrorOptionsWithMessage = {
 };
 new ListenerError("advanced", optionsWithMessage);
 const operationErrors: EngineError[] = [
+  new MissingTokenizerError(optionsWithMessage),
   new TokenizationError(),
   new SessionLoadError(optionsWithMessage),
   new ItemSelectionError(1),

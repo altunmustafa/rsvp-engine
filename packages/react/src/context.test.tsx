@@ -1,5 +1,6 @@
 import type { PropsWithChildren, ReactNode } from "react";
 
+import { DefaultTokenizer } from "@rsvp-engine/core";
 import { cleanup, render, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode, act } from "react";
 import { renderToString } from "react-dom/server";
@@ -17,8 +18,61 @@ afterEach(() => {
 });
 
 describe("context-bound React bindings", () => {
+  it("preserves metadata through actions and skips metadata renders for OVP-only changes", () => {
+    const first = { start: 0, end: 5 };
+    const second = { start: 6, end: 11 };
+    const controller = createRsvpController({
+      tokenizer: {
+        tokenize: () => [
+          { value: "hello", ovpIndex: 2, durationMultiplier: 1, meta: first },
+          { value: "world", ovpIndex: 2, durationMultiplier: 1, meta: second },
+        ],
+      },
+    });
+    controller.load("hello world");
+    const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<
+      string,
+      typeof first
+    >();
+    const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
+      <RsvpProvider controller={controller}>{children}</RsvpProvider>
+    );
+    let renders = 0;
+    const { result, unmount } = renderHook(
+      () => {
+        renders++;
+        return {
+          meta: useRsvpSelector((snapshot) => snapshot.currentItem?.meta),
+          actions: useRsvpActions(),
+        };
+      },
+      { wrapper: Wrapper },
+    );
+    const actions = result.current.actions;
+    expect(result.current.meta).toBe(first);
+    act(() => actions.setOvpStrategy({ calculate: () => 0 }));
+    expect(controller.getSnapshot().currentItem?.ovpIndex).toBe(0);
+    expect(result.current.meta).toBe(first);
+    expect(renders).toBe(1);
+    act(() => actions.seek(1));
+    expect(result.current.meta).toBe(second);
+    expect(renders).toBe(2);
+    const replacement = { start: 12, end: 17 };
+    act(() =>
+      actions.loadTokens([
+        { value: "again", ovpIndex: 0, durationMultiplier: 1, meta: replacement },
+      ]),
+    );
+    expect(result.current.meta).toBe(replacement);
+    unmount();
+    controller.destroy();
+  });
+
   it("exposes stable OVP actions and rerenders only selectors whose presentation changes", () => {
-    const controller = createRsvpController({ data: "hello world" });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    controller.load("hello world");
     const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<string>();
     let timingRenders = 0;
     function Timing(): ReactNode {
@@ -50,7 +104,9 @@ describe("context-bound React bindings", () => {
   });
 
   it("preserves exact slider values through speed actions and selectors", () => {
-    const controller = createRsvpController();
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
     const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<string>();
     const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
       <RsvpProvider controller={controller}>{children}</RsvpProvider>
@@ -70,7 +126,11 @@ describe("context-bound React bindings", () => {
   });
 
   it("rerenders only when the selected value changes", () => {
-    const controller = createRsvpController({ data: "one two", wpm: 300 });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 300,
+    });
+    controller.load("one two");
     const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();
     let renders = 0;
 
@@ -97,7 +157,11 @@ describe("context-bound React bindings", () => {
   });
 
   it("supports a custom equality function for derived selector values", () => {
-    const controller = createRsvpController({ data: "one two", wpm: 300 });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 300,
+    });
+    controller.load("one two");
     const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();
     const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
       <RsvpProvider controller={controller}>{children}</RsvpProvider>
@@ -122,7 +186,9 @@ describe("context-bound React bindings", () => {
   });
 
   it("returns stable actions without subscribing to state changes", () => {
-    const controller = createRsvpController<string>();
+    const controller = createRsvpController<string>({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
     const subscribe = vi.spyOn(controller, "subscribe");
     const { RsvpProvider, useRsvpActions } = createRsvpContext<string>();
     const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
@@ -142,7 +208,10 @@ describe("context-bound React bindings", () => {
   });
 
   it("exposes the provided controller as a non-reactive escape hatch", () => {
-    const controller = createRsvpController<number>({ data: [1, 2] });
+    const controller = createRsvpController<number>({
+      tokenizer: new DefaultTokenizer<number>(),
+    });
+    controller.load([1, 2]);
     const subscribe = vi.spyOn(controller, "subscribe");
     const { RsvpProvider, useRsvpController } = createRsvpContext<number>();
     const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
@@ -156,8 +225,14 @@ describe("context-bound React bindings", () => {
   });
 
   it("switches selector subscriptions when the Provider controller changes", () => {
-    const first = createRsvpController({ wpm: 300 });
-    const second = createRsvpController({ wpm: 600 });
+    const first = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 300,
+    });
+    const second = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
     const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();
     function Speed(): ReactNode {
       return <span>{useRsvpSelector((snapshot) => snapshot.wpm)}</span>;
@@ -185,7 +260,9 @@ describe("context-bound React bindings", () => {
   });
 
   it("balances Strict Mode selector subscriptions and cleanup", () => {
-    const controller = createRsvpController<string>();
+    const controller = createRsvpController<string>({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
     const originalSubscribe = controller.subscribe;
     const cleanups: ReturnType<typeof vi.fn>[] = [];
     const subscribe = vi
@@ -216,7 +293,11 @@ describe("context-bound React bindings", () => {
 
   it("unsubscribes on unmount without stopping playback", () => {
     vi.useFakeTimers();
-    const controller = createRsvpController({ data: "one two", wpm: 600 });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    controller.load("one two");
     const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();
     const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
       <RsvpProvider controller={controller}>{children}</RsvpProvider>
@@ -239,7 +320,10 @@ describe("context-bound React bindings", () => {
   });
 
   it("never destroys the externally owned Provider controller", () => {
-    const controller = createRsvpController<number>({ data: [1, 2] });
+    const controller = createRsvpController<number>({
+      tokenizer: new DefaultTokenizer<number>(),
+    });
+    controller.load([1, 2]);
     const destroy = vi.spyOn(controller, "destroy");
     const { RsvpProvider, useRsvpActions } = createRsvpContext<number>();
     const Wrapper = ({ children }: PropsWithChildren): ReactNode => (
@@ -265,12 +349,20 @@ describe("context-bound React bindings", () => {
     );
   });
 
-  it("selects from the construction snapshot for SSR and live state after hydration", async () => {
-    const controller = createRsvpController({ data: "one two", wpm: 300 });
-    const { RsvpProvider, useRsvpSelector } = createRsvpContext<string>();
+  it("hydrates empty server content with live metadata and speed", async () => {
+    interface SourceSpan {
+      readonly start: number;
+      readonly end: number;
+    }
+    const controller = createRsvpController<string, SourceSpan>({ wpm: 300 });
+    controller.loadTokens([
+      { value: "later", ovpIndex: 0, durationMultiplier: 1, meta: { start: 10, end: 15 } },
+    ]);
+    const { RsvpProvider, useRsvpSelector } = createRsvpContext<string, SourceSpan>();
     const View = (): ReactNode => {
       const wpm = useRsvpSelector((snapshot) => snapshot.wpm);
-      return <span>{wpm}</span>;
+      const span = useRsvpSelector((snapshot) => snapshot.currentItem?.meta);
+      return <span>{`${wpm}:${span?.start ?? ""}`}</span>;
     };
     controller.setWpm(600);
 
@@ -280,14 +372,14 @@ describe("context-bound React bindings", () => {
       </RsvpProvider>
     );
     const serverMarkup = renderToString(tree);
-    expect(serverMarkup).toContain("300");
+    expect(serverMarkup).toBe("<span>300:</span>");
 
     const container = globalThis.document.createElement("div");
     container.innerHTML = serverMarkup;
     globalThis.document.body.append(container);
     const rendered = render(tree, { container, hydrate: true });
 
-    await waitFor(() => expect(rendered.container.textContent).toBe("600"));
+    await waitFor(() => expect(rendered.container.textContent).toBe("600:10"));
     rendered.unmount();
     container.remove();
     controller.destroy();

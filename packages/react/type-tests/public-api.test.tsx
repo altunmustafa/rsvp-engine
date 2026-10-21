@@ -8,10 +8,18 @@ import type {
 } from "../src";
 import type { ReactNode } from "react";
 
+import { DefaultTokenizer } from "@rsvp-engine/core";
+
 import { createRsvpContext, createRsvpController } from "../src";
 
-const numberController = createRsvpController({ data: [1, 2, 3] });
-const stringController = createRsvpController({ data: "one two" });
+const numberController = createRsvpController({
+  tokenizer: new DefaultTokenizer<number>(),
+});
+numberController.load([1, 2, 3]);
+const stringController = createRsvpController({
+  tokenizer: new DefaultTokenizer<string>(),
+});
+stringController.load("one two");
 const typedController: RsvpController<number> = numberController;
 const coreStore: RsvpSnapshot<number> = typedController.getSnapshot();
 const controllerStore: RsvpControllerSnapshot<number> = coreStore;

@@ -7,13 +7,13 @@ Headless React bindings for `@rsvp-engine/core`. A controller owns playback; typ
 Using npm:
 
 ```bash
-npm install @rsvp-engine/react react
+npm install @rsvp-engine/react @rsvp-engine/core react
 ```
 
 Using pnpm:
 
 ```bash
-pnpm add @rsvp-engine/react react
+pnpm add @rsvp-engine/react @rsvp-engine/core react
 ```
 
 React is a peer dependency; supported versions and runtime requirements are declared in [package.json](package.json).
@@ -23,9 +23,11 @@ React is a peer dependency; supported versions and runtime requirements are decl
 Create the context bundle once at module scope. This example uses a controller owned by a single client-side application:
 
 ```tsx
+import { DefaultTokenizer } from "@rsvp-engine/core";
 import { createRsvpContext, createRsvpController } from "@rsvp-engine/react";
 
-const controller = createRsvpController({ data: "Read this text", wpm: 300 });
+const controller = createRsvpController({ tokenizer: new DefaultTokenizer<string>(), wpm: 300 });
+controller.load("Read this text");
 const { RsvpProvider, useRsvpSelector, useRsvpActions } = createRsvpContext<string>();
 
 function Word() {
@@ -88,14 +90,13 @@ const status = useRsvpSelector(
 
 ## Controller API
 
-`createRsvpController<T = string>(options?)` creates one Core engine. Its optional `RsvpControllerOptions<T>` accept:
+`createRsvpController<T = string, TMeta = unknown>(options?)` creates an empty Core engine with optional `RsvpControllerOptions<T, TMeta>`. Supply a tokenizer to use `load()`, or use `loadTokens()` without one. No tokenizer is selected automatically. Install `@rsvp-engine/core` directly when importing concrete strategies such as `DefaultTokenizer`.
 
 | Option | Purpose |
 | --- | --- |
-| `data: T \| T[]` | Initial input; omit to start empty. |
 | `wpm: number` | Base items per minute; defaults to `DEFAULT_WPM`. |
 | `msPerItem: number` | Base duration; takes precedence over `wpm`. |
-| `tokenizer: TokenizerStrategy<T>` | Converts input into tokens; defaults to Core's `DefaultTokenizer`. |
+| `tokenizer: TokenizerStrategy<T, TMeta>` | Optional raw-input converter for `load()`; must produce tokens compatible with `TMeta`. |
 | `ovpStrategy: OvpStrategy` | Optional presentation override for strings loaded through `load()`. |
 | `scheduler: SchedulerStrategy` | Schedules playback; defaults to Core's drift-corrected scheduler. |
 | `timeDriver: TimeDriver` | Supplies clock and timers; defaults to Core's system driver. |
@@ -112,7 +113,7 @@ Available on the controller and through `useRsvpActions()`. All return `void`; i
 | `stop()` | Enters `STOPPED` at index/progress `0`, retaining items and restoring full duration. No-op in `IDLE`/`STOPPED`; invalid in `ERROR`. |
 | `seek(index)` | Selects a finite integer in `[0, totalItems)` from `IDLE`, `PAUSED`, `STOPPED`, or `COMPLETED`; enters `PAUSED` with a full item duration. |
 | `next()` / `previous()` | Moves one item while `PAUSED`; no-op at an endpoint. |
-| `load(data)` / `loadTokens(tokens)` | Replaces input and enters `IDLE`; rejected in `PLAYING` or `ERROR`. |
+| `load(data)` / `loadTokens(tokens)` | Replaces input and enters `IDLE`; rejected in `PLAYING` or `ERROR`. `load()` requires a configured tokenizer; `loadTokens()` does not. |
 | `setWpm(wpm)` / `setMsPerItem(ms)` | Changes future display periods, preserving the active or paused period. |
 | `setOvpStrategy(strategy)` | Sets the presentation override; `undefined` restores initial offsets. Rejected in `ERROR`. |
 | `reset()` | Valid only in `ERROR`; clears data and returns to empty `IDLE`. |
@@ -123,28 +124,28 @@ Speed inputs accept finite fractional values within the exported `MIN_WPM`/`MAX_
 
 ### Snapshots and subscriptions
 
-`RsvpControllerSnapshot<T>` is the readonly `RsvpSnapshot<T>` exposed to selectors.
+`RsvpControllerSnapshot<T, TMeta>` is the readonly `RsvpSnapshot<T, TMeta>` exposed to selectors.
 
 | Method | Behavior |
 | --- | --- |
 | `getSnapshot()` | Cached live snapshot; reference stays stable until observable state changes. |
-| `getServerSnapshot()` | Immutable construction-time snapshot for SSR. |
-| `subscribe(listener: RsvpStoreListener<T>)` | Calls `listener(snapshot, eventType)` synchronously on changes; returns an unsubscribe function. |
+| `getServerSnapshot()` | Immutable construction-time snapshot with empty content for SSR. |
+| `subscribe(listener: RsvpStoreListener<T, TMeta>)` | Calls `listener(snapshot, eventType)` synchronously on changes; returns an unsubscribe function. |
 | `destroy()` | Permanently cancels playback, clears session buffers, and removes all subscriptions; safe to repeat. |
 
-| Snapshot field                 | Meaning                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| `state`                        | `IDLE`, `PLAYING`, `PAUSED`, `STOPPED`, `COMPLETED`, or fatal `ERROR`.     |
-| `currentIndex` / `currentItem` | Zero-based selected position and `RsvpItem<T>`; `0` and `null` when empty. |
-| `progress` / `totalItems`      | Playback-position fraction and loaded item count.                          |
-| `wpm` / `msPerItem`            | Base rate and duration before item multipliers.                            |
-| `timing`                       | Frozen duration sample described below.                                    |
+| Snapshot field                 | Meaning                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| `state`                        | `IDLE`, `PLAYING`, `PAUSED`, `STOPPED`, `COMPLETED`, or fatal `ERROR`.            |
+| `currentIndex` / `currentItem` | Zero-based selected position and `RsvpItem<T, TMeta>`; `0` and `null` when empty. |
+| `progress` / `totalItems`      | Playback-position fraction and loaded item count.                                 |
+| `wpm` / `msPerItem`            | Base rate and duration before item multipliers.                                   |
+| `timing`                       | Frozen duration sample described below.                                           |
 
 Progress is `currentIndex / totalItems`, or `0` when empty, until `COMPLETED` sets it to `1`. The first item is presented immediately; completion waits for the final display period. Seeking measures position, not reading history. Use `state === "COMPLETED"` for completion.
 
 Direct subscriptions do not invoke listeners immediately; read `getSnapshot()` for initial state. Each notification carries a `RsvpEventType`: `loaded`, `started`, `resumed`, `paused`, `stopped`, `advanced`, `navigated`, `completed`, `speedChanged`, `ovpChanged`, `reset`, or `stateChanged`. Fatal failures publish `stateChanged`; no-ops and rejected nonfatal commands do not notify.
 
-Nested updates arrive in order; use the callback's snapshot because `getSnapshot()` may already reflect a nested command. Resuming an expired item publishes `advanced` or `completed` immediately. Snapshot and item objects are frozen; generic `value` objects are not deeply frozen.
+Nested updates arrive in order; use the callback's snapshot because `getSnapshot()` may already reflect a nested command. Resuming an expired item publishes `advanced` or `completed` immediately. Snapshot and item objects are frozen; application-owned `value` and `meta` objects are not deeply frozen.
 
 ### Duration estimates
 
@@ -162,9 +163,9 @@ Estimates exclude pauses and future host delays. For a countdown, share the cont
 
 ## Custom items and strategies
 
-Use the same item type for `createRsvpController<T>()` and `createRsvpContext<T>()`. The default tokenizer splits strings with `Intl.Segmenter` or a whitespace fallback; array elements and non-string values are individual items.
+Use matching item and metadata types for `createRsvpController<T, TMeta>()` and `createRsvpContext<T, TMeta>()`. Metadata defaults to `unknown`. The default tokenizer splits strings with `Intl.Segmenter` or a whitespace fallback; array elements and non-string values are individual items.
 
-A source `Token<T>` and its presented `RsvpItem<T>` share readonly fields: `value: T`, `ovpIndex: number`, and `durationMultiplier: number`. The OVP is a non-negative integer UTF-16 offset, at most the string length, suitable for `slice()`. Multipliers must be positive and finite; display duration is `msPerItem * durationMultiplier`. Read position through `currentIndex`.
+A source `Token<T, TMeta>` and its presented `RsvpItem<T, TMeta>` share readonly fields: `value: T`, `ovpIndex: number`, `durationMultiplier: number`, and application metadata `meta`. Metadata is required unless `TMeta` accepts `undefined`. The OVP is a non-negative integer UTF-16 offset, at most the string length, suitable for `slice()`. Multipliers must be positive and finite; display duration is `msPerItem * durationMultiplier`. Read position through `currentIndex`.
 
 Prepare asynchronous input outside the controller, then pass tokens to `loadTokens()`:
 
@@ -174,12 +175,47 @@ controller.loadTokens([{ value: "hello", ovpIndex: 2, durationMultiplier: 1 }]);
 
 | Strategy | Contract |
 | --- | --- |
-| `TokenizerStrategy<T>` | `tokenize(input: T \| T[]): Token<T>[]`; produces initial offsets and multipliers. |
+| `TokenizerStrategy<T, TMeta>` | `tokenize(input: T \| T[]): Token<T, TMeta>[]`; produces initial offsets, multipliers, and metadata governed by `TMeta`. |
 | `OvpStrategy` | `calculate(text: string): number`; chooses a viewing offset. |
 | `SchedulerStrategy` | `schedule(task: () => void, delayMs: number): void`; `cancel(): void`; optional `getDeadline(): number \| null` in the engine clock. |
 | `TimeDriver` | `now(): number` (finite milliseconds); `setTimeout(callback: () => void, ms: number): unknown`; `clearTimeout(handle: unknown): void`. |
 
 Core's concrete tokenizer, OVP, scheduler, and time-driver classes are available from `@rsvp-engine/core`. Injected instances stay externally owned. Tokenizer and OVP callbacks must be synchronous and side-effect-free; engine mutation inside them is rejected. Custom schedulers should share the engine clock; without a deadline, accounting is nominal. The default driver requires host timers.
+
+### Application metadata
+
+Attach application data through a custom tokenizer or `loadTokens()`. For example, a consumer-defined source span can use JavaScript UTF-16 `[start, end)` offsets:
+
+```tsx
+import type { ReactNode } from "react";
+import { createRsvpContext, createRsvpController } from "@rsvp-engine/react";
+
+interface SourceSpan {
+  readonly start: number;
+  readonly end: number;
+}
+
+const controller = createRsvpController<string, SourceSpan>();
+controller.loadTokens([{ value: "hello", ovpIndex: 2, durationMultiplier: 1, meta: { start: 0, end: 5 } }]);
+const { RsvpProvider, useRsvpSelector } = createRsvpContext<string, SourceSpan>();
+
+function SourceOffset(): ReactNode {
+  const span = useRsvpSelector((snapshot) => snapshot.currentItem?.meta);
+  return <span>{span?.start}</span>;
+}
+
+const reader = (
+  <RsvpProvider controller={controller}>
+    <SourceOffset />
+  </RsvpProvider>
+);
+```
+
+With `TMeta = SourceSpan`, every token from a configured tokenizer or `loadTokens()` must carry metadata. Once an item is non-null, its `meta` is a `SourceSpan`. `SourceSpan | undefined` permits metadata-free tokens and an explicitly supplied `DefaultTokenizer`. These are TypeScript requirements; metadata has no runtime schema validation.
+
+The same fixed metadata type reaches subscriptions, context actions, and selectors. A custom `TokenizerStrategy<T, TMeta>` lets `createRsvpController({ tokenizer })` infer both types. Explicit `<T>` alone leaves metadata as `unknown`, which also permits metadata-free tokens. `createRsvpContext<T, TMeta>()` fixes both types but creates no engine, so it never requires a tokenizer. Metadata may also be a primitive or a union.
+
+Core preserves metadata references through copying and OVP changes without cloning, deep freezing, or interpreting their contents. Keep metadata immutable while in use: in-place mutations do not notify subscribers. OVP-only changes do not rerender selectors that return the same metadata reference. The server snapshot has no current item or metadata. `DefaultTokenizer` does not supply metadata; source mapping and sentence navigation belong to the application.
 
 ### Presentation OVP overrides
 
@@ -198,11 +234,12 @@ Catch controller construction and synchronous command failures at their call sit
 
 ```typescript
 const reader = createRsvpController({
-  data: "Read this text",
+  tokenizer: new DefaultTokenizer<string>(),
   onError: (error) => console.error(error),
 });
 
 try {
+  reader.load("Read this text");
   reader.play();
 } catch (error) {
   console.error(error);
@@ -216,6 +253,7 @@ React re-exports the same Core error constructors for `instanceof` checks:
 | Error family | Meaning |
 | --- | --- |
 | `EngineError` | Base for command/playback errors; exposes readonly `isFatal` and original `cause`. |
+| `MissingTokenizerError` | `load()` needs a configured tokenizer; nonfatal and preserves the session and cached snapshot. Use `loadTokens()` for prepared input. |
 | `InvalidTransitionError`, `InvalidInputError`, `IndexOutOfBoundsError`, `EngineDestroyedError` | Rejected commands or input; ordinarily nonfatal. |
 | `TokenizationError`, `SessionLoadError` | Fatal input preparation or loading failure. |
 | `ItemSelectionError`, `PlaybackSchedulingError` | Fatal selection or scheduling failure. |
@@ -233,7 +271,7 @@ The application owns the controller. Provider/hook unmounts only detach subscrip
 
 Detach consumers and capture required snapshots before destruction. All post-destroy reads, including `getServerSnapshot()`, are unsupported; commands and new subscriptions throw `EngineDestroyedError`. Destruction removes all subscriptions without publishing a final update. Repeated destruction and existing unsubscribe functions are safe; captured snapshots remain unchanged. Cancellation failure still ends the lifetime before throwing.
 
-For SSR, create one controller per request and use matching initial data on server and client. Selectors use the construction-time server snapshot during SSR and live state after hydration.
+For SSR, create one controller per request and use matching configuration on server and client. Selectors use the construction-time snapshot with empty content during SSR and initial hydration, then switch to live state. Loading content does not change that server snapshot. A client-only application can load synchronously before rendering to show content on its first render.
 
 ## Migration
 
@@ -241,6 +279,7 @@ For upgrades across multiple major versions, apply these steps in version order.
 
 ### React 1 → 2
 
+- Remove factory `data` and call `load(data)` or `loadTokens(tokens)` after creating the controller. To keep built-in tokenization, explicitly supply Core's `DefaultTokenizer`; otherwise `load()` throws nonfatal `MissingTokenizerError`. SSR and initial hydration use empty content even when the live controller has been loaded.
 - React 2 uses Core 3. Catch all synchronous command failures and use `onError` for timer/listener failures. Replace `snapshot.error`, `clearError()`, `errorOccurred`, and `errorCleared` with application-owned diagnostics and `stateChanged` for fatal transitions.
 - Errors use the re-exported `EngineError` family and retain source failures in `cause`. Replace `new InvalidInputError(message)` with `new InvalidInputError({ message })`. Listener exceptions are isolated as `ListenerError`.
 - Include `ovpChanged` in exhaustive event handlers and `setOvpStrategy` in custom controller/action implementations. Tokenizer contracts and supplied offsets are unchanged.

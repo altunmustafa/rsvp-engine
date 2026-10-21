@@ -1,9 +1,11 @@
+import { DefaultTokenizer } from "@rsvp-engine/core";
 import {
   EngineError,
   type EngineErrorOptions,
   type ErrorOptionsWithMessage,
   ItemSelectionError,
   ListenerError,
+  MissingTokenizerError,
   PlaybackSchedulingError,
   type RsvpEventType,
   SessionLoadError,
@@ -20,6 +22,7 @@ const optionsWithMessage: ErrorOptionsWithMessage = {
 };
 new ListenerError("advanced", optionsWithMessage);
 const operationErrors: EngineError[] = [
+  new MissingTokenizerError(optionsWithMessage),
   new TokenizationError(optionsWithMessage),
   new SessionLoadError(),
   new ItemSelectionError(1, optionsWithMessage),
@@ -28,7 +31,7 @@ const operationErrors: EngineError[] = [
 void operationErrors;
 
 const controller = createRsvpController({
-  data: "one two",
+  tokenizer: new DefaultTokenizer<string>(),
   wpm: 225,
   onError: (error) => {
     const failure: EngineError | ListenerError = error;
@@ -41,6 +44,7 @@ const controller = createRsvpController({
     }
   },
 });
+controller.load("one two");
 controller.subscribe((snapshot, eventType) => {
   const event: RsvpEventType = eventType;
   void [snapshot.currentItem?.value, event];

@@ -28,7 +28,9 @@ flowchart LR
 
 `currentIndex` is the presented item, not the next scheduling cursor. A fresh `play()` presents index zero immediately, then schedules advancement using that item's multiplier. Pause stores the effective deadline delta; resume schedules that remaining duration or advances immediately when it has expired. Completion occurs only after the last item's display duration expires.
 
-The engine retains frozen source `Token<T>` copies and derives the selected `RsvpItem<T>` presentation without overwriting initial offsets. The two names share a structural type; position belongs to the engine and snapshot rather than the item. See [ADR-0015](./adr/0015-position-independent-presentation-items.md).
+The engine retains frozen source `Token<T, TMeta>` copies and derives the selected `RsvpItem<T, TMeta>` presentation without overwriting initial offsets. The two names share a structural type; position belongs to the engine and snapshot rather than the item. See [ADR-0015](./adr/0015-position-independent-presentation-items.md). Metadata remains application-owned and travels by reference with a fixed type that determines its presence; see [ADR-0021](./adr/0021-consumer-defined-token-metadata.md).
+
+Construction validates and assigns configuration directly, then creates timing and the snapshot once without calling public setters. It starts empty. Tokenizers are optional independently of metadata: `load()` requires an explicitly supplied converter, while `loadTokens()` does not. A missing tokenizer is a nonfatal command failure that preserves the session. React keeps empty content in its construction-time server snapshot; see [ADR-0022](./adr/0022-explicit-content-loading.md).
 
 Cached duration samples use duration-multiplier suffix sums: O(n) preparation on loading, then O(1) calculations on playback and speed changes. The application owns countdown rendering; see [ADR-0010](./adr/0010-event-sampled-playback-timing.md).
 
@@ -42,7 +44,7 @@ Destroy permanently ends the instance lifetime and clears session buffers and su
 
 ## Dependency injection
 
-- `TokenizerStrategy<T>` converts synchronous input into `Token<T>[]`, including initial offsets and duration multipliers.
+- `TokenizerStrategy<T, TMeta>` converts synchronous input into `Token<T, TMeta>[]`, including initial offsets, duration multipliers, and application metadata whose presence follows `TMeta`.
 - `OvpStrategy` selects a UTF-16 viewing-position offset. A tokenizer strategy runs during tokenization; an independent, optional engine strategy overrides the selected string's presentation.
 - `SchedulerStrategy` controls delayed task execution.
 - `TimeDriver` supplies the monotonic clock and timer host.

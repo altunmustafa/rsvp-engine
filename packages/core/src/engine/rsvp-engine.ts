@@ -19,6 +19,7 @@ import {
   InvalidInputError,
   ItemSelectionError,
   ListenerError,
+  MissingTokenizerError,
   PlaybackSchedulingError,
   SessionLoadError,
   TokenizationError,
@@ -26,28 +27,27 @@ import {
 import { DriftCorrectedScheduler } from "../scheduler/drift-corrected-scheduler";
 import { SystemTimeDriver } from "../scheduler/system-time-driver";
 import { StateMachine } from "../state/state-machine";
-import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
 
 import { DEFAULT_WPM } from "./config";
-import { validateMsPerItem, validateTokens, validateWpm } from "./validation";
+import { validateMsPerItem, validateOvpStrategy, validateTokens, validateWpm } from "./validation";
 
 interface SpeedSetting {
   readonly unit: "wpm" | "msPerItem";
   readonly value: number;
 }
 
-interface PresentationState<T> {
+interface PresentationState<T, TMeta> {
   index: number;
   // Cache the presentation result without overwriting tokenizer offsets.
-  item: RsvpItem<T> | null;
+  item: RsvpItem<T, TMeta> | null;
   // Used while PLAYING.
   deadlineAtMs: number;
   // Stored display duration before scheduling or while paused; PLAYING uses deadlineAtMs.
   remainingMs: number;
 }
 
-interface StoreNotification<T> {
-  readonly snapshot: RsvpSnapshot<T>;
+interface StoreNotification<T, TMeta> {
+  readonly snapshot: RsvpSnapshot<T, TMeta>;
   readonly eventType: RsvpEventType;
 }
 
@@ -63,22 +63,23 @@ class UndeliveredError extends AggregateError {
  * Headless playback engine with a synchronous observable store.
  * Reads after destroy are unsupported; commands and new subscriptions are rejected.
  * @typeParam T - The type of items being presented (defaults to string).
+ * @typeParam TMeta - Application metadata inferred from the tokenizer or supplied explicitly.
  */
-export class RsvpEngine<T = string> {
+export class RsvpEngine<T = string, TMeta = unknown> {
   readonly #stateMachine = new StateMachine();
   readonly #scheduler: SchedulerStrategy;
   readonly #timeDriver: TimeDriver;
-  readonly #tokenizer: TokenizerStrategy<T>;
-  readonly #onError: RsvpEngineOptions<T>["onError"];
+  readonly #tokenizer?: TokenizerStrategy<T, TMeta>;
+  readonly #onError: RsvpEngineOptions["onError"];
   #reportingError = false;
   // Overrides presentation when a string item is selected, independently of tokenizer OVP.
   // Retains the preference across sessions without changing stored token offsets.
   #ovpStrategy: OvpStrategy | undefined;
   #executingStrategy = false;
 
-  #tokens: Token<T>[] = [];
+  #tokens: Token<T, TMeta>[] = [];
   #isExternalTokens = false;
-  #presentation: PresentationState<T> = {
+  #presentation: PresentationState<T, TMeta> = {
     index: 0,
     item: null,
     deadlineAtMs: 0,
@@ -87,7 +88,7 @@ export class RsvpEngine<T = string> {
   // Each index stores the duration multiplier sum from that item through the final item.
   #suffixMultiplierSums = new Float64Array(1);
 
-  #speed: SpeedSetting = { unit: "wpm", value: DEFAULT_WPM };
+  #speed: SpeedSetting;
   #timing: RsvpTiming;
   // Seeking to the selected item can restart its duration without changing the item reference.
   #remainingTimeChanged = false;
@@ -95,33 +96,35 @@ export class RsvpEngine<T = string> {
   #scheduleRevision = 0;
 
   #destroyed = false;
-  #snapshot: RsvpSnapshot<T>;
-  readonly #listeners = new Set<RsvpStoreListener<T>>();
+  #snapshot: RsvpSnapshot<T, TMeta>;
+  readonly #listeners = new Set<RsvpStoreListener<T, TMeta>>();
   #notifying = false;
-  readonly #notificationQueue: StoreNotification<T>[] = [];
+  readonly #notificationQueue: StoreNotification<T, TMeta>[] = [];
 
-  constructor(options: RsvpEngineOptions<T> = {}) {
+  constructor(options: RsvpEngineOptions<T, TMeta> = {}) {
+    if (options.ovpStrategy !== undefined) {
+      validateOvpStrategy(options.ovpStrategy);
+    }
+    if (options.msPerItem !== undefined) {
+      validateMsPerItem(options.msPerItem);
+      this.#speed = { unit: "msPerItem", value: options.msPerItem };
+    } else if (options.wpm !== undefined) {
+      validateWpm(options.wpm);
+      this.#speed = { unit: "wpm", value: options.wpm };
+    } else {
+      this.#speed = { unit: "wpm", value: DEFAULT_WPM };
+    }
     this.#onError = options.onError;
     this.#timeDriver = options.timeDriver ?? new SystemTimeDriver();
+    this.#scheduler = options.scheduler ?? new DriftCorrectedScheduler(this.#timeDriver);
+    this.#tokenizer = options.tokenizer;
+    this.#ovpStrategy = options.ovpStrategy;
     this.#timing = Object.freeze({
       totalDurationMs: 0,
       remainingDurationMs: 0,
       sampledAtMs: this.#readTime(),
     });
-    this.#scheduler = options.scheduler ?? new DriftCorrectedScheduler(this.#timeDriver);
-    this.#tokenizer = options.tokenizer ?? new DefaultTokenizer<T>();
     this.#snapshot = this.#createSnapshot();
-    if (options.ovpStrategy !== undefined) {
-      this.setOvpStrategy(options.ovpStrategy);
-    }
-    if (options.msPerItem !== undefined) {
-      this.setMsPerItem(options.msPerItem);
-    } else if (options.wpm !== undefined) {
-      this.setWpm(options.wpm);
-    }
-    if (options.data !== undefined) {
-      this.load(options.data);
-    }
   }
 
   /** Permanently clears playback buffers and subscriptions. Safe to repeat. */
@@ -141,13 +144,17 @@ export class RsvpEngine<T = string> {
     }
   }
 
-  /** Tokenizes and loads data. */
+  /** Tokenizes and loads data. Throws a nonfatal MissingTokenizerError if no tokenizer was supplied. */
   public load(data: T | T[]): void {
     this.#execute(() => {
       this.#assertCanLoad();
-      let tokens: Token<T>[];
+      const tokenizer = this.#tokenizer;
+      if (!tokenizer) {
+        throw new MissingTokenizerError();
+      }
+      let tokens: Token<T, TMeta>[];
       try {
-        tokens = this.#runStrategy(() => this.#tokenizer.tokenize(data));
+        tokens = this.#runStrategy(() => tokenizer.tokenize(data));
       } catch (error) {
         this.#clearSessionData();
         throw new TokenizationError({ cause: error });
@@ -157,7 +164,7 @@ export class RsvpEngine<T = string> {
   }
 
   /** Loads source tokens. */
-  public loadTokens(tokens: Token<T>[]): void {
+  public loadTokens(tokens: Token<T, TMeta>[]): void {
     this.#execute(() => this.#loadTokens(tokens, true));
   }
 
@@ -284,8 +291,8 @@ export class RsvpEngine<T = string> {
           message: "Cannot set an OVP strategy while engine is ERROR.",
         });
       }
-      if (strategy !== undefined && typeof strategy?.calculate !== "function") {
-        throw new InvalidInputError({ message: "OVP strategy must provide a calculate function." });
+      if (strategy !== undefined) {
+        validateOvpStrategy(strategy);
       }
       const item = this.#createPresentationItem(
         this.#tokens[this.#presentation.index] ?? null,
@@ -320,7 +327,7 @@ export class RsvpEngine<T = string> {
   }
 
   /** Selected item, or null for empty data. */
-  public get currentItem(): RsvpItem<T> | null {
+  public get currentItem(): RsvpItem<T, TMeta> | null {
     return this.#presentation.item;
   }
 
@@ -349,13 +356,13 @@ export class RsvpEngine<T = string> {
   }
 
   /** Reads cached immutable playback state. Do not read after destroy. */
-  readonly getSnapshot = (): RsvpSnapshot<T> => this.#snapshot;
+  readonly getSnapshot = (): RsvpSnapshot<T, TMeta> => this.#snapshot;
 
   /**
    * Subscribes without invoking the callback immediately.
    * Synchronous listener failures are isolated and reported through onError or the host.
    */
-  readonly subscribe = (listener: RsvpStoreListener<T>): UnsubscribeFn => {
+  readonly subscribe = (listener: RsvpStoreListener<T, TMeta>): UnsubscribeFn => {
     this.#assertNotDestroyed();
     this.#listeners.add(listener);
     return () => {
@@ -371,15 +378,18 @@ export class RsvpEngine<T = string> {
     this.#remainingTimeChanged = false;
   }
 
-  #loadTokens(tokens: Token<T>[], isExternalTokens = false): void {
+  #loadTokens(tokens: Token<T, TMeta>[], isExternalTokens = false): void {
     this.#assertCanLoad();
     validateTokens(tokens);
-    const loadedTokens = tokens.map((token) =>
-      Object.freeze({
-        value: token.value,
-        ovpIndex: token.ovpIndex,
-        durationMultiplier: token.durationMultiplier,
-      }),
+    const loadedTokens = tokens.map(
+      (token) =>
+        // Field copying preserves metadata presence for both branches of the conditional token type.
+        Object.freeze({
+          value: token.value,
+          ovpIndex: token.ovpIndex,
+          durationMultiplier: token.durationMultiplier,
+          ...("meta" in token ? { meta: token.meta } : {}),
+        }) as Token<T, TMeta>,
     );
 
     try {
@@ -406,11 +416,14 @@ export class RsvpEngine<T = string> {
 
   // Derive a presentation without changing the stored token or playback state.
   // Strategy failures propagate to the caller's error policy.
-  #createPresentationItem(token: Token<T> | null, ovpStrategy?: OvpStrategy): RsvpItem<T> | null {
+  #createPresentationItem(
+    token: Token<T, TMeta> | null,
+    ovpStrategy?: OvpStrategy,
+  ): RsvpItem<T, TMeta> | null {
     if (token === null) {
       return null;
     }
-    let item: RsvpItem<T> = token;
+    let item: RsvpItem<T, TMeta> = token;
 
     if (ovpStrategy && typeof token.value === "string") {
       const text = token.value;
@@ -422,7 +435,7 @@ export class RsvpEngine<T = string> {
 
     if (item !== token) {
       validateTokens([item]);
-      return Object.freeze(item);
+      Object.freeze(item);
     }
 
     return item;
@@ -641,7 +654,7 @@ export class RsvpEngine<T = string> {
     }
   }
 
-  #createSnapshot(): RsvpSnapshot<T> {
+  #createSnapshot(): RsvpSnapshot<T, TMeta> {
     return Object.freeze({
       state: this.state,
       currentIndex: this.#presentation.index,

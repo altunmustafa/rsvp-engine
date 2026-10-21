@@ -1,25 +1,26 @@
 # API Reference: `@rsvp-engine/core`
 
-## `RsvpEngine<T = string>`
+## `RsvpEngine<T = string, TMeta = unknown>`
 
 ```typescript
-new RsvpEngine<T>(options?: RsvpEngineOptions<T>)
+new RsvpEngine<T, TMeta>(options?: RsvpEngineOptions<T, TMeta>)
 ```
+
+Construction starts an empty session and accepts optional configuration for any metadata type. Supply a compatible tokenizer to use `load()`, or use `loadTokens()` without one.
 
 ### Options
 
 | Option | Type | Default | Purpose |
 | --- | --- | --- | --- |
-| `data` | `T \| T[]` | none | Synchronously tokenized initial data. |
 | `wpm` | `number` | `300` | Items per minute, from `1` through `6000`. |
 | `msPerItem` | `number` | derived | Direct base duration; takes precedence over `wpm`. |
-| `tokenizer` | `TokenizerStrategy<T>` | `DefaultTokenizer` | Synchronous tokenization strategy. |
+| `tokenizer` | `TokenizerStrategy<T, TMeta>` | none | Optional converter for raw input passed to `load()`. |
 | `ovpStrategy` | `OvpStrategy` | none | Per-selected-string presentation override for `load()` sessions. |
 | `scheduler` | `SchedulerStrategy` | `DriftCorrectedScheduler` | Timer scheduling strategy. |
 | `timeDriver` | `TimeDriver` | `SystemTimeDriver` | Clock used by scheduling and pause/resume accounting. |
 | `onError` | `(error: EngineError \| ListenerError) => void` | asynchronous host reporting | Handles timer and listener failures; command failures are thrown. |
 
-Constructor tokenization failures are thrown so they cannot be lost before subscribers are attached.
+The constructor does not tokenize input. `load()` without a configured tokenizer throws nonfatal `MissingTokenizerError`, preserving the session and cached snapshot without notifying. It is not wrapped in `TokenizationError`. Existing lifecycle restrictions still apply: loading is rejected in `PLAYING`, `ERROR`, or after destruction. `loadTokens()` requires no tokenizer. Select `DefaultTokenizer` explicitly for built-in conversion.
 
 ### Playback methods
 
@@ -42,7 +43,7 @@ Invalid control commands throw while preserving the cached playback state withou
 ### Data and speed methods
 
 - `load(data)` synchronously invokes the configured tokenizer.
-- `loadTokens(tokens)` accepts externally prepared tokens, including results produced asynchronously outside the engine.
+- `loadTokens(tokens: Token<T, TMeta>[])` accepts externally prepared tokens, including results produced asynchronously outside the engine. Metadata must match the engine's fixed type and may be omitted only when that type accepts `undefined`.
 - Loading is rejected while `PLAYING` or `ERROR`.
 - `setWpm(wpm)` and `setMsPerItem(ms)` affect subsequently scheduled display periods. They do not replace a running timer or a paused item's remaining duration.
 - `setOvpStrategy(strategy)` sets the presentation override; `undefined` restores original token offsets. See [runtime OVP preferences](#runtime-ovp-preferences).
@@ -93,7 +94,7 @@ An application may display a countdown by sharing the engine's `TimeDriver` and 
 
 ### Observable store
 
-`getSnapshot(): RsvpSnapshot<T>` returns one immutable snapshot containing the playback fields listed above and `timing: RsvpTiming`. Core owns the cached value so every adapter reads the same playback state. Error details are not stored in snapshots.
+`getSnapshot(): RsvpSnapshot<T, TMeta>` returns one immutable snapshot containing the playback fields listed above and `timing: RsvpTiming`. Core owns the cached value so every adapter reads the same playback state. Error details are not stored in snapshots.
 
 ```typescript
 const unsubscribe = engine.subscribe((snapshot, eventType) => {
@@ -101,10 +102,10 @@ const unsubscribe = engine.subscribe((snapshot, eventType) => {
 });
 ```
 
-- `subscribe(listener: RsvpStoreListener<T>): UnsubscribeFn` calls `listener(snapshot, eventType)` with the immutable snapshot for that update and its `RsvpEventType`. It does not immediately invoke the listener; use `getSnapshot()` for the initial state. The event type is notification metadata and is not stored in the snapshot.
+- `subscribe(listener: RsvpStoreListener<T, TMeta>): UnsubscribeFn` calls `listener(snapshot, eventType)` with the immutable snapshot for that update and its `RsvpEventType`. It does not immediately invoke the listener; use `getSnapshot()` for the initial state. The event type is notification metadata and is not stored in the snapshot.
 - Commands and scheduled advancements publish synchronously after their updates and scheduling finish. Starting playback publishes the first item together with `PLAYING`; fatal scheduling failures publish the changed `ERROR` state as `stateChanged`.
 - Reads, unchanged speed values, rejected nonfatal commands, and navigation beyond an endpoint do not notify. The cached reference stays stable until observable fields change.
-- Any observable playback change creates a new snapshot. Unchanged items retain their references. Snapshots and item objects are frozen; application-owned generic `value` objects are not deeply frozen.
+- Any observable playback change creates a new snapshot. Unchanged items retain their references. Snapshots and item objects are frozen; application-owned `value` and `meta` objects are not deeply frozen.
 - A callback may issue another command. Core updates `getSnapshot()` immediately, finishes delivering the current notification, and then delivers every nested update in order with its original snapshot and type. A callback's snapshot can therefore precede the latest `getSnapshot()` value. Use its supplied snapshot when handling its event.
 - Unsubscribe is idempotent, including after destruction. `destroy()` cancels playback and clears token buffers, presentation, listeners, and pending notifications without notifying. The last snapshot remains stored internally. Commands and new subscriptions then throw `EngineDestroyedError`; callers must stop all reads. Post-destroy getter and snapshot reads are unsupported, unguarded, and have no guaranteed results. Repeated destroy is safe, and previously captured snapshots remain unchanged.
 - Synchronous listener exceptions are isolated and reported through `onError` or asynchronous host reporting. Other listeners and queued updates continue, while destruction still stops delivery immediately. Listener failures do not replace an engine command's original exception.
@@ -142,7 +143,7 @@ If `onError` throws, Core asynchronously reports an `AggregateError` containing 
 
 If the host cannot schedule reporting, delivery finishes other subscribers and queued updates before throwing a diagnostic `AggregateError`. It retains the error being reported and the transport failure, never becomes an `EngineError`, and does not roll back committed playback or loading. Multiple transport failures are aggregated; an existing engine command failure takes precedence. The diagnostic constructor is internal and is not exported.
 
-`EngineError` extends the native `Error` class and is the common base of command and playback error classes. Other engine failures are normalized into `EngineError`, preserving their full value and existing cause chain in `cause`. `InvalidTransitionError`, `InvalidInputError`, `IndexOutOfBoundsError`, and `EngineDestroyedError` start as nonfatal. Fatal operation failures have dedicated types:
+`EngineError` extends the native `Error` class and is the common base of command and playback error classes. Other engine failures are normalized into `EngineError`, preserving their full value and existing cause chain in `cause`. `InvalidTransitionError`, `InvalidInputError`, `IndexOutOfBoundsError`, `EngineDestroyedError`, and `MissingTokenizerError` start as nonfatal. Fatal operation failures have dedicated types:
 
 | Type                      | Failure boundary                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------- |
@@ -161,6 +162,7 @@ IndexOutOfBoundsError(index: number, totalItems: number, options?: ErrorOptionsW
 ItemSelectionError(index: number, options?: ErrorOptionsWithMessage)
 InvalidInputError(options?: ErrorOptionsWithMessage)
 EngineDestroyedError(options?: ErrorOptionsWithMessage)
+MissingTokenizerError(options?: ErrorOptionsWithMessage)
 TokenizationError(options?: ErrorOptionsWithMessage)
 SessionLoadError(options?: ErrorOptionsWithMessage)
 PlaybackSchedulingError(options?: ErrorOptionsWithMessage)
@@ -198,7 +200,17 @@ const tokenizer = new DefaultTokenizer({
 
 ### Tokenizer contract
 
-`TokenizerStrategy<T>` requires only `tokenize(input: T | T[]): Token<T>[]`. A `Token<T>` holds source content, its initial viewing offset, and its duration multiplier. `RsvpItem<T>` is a type alias for the same readonly shape, naming the effective presentation returned by `currentItem`. Its OVP may be overridden without modifying the source token. Neither type carries sequence position; use `currentIndex` on the engine or snapshot. Custom tokenizers need no OVP management methods. Injected tokenizer and strategy instances are retained by reference; applications own shared-instance mutations.
+`TokenizerStrategy<T, TMeta = unknown>` requires only `tokenize(input: T | T[]): Token<T, TMeta>[]`. A `Token<T, TMeta>` holds source content, its initial viewing offset, its duration multiplier, and readonly application metadata. The `meta` field is required unless `TMeta` accepts `undefined`. `RsvpItem<T, TMeta>` aliases the same readonly shape for the effective presentation returned by `currentItem`. Its OVP may be overridden without modifying the source token. Neither type carries sequence position; use `currentIndex` on the engine or snapshot. Custom tokenizers need no OVP management methods. Injected tokenizer and strategy instances are retained by reference; applications own shared-instance mutations.
+
+### Application metadata
+
+`TMeta` is inferred from the configured tokenizer or supplied explicitly. It defaults to `unknown`, including when only `<T>` is specified. Metadata is optional exactly when `undefined` is assignable to `TMeta`; otherwise every token must carry it. The tokenizer is optional independently of metadata presence, and any supplied tokenizer must produce compatible tokens. These are TypeScript requirements; metadata has no shape restriction or runtime validation.
+
+The same fixed type reaches items, snapshots, subscriptions, and `loadTokens()`. For `TMeta = SourceSpan`, a non-null item's `meta` is a `SourceSpan`. `SourceSpan | undefined` permits metadata-free tokens and an explicitly supplied `DefaultTokenizer`. `currentItem` may still be null for an empty session, regardless of metadata type.
+
+Loading copies only the declared token fields, preserving a supplied `meta` by reference and distinguishing absence from explicit `undefined`. Presentation overrides retain that reference. Metadata is not cloned, deeply frozen, or observed for mutations; applications must treat it as immutable while in use.
+
+`DefaultTokenizer<T>.tokenize()` returns `Omit<Token<T>, "meta">[]` and never adds metadata. Applications supply source spans through custom tokenizers or pre-tokenized input; Core defines no span format or sentence navigation. See the [source-span example](../README.md#application-metadata) for consumer-defined UTF-16 `[start, end)` offsets.
 
 ### Runtime OVP preferences
 

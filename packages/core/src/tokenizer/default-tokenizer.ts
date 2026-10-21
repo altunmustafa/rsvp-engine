@@ -42,7 +42,7 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     this.#validateOptions();
   }
 
-  public tokenize(input: T | T[]): Token<T>[] {
+  public tokenize(input: T | T[]): Omit<Token<T>, "meta">[] {
     if (input === null || input === undefined) {
       return [];
     }
@@ -52,7 +52,7 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     }
 
     if (typeof input === "string") {
-      return this.#tokenizeText(input) as Token<T>[];
+      return this.#tokenizeText(input) as Omit<Token<T>, "meta">[];
     }
 
     return [
@@ -64,7 +64,7 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     ];
   }
 
-  #tokenizeArray(values: T[]): Token<T>[] {
+  #tokenizeArray(values: T[]): Omit<Token<T>, "meta">[] {
     if (this.#nestedTokenize) {
       return values.flatMap((value) => this.tokenize(value));
     }
@@ -76,7 +76,7 @@ export class DefaultTokenizer<T> implements TokenizerStrategy<T> {
     }));
   }
 
-  #tokenizeText(text: string): Token<string>[] {
+  #tokenizeText(text: string): Omit<Token<string>, "meta">[] {
     const trimmed = text.trim();
     if (!trimmed) {
       return [];

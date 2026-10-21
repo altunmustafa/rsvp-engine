@@ -65,6 +65,8 @@ The low-level `StateMachine.transition()` throws `InvalidTransitionError` for an
 
 Fatal tokenization or loading failures clear the session before publishing `ERROR`: selection becomes empty and position, item count, progress, and total duration become zero. Speed and OVP preferences survive. Nonfatal validation failures preserve the session; fatal playback or navigation failures retain the last valid selection and progress. See [ADR-0016](./architecture/adr/0016-clear-failed-loads.md).
 
+Without a configured tokenizer, `load()` throws nonfatal `MissingTokenizerError` and preserves the session and cached snapshot. `loadTokens()` needs no tokenizer. Loading restrictions in `PLAYING` and `ERROR` still apply.
+
 Nonfatal `setOvpStrategy()` failures preserve the prior strategy, selected item, and scheduling. Presentation failures during later selection enter `ERROR`; selection during loading follows the clearing policy above. The setter is rejected in `ERROR`. See [runtime OVP preferences](./API-REFERENCE.md#runtime-ovp-preferences).
 
 Clock and cancellation failures are fatal. Reporting retains the last successful timing sample, invalidates stale callbacks, and preserves the original error when cleanup also fails. Subscriber and diagnostic transport failures do not enter playback error handling. See [ADR-0020](./architecture/adr/0020-failure-safe-error-reporting.md).

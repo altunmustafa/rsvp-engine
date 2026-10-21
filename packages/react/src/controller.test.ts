@@ -1,6 +1,11 @@
 import type { RsvpSnapshot, SchedulerStrategy, TokenizerStrategy } from "@rsvp-engine/core";
 
-import { EngineDestroyedError, IndexOutOfBoundsError, InvalidInputError } from "@rsvp-engine/core";
+import {
+  DefaultTokenizer,
+  EngineDestroyedError,
+  IndexOutOfBoundsError,
+  InvalidInputError,
+} from "@rsvp-engine/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EngineError, ListenerError, TokenizationError, createRsvpController } from "./index";
@@ -16,7 +21,11 @@ describe("RSVP controller", () => {
   });
 
   it("exposes the flat Core snapshot through reads and subscription payloads", () => {
-    const controller = createRsvpController({ data: "one two", wpm: 600 });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    controller.load("one two");
     const initial = controller.getSnapshot();
     expect(initial).toMatchObject({ state: "IDLE", totalItems: 2, progress: 0 });
     const observed: RsvpSnapshot<string>[] = [];
@@ -27,15 +36,20 @@ describe("RSVP controller", () => {
     controller.play();
     expect(observed).toHaveLength(1);
     expect(observed[0]).toMatchObject({ state: "PLAYING", progress: 0 });
-    expect(controller.getServerSnapshot()).toBe(initial);
+    expect(controller.getServerSnapshot()).toMatchObject({ currentItem: null, totalItems: 0 });
     expect(initial.state).toBe("IDLE");
     controller.destroy();
   });
 
   it("publishes sampled timing without timers, keeps no-op snapshots stable, and freezes paused time", () => {
-    const controller = createRsvpController({ data: "one two.", wpm: 600 });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    controller.load("one two.");
     const server = controller.getServerSnapshot();
-    expect(server.timing.remainingDurationMs).toBe(300);
+    expect(server.timing.remainingDurationMs).toBe(0);
+    expect(controller.getSnapshot().timing.remainingDurationMs).toBe(300);
     controller.play();
     const playing = controller.getSnapshot();
     vi.advanceTimersByTime(40);
@@ -58,7 +72,13 @@ describe("RSVP controller", () => {
   });
 
   it("returns cached immutable client and construction-time server snapshots", () => {
-    const controller = createRsvpController({ data: "one two", wpm: 300 });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 300,
+    });
+    const server = controller.getServerSnapshot();
+    expect(controller.getSnapshot()).toBe(server);
+    controller.load("one two");
     const initial = controller.getSnapshot();
 
     expect(Object.isFrozen(initial)).toBe(true);
@@ -69,18 +89,24 @@ describe("RSVP controller", () => {
       wpm: 300,
     });
     expect(controller.getSnapshot()).toBe(initial);
-    expect(controller.getServerSnapshot()).toBe(initial);
+    expect(controller.getServerSnapshot()).toBe(server);
+    expect(server).toMatchObject({ currentItem: null, totalItems: 0 });
 
     controller.setWpm(600);
 
     expect(controller.getSnapshot()).not.toBe(initial);
-    expect(controller.getServerSnapshot()).toBe(initial);
+    expect(controller.getServerSnapshot()).toBe(server);
     controller.destroy();
   });
 
   it("forwards Core event types with their snapshots", () => {
     const onError = vi.fn();
-    const controller = createRsvpController({ data: "one two", wpm: 600, onError });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      onError,
+    });
+    controller.load("one two");
     const failure = new Error("listener failed");
     controller.subscribe((_, eventType) => {
       if (eventType === "started") {
@@ -106,7 +132,10 @@ describe("RSVP controller", () => {
   });
 
   it("forwards detached OVP actions and notifications while preserving the server snapshot", () => {
-    const controller = createRsvpController({ data: "hello world" });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    controller.load("hello world");
     const server = controller.getServerSnapshot();
     const listener = vi.fn();
     controller.subscribe(listener);
@@ -119,12 +148,17 @@ describe("RSVP controller", () => {
   });
 
   it("selects before playback and stops completed sessions without replacing retained items", () => {
-    const controller = createRsvpController({ data: "one two.", wpm: 600 });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    controller.load("one two.");
     const server = controller.getServerSnapshot();
+    const initial = controller.getSnapshot();
     const listener = vi.fn();
     controller.subscribe(listener);
     controller.stop();
-    expect(controller.getSnapshot()).toBe(server);
+    expect(controller.getSnapshot()).toBe(initial);
     expect(listener).not.toHaveBeenCalled();
 
     controller.seek(1);
@@ -152,7 +186,7 @@ describe("RSVP controller", () => {
       totalItems: 2,
       timing: { totalDurationMs: 300, remainingDurationMs: 300 },
     });
-    expect(stopped.currentItem).toBe(server.currentItem);
+    expect(stopped.currentItem).toBe(initial.currentItem);
     expect(listener).toHaveBeenLastCalledWith(stopped, "stopped");
     listener.mockClear();
     vi.advanceTimersByTime(500);
@@ -165,7 +199,9 @@ describe("RSVP controller", () => {
   });
 
   it("notifies once for silent mutations and skips unchanged snapshots", () => {
-    const controller = createRsvpController<string>();
+    const controller = createRsvpController<string>({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
     const listener = vi.fn();
     controller.subscribe(listener);
 
@@ -184,7 +220,10 @@ describe("RSVP controller", () => {
   });
 
   it("preserves exact WPM and notifies only for observable changes", () => {
-    const controller = createRsvpController({ wpm: 425 });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 425,
+    });
     const server = controller.getServerSnapshot();
     expect(server.wpm).toBe(425);
     const listener = vi.fn();
@@ -210,7 +249,11 @@ describe("RSVP controller", () => {
   });
 
   it("observes one consistent Core update per presentation and completion", () => {
-    const controller = createRsvpController({ data: "one two", wpm: 600 });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    controller.load("one two");
     const observed: { state: string; progress: number }[] = [];
     controller.subscribe(() => {
       const { progress, state } = controller.getSnapshot();
@@ -291,7 +334,7 @@ describe("RSVP controller", () => {
     const failure = new Error("schedule failed");
     let schedules = 0;
     const controller = createRsvpController({
-      data: "one two",
+      tokenizer: new DefaultTokenizer<string>(),
       wpm: 600,
       onError,
       scheduler: {
@@ -304,6 +347,7 @@ describe("RSVP controller", () => {
         },
       },
     });
+    controller.load("one two");
     const listener = vi.fn();
     controller.subscribe(listener);
     controller.play();
@@ -318,7 +362,10 @@ describe("RSVP controller", () => {
 
   it("throws synchronous failures without calling onError or notifying subscribers", () => {
     const onError = vi.fn();
-    const controller = createRsvpController<string>({ onError });
+    const controller = createRsvpController<string>({
+      tokenizer: new DefaultTokenizer<string>(),
+      onError,
+    });
     const initial = controller.getSnapshot();
     const listener = vi.fn();
     controller.subscribe(listener);
@@ -354,7 +401,10 @@ describe("RSVP controller", () => {
   });
 
   it("throws invalid navigation errors directly", () => {
-    const controller = createRsvpController({ data: "one two" });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    controller.load("one two");
 
     expect(() => controller.next()).toThrow("next() is only available in PAUSED state.");
     expect(() => controller.previous()).toThrow("previous() is only available in PAUSED state.");
@@ -364,7 +414,11 @@ describe("RSVP controller", () => {
   it.for([NaN, 0.5])(
     "reports seek(%s) without corrupting the cached playback snapshot",
     (index) => {
-      const controller = createRsvpController({ data: "one two three", wpm: 600 });
+      const controller = createRsvpController({
+        tokenizer: new DefaultTokenizer<string>(),
+        wpm: 600,
+      });
+      controller.load("one two three");
       controller.play();
       vi.advanceTimersByTime(140);
       controller.pause();
@@ -386,7 +440,10 @@ describe("RSVP controller", () => {
   );
 
   it("allows safe unsubscription during notification", () => {
-    const controller = createRsvpController({ data: "one two" });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    controller.load("one two");
     const second = vi.fn();
     const unsubscribeSecond = controller.subscribe(second);
     controller.subscribe(() => unsubscribeSecond());
@@ -403,7 +460,11 @@ describe("RSVP controller", () => {
       schedule: vi.fn(),
       cancel: vi.fn(),
     };
-    const controller = createRsvpController({ data: "one two", scheduler });
+    const controller = createRsvpController({
+      tokenizer: new DefaultTokenizer<string>(),
+      scheduler,
+    });
+    controller.load("one two");
     const unsubscribe = controller.subscribe(vi.fn());
     controller.play();
     const finalSnapshot = controller.getSnapshot();
@@ -414,7 +475,7 @@ describe("RSVP controller", () => {
     unsubscribe();
 
     expect(finalSnapshot).toMatchObject({ state: "PLAYING", currentItem: { value: "one" } });
-    expect(serverSnapshot).toMatchObject({ state: "IDLE", currentItem: { value: "one" } });
+    expect(serverSnapshot).toMatchObject({ state: "IDLE", currentItem: null, totalItems: 0 });
     expect(Object.isFrozen(finalSnapshot)).toBe(true);
     expect(Object.isFrozen(serverSnapshot)).toBe(true);
     expect(() => controller.subscribe(vi.fn())).toThrow(EngineDestroyedError);

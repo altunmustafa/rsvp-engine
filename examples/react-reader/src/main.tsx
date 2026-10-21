@@ -1,5 +1,6 @@
 import type { TimeDriver } from "@rsvp-engine/react";
 
+import { DefaultTokenizer } from "@rsvp-engine/core";
 import { createRsvpContext, createRsvpController } from "@rsvp-engine/react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -15,11 +16,12 @@ const timeDriver: TimeDriver = {
   clearTimeout: (handle) => window.clearTimeout(handle as number),
 };
 const controller = createRsvpController({
-  data: initialText,
+  tokenizer: new DefaultTokenizer<string>(),
   wpm: 300,
   timeDriver,
   onError: (error) => window.reportError(error),
 });
+controller.load(initialText);
 const { RsvpProvider, useRsvpActions, useRsvpSelector } = createRsvpContext<string>();
 
 function runCommand(command: () => void): void {

@@ -5,16 +5,17 @@ import type { Token } from "../tokenizer/types";
  * The presentation view of a source token, with the effective viewing offset.
  * Sequence position belongs to RsvpSnapshot.currentIndex, not the item.
  * @typeParam T - The type of the item value (defaults to `string`).
+ * @typeParam TMeta - Application metadata; include undefined to permit absence (defaults to unknown).
  */
-export type RsvpItem<T = string> = Token<T>;
+export type RsvpItem<T = string, TMeta = unknown> = Token<T, TMeta>;
 
 /**
  * A readonly snapshot of the full engine state at a point in time.
  */
-export interface RsvpSnapshot<T = string> {
+export interface RsvpSnapshot<T = string, TMeta = unknown> {
   readonly state: RsvpState;
   readonly currentIndex: number;
-  readonly currentItem: RsvpItem<T> | null;
+  readonly currentItem: RsvpItem<T, TMeta> | null;
   /** Position divided by item count; zero when empty, retained on fatal playback/navigation errors. */
   readonly progress: number;
   readonly totalItems: number;
@@ -52,8 +53,8 @@ export type RsvpEventType =
   | "stateChanged";
 
 /** Receives the immutable snapshot and the event that produced it. */
-export type RsvpStoreListener<T = string> = (
-  snapshot: RsvpSnapshot<T>,
+export type RsvpStoreListener<T = string, TMeta = unknown> = (
+  snapshot: RsvpSnapshot<T, TMeta>,
   eventType: RsvpEventType,
 ) => void;
 

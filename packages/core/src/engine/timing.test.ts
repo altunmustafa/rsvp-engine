@@ -4,6 +4,7 @@ import type { SchedulerStrategy, TimeDriver } from "../scheduler/types";
 import { describe, expect, it, vi } from "vitest";
 
 import { EngineError } from "../errors";
+import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
 
 import { RsvpEngine } from "./rsvp-engine";
 
@@ -38,7 +39,12 @@ function createClock() {
 describe("playback timing", () => {
   it("samples weighted durations on changes without polling or additional timers", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one, two.", wpm: 600, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      timeDriver: clock.driver,
+    });
+    engine.load("one, two.");
     const initial = engine.getSnapshot().timing;
     expect(initial).toEqual({ totalDurationMs: 350, remainingDurationMs: 350, sampledAtMs: 0 });
     expect(Object.isFrozen(initial)).toBe(true);
@@ -80,7 +86,12 @@ describe("playback timing", () => {
 
   it("recalculates navigation and replacement data without presenting or scheduling", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one two three.", wpm: 600, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      timeDriver: clock.driver,
+    });
+    engine.load("one two three.");
     engine.play();
     engine.pause();
     engine.seek(2);
@@ -107,7 +118,12 @@ describe("playback timing", () => {
 
   it("preserves the playing item while changing future durations and skips unchanged speed", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one two.", wpm: 600, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      timeDriver: clock.driver,
+    });
+    engine.load("one two.");
     const listener = vi.fn();
     engine.subscribe(listener);
     engine.play();
@@ -130,7 +146,12 @@ describe("playback timing", () => {
 
   it("uses the scheduler's effective deadline after drift correction", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one two three", wpm: 300, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 300,
+      timeDriver: clock.driver,
+    });
+    engine.load("one two three");
     engine.play();
     clock.tick(5);
     expect(engine.getSnapshot().timing).toEqual({
@@ -151,7 +172,12 @@ describe("playback timing", () => {
 
   it("advances an expired item on resume without scheduling a zero delay", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one two", wpm: 600, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      timeDriver: clock.driver,
+    });
+    engine.load("one two");
     engine.play();
     clock.elapse(150);
     engine.pause();
@@ -175,7 +201,12 @@ describe("playback timing", () => {
 
   it("keeps timing and snapshots stable for no-ops and nonfatal errors", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one two", wpm: 600, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      timeDriver: clock.driver,
+    });
+    engine.load("one two");
     engine.play();
     const playing = engine.getSnapshot();
     clock.elapse(30);
@@ -190,7 +221,12 @@ describe("playback timing", () => {
 
   it("publishes timing-only changes when seeking to the same partially presented item", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one two", wpm: 600, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      timeDriver: clock.driver,
+    });
+    engine.load("one two");
     engine.play();
     clock.elapse(40);
     engine.pause();
@@ -213,7 +249,12 @@ describe("playback timing", () => {
 
   it("delivers one atomic timing sample per nested operation, paired with its event", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one two three", wpm: 600, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      timeDriver: clock.driver,
+    });
+    engine.load("one two three");
     const observed: [RsvpSnapshot<string>, RsvpEventType][] = [];
     engine.subscribe((_, eventType) => {
       if (eventType === "started") {
@@ -252,11 +293,12 @@ describe("playback timing", () => {
       cancel: vi.fn(),
     };
     const engine = new RsvpEngine({
-      data: "one two",
+      tokenizer: new DefaultTokenizer<string>(),
       wpm: 600,
       timeDriver: clock.driver,
       scheduler,
     });
+    engine.load("one two");
     engine.play();
     clock.elapse(30);
     engine.pause();
@@ -272,7 +314,7 @@ describe("playback timing", () => {
 
   it("invalidates remaining duration on fatal errors and clears timing on reset", () => {
     const engine = new RsvpEngine({
-      data: "one",
+      tokenizer: new DefaultTokenizer<string>(),
       scheduler: {
         schedule: () => {
           throw new Error("failed");
@@ -280,6 +322,7 @@ describe("playback timing", () => {
         cancel: vi.fn(),
       },
     });
+    engine.load("one");
     expect(() => engine.play()).toThrow("Failed to schedule playback.");
     expect(engine.state).toBe("ERROR");
     expect(engine.getSnapshot().timing.remainingDurationMs).toBeNull();
@@ -293,7 +336,11 @@ describe("playback timing", () => {
 
   it("does not restart scheduling after an item listener destroys the engine", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one two", timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      timeDriver: clock.driver,
+    });
+    engine.load("one two");
     engine.subscribe(() => engine.destroy());
     engine.play();
     expect(clock.pending()).toBe(0);
@@ -301,9 +348,10 @@ describe("playback timing", () => {
 
   it("rejects an invalid scheduler deadline as a fatal timing failure", () => {
     const engine = new RsvpEngine({
-      data: "one",
+      tokenizer: new DefaultTokenizer<string>(),
       scheduler: { schedule: vi.fn(), cancel: vi.fn(), getDeadline: () => Number.NaN },
     });
+    engine.load("one");
     expect(() => engine.play()).toThrow(
       expect.objectContaining({
         cause: expect.objectContaining({ message: "Scheduler deadline must be finite." }),
@@ -323,7 +371,7 @@ describe("playback timing", () => {
       const cancel = vi.fn();
       const onError = vi.fn();
       const engine = new RsvpEngine({
-        data: "one two",
+        tokenizer: new DefaultTokenizer<string>(),
         onError,
         timeDriver: { now, setTimeout: vi.fn(), clearTimeout: vi.fn() },
         scheduler: {
@@ -333,6 +381,7 @@ describe("playback timing", () => {
           cancel,
         },
       });
+      engine.load("one two");
       if (phase === "pause" || phase === "advancement") {
         engine.play();
       }
@@ -398,7 +447,12 @@ describe("playback timing", () => {
 
   it("keeps the full remaining interval when a presentation listener pauses immediately", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one. two", wpm: 600, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      timeDriver: clock.driver,
+    });
+    engine.load("one. two");
     const unsubscribe = engine.subscribe((_, eventType) => {
       if (eventType === "started" || eventType === "advanced") {
         engine.pause();
@@ -417,7 +471,12 @@ describe("playback timing", () => {
 
   it("preserves readable pacing and finite timing after severe lag", () => {
     const clock = createClock();
-    const engine = new RsvpEngine({ data: "one two three", wpm: 600, timeDriver: clock.driver });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+      timeDriver: clock.driver,
+    });
+    engine.load("one two three");
     engine.play();
     clock.tick(500);
     expect(engine.getSnapshot().timing).toEqual({

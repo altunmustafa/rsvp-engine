@@ -35,8 +35,14 @@ describe("Presentation OVP strategies", () => {
       }
     }
     const tokenizer = new UppercaseTokenizer();
-    const first = new RsvpEngine({ tokenizer, data: "hello" });
-    const second = new RsvpEngine({ tokenizer, data: "hello" });
+    const first = new RsvpEngine({
+      tokenizer,
+    });
+    first.load("hello");
+    const second = new RsvpEngine({
+      tokenizer,
+    });
+    second.load("hello");
     const calculate = vi.fn(() => 0);
     first.setOvpStrategy({ calculate });
     expect(first.currentItem).toMatchObject({ value: "hello", ovpIndex: 0, durationMultiplier: 3 });
@@ -70,10 +76,11 @@ describe("Presentation OVP strategies", () => {
     (state) => {
       const calculate = vi.fn(lastCharacter.calculate);
       const engine = new RsvpEngine({
-        data: ["hello", "world"],
+        tokenizer: new DefaultTokenizer<string>(),
         wpm: 1000,
         ovpStrategy: { calculate },
       });
+      engine.load(["hello", "world"]);
       if (state === "PAUSED") {
         engine.seek(1);
       } else if (state === "STOPPED") {
@@ -113,7 +120,11 @@ describe("Presentation OVP strategies", () => {
 
   it("clears the selected item for empty replacement input and prepares later raw input", () => {
     const calculate = vi.fn(lastCharacter.calculate);
-    const engine = new RsvpEngine({ data: "hello world", ovpStrategy: { calculate } });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      ovpStrategy: { calculate },
+    });
+    engine.load("hello world");
     engine.seek(1);
     calculate.mockClear();
     engine.load([]);
@@ -135,7 +146,11 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("clears the session when preparing replacement input fails", () => {
-    const engine = new RsvpEngine({ data: "hello world", wpm: 1000 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 1000,
+    });
+    engine.load("hello world");
     engine.seek(1);
     const failure = new Error("replacement failed");
     engine.setOvpStrategy({
@@ -175,7 +190,9 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("clears a pre-tokenized session when replacement presentation throws", () => {
-    const engine = new RsvpEngine();
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
     const failure = new Error("OVP calculation failed");
     engine.setOvpStrategy({
       calculate: () => {
@@ -199,7 +216,11 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("updates presentation atomically without rescheduling or resampling active playback", () => {
-    const engine = new RsvpEngine({ data: "hello world.", wpm: 600 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    engine.load("hello world.");
     engine.play();
     const before = engine.getSnapshot();
     const listener = vi.fn();
@@ -226,7 +247,11 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("preserves paused remainder and updates previously presented items", () => {
-    const engine = new RsvpEngine({ data: "hello world", wpm: 600 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    engine.load("hello world");
     engine.play();
     vi.advanceTimersByTime(140);
     engine.pause();
@@ -251,7 +276,11 @@ describe("Presentation OVP strategies", () => {
   it.each(["IDLE", "PAUSED", "STOPPED", "COMPLETED"] as const)(
     "updates a raw-input session in %s without changing its lifecycle",
     (state) => {
-      const engine = new RsvpEngine({ data: "hello world", wpm: 600 });
+      const engine = new RsvpEngine({
+        tokenizer: new DefaultTokenizer<string>(),
+        wpm: 600,
+      });
+      engine.load("hello world");
       if (state === "PAUSED") {
         engine.seek(1);
       }
@@ -306,7 +335,11 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("never rewrites pre-tokenized offsets, including after strategy changes and replay", () => {
-    const engine = new RsvpEngine({ data: "hello world", wpm: 600 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    engine.load("hello world");
     engine.setOvpStrategy(firstCharacter);
     const tokens = [{ value: "hello", ovpIndex: 2, durationMultiplier: 1 }];
     engine.loadTokens(tokens);
@@ -337,7 +370,11 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("preserves unchanged item and snapshot references but commits future-only preferences", () => {
-    const engine = new RsvpEngine({ data: "hello world", wpm: 600 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    engine.load("hello world");
     const before = engine.getSnapshot();
     const listener = vi.fn();
     engine.subscribe(listener);
@@ -357,7 +394,10 @@ describe("Presentation OVP strategies", () => {
 
   it("re-evaluates the same strategy instance and leaves generic items untouched", () => {
     const value = { image: "cover" };
-    const engine = new RsvpEngine<string | typeof value>({ data: [value, "hello"] });
+    const engine = new RsvpEngine<string | typeof value>({
+      tokenizer: new DefaultTokenizer<string | typeof value>(),
+    });
+    engine.load([value, "hello"]);
     const item = engine.currentItem;
     let offset = 0;
     const calculate = vi.fn(() => offset);
@@ -376,7 +416,10 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("applies grapheme-aware UTF-16 offsets to loaded and subsequent raw input", () => {
-    const engine = new RsvpEngine({ data: ["Café", "👩🏽‍💻"] });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    engine.load(["Café", "👩🏽‍💻"]);
     engine.setOvpStrategy({ calculate: () => 0 });
     engine.setOvpStrategy(new DefaultOvpStrategy());
     expect(engine.currentItem?.ovpIndex).toBe(1);
@@ -390,7 +433,11 @@ describe("Presentation OVP strategies", () => {
   it.each([-1, 0.5, NaN, Infinity, 6])(
     "rejects offset %s atomically and retains the earlier strategy",
     (invalid) => {
-      const engine = new RsvpEngine({ data: "hello world", wpm: 600 });
+      const engine = new RsvpEngine({
+        tokenizer: new DefaultTokenizer<string>(),
+        wpm: 600,
+      });
+      engine.load("hello world");
       engine.setOvpStrategy(firstCharacter);
       engine.play();
       vi.advanceTimersByTime(40);
@@ -414,7 +461,11 @@ describe("Presentation OVP strategies", () => {
   );
 
   it("rethrows strategy failures without interrupting playback or committing partial results", () => {
-    const engine = new RsvpEngine({ data: "hello world", wpm: 600 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    engine.load("hello world");
     engine.play();
     const before = engine.getSnapshot();
     const rootCause = new Error("OVP failed");
@@ -444,7 +495,9 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("clears the session when replacement presentation has an invalid OVP offset", () => {
-    const engine = new RsvpEngine();
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
     engine.setOvpStrategy({ calculate: () => 100 });
     engine.loadTokens([{ value: "hello", ovpIndex: 2, durationMultiplier: 1 }]);
     const before = engine.getSnapshot();
@@ -471,7 +524,10 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("keeps raw-input ownership after a rejected pre-tokenized load", () => {
-    const engine = new RsvpEngine({ data: "hello" });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    engine.load("hello");
     expect(() =>
       engine.loadTokens([{ value: "world", ovpIndex: -1, durationMultiplier: 1 }]),
     ).toThrow(InvalidInputError);
@@ -489,7 +545,11 @@ describe("Presentation OVP strategies", () => {
       run: (engine: RsvpEngine) => engine.setOvpStrategy(firstCharacter),
     },
   ])("rejects reentrant $command during strategy preparation", ({ run }) => {
-    const engine = new RsvpEngine({ data: "hello world", wpm: 600 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 600,
+    });
+    engine.load("hello world");
     engine.play();
     const before = engine.getSnapshot();
     expect(() =>
@@ -510,7 +570,9 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("rejects strategy mutation during raw-input preparation and releases the guard on failure", () => {
-    const engine = new RsvpEngine();
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
     engine.setOvpStrategy({
       calculate: () => {
         engine.loadTokens([{ value: "nested", ovpIndex: 0, durationMultiplier: 1 }]);
@@ -532,7 +594,9 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("rejects invalid strategy shapes even when no applicable items are loaded", () => {
-    const engine = new RsvpEngine();
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
     for (const strategy of [null, {}, { calculate: 0 }]) {
       expect(() => engine.setOvpStrategy(strategy as unknown as OvpStrategy)).toThrow(
         InvalidInputError,
@@ -542,7 +606,10 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("rejects strategy changes in fatal ERROR and after destruction", () => {
-    const engine = new RsvpEngine({ data: "hello" });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    engine.load("hello");
     engine.play();
     const fatal = new EngineError("strategy failed", {
       cause: new Error("strategy failed"),
@@ -573,7 +640,12 @@ describe("Presentation OVP strategies", () => {
 
   it("accepts an optional constructor strategy and reuses the current result across notifications", () => {
     const calculate = vi.fn(lastCharacter.calculate);
-    const engine = new RsvpEngine({ data: "hello world", wpm: 1000, ovpStrategy: { calculate } });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 1000,
+      ovpStrategy: { calculate },
+    });
+    engine.load("hello world");
     expect(engine.currentItem?.ovpIndex).toBe(4);
     const item = engine.currentItem;
     expect(calculate.mock.calls).toEqual([["hello"]]);
@@ -594,7 +666,11 @@ describe("Presentation OVP strategies", () => {
   });
 
   it("restores original tokenizer offsets when the presentation strategy is removed", () => {
-    const engine = new RsvpEngine({ data: "hello world", wpm: 1000 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 1000,
+    });
+    engine.load("hello world");
     const initial = engine.currentItem;
     engine.setOvpStrategy(lastCharacter);
     engine.play();
@@ -625,7 +701,12 @@ describe("Presentation OVP strategies", () => {
         return 4;
       });
       const onError = vi.fn();
-      const engine = new RsvpEngine({ data: "hello world", wpm: 1000, onError });
+      const engine = new RsvpEngine({
+        tokenizer: new DefaultTokenizer<string>(),
+        wpm: 1000,
+        onError,
+      });
+      engine.load("hello world");
       engine.setOvpStrategy({ calculate });
       engine.play();
       const before = engine.currentItem;
@@ -653,7 +734,10 @@ describe("Presentation OVP strategies", () => {
   );
 
   it("reports navigation calculation failures without publishing a mismatched item and index", () => {
-    const engine = new RsvpEngine({ data: "hello world" });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+    });
+    engine.load("hello world");
     engine.setOvpStrategy({ calculate: (text) => (text === "world" ? -1 : 4) });
     expect(() => engine.seek(1)).toThrow(
       expect.objectContaining({
@@ -675,7 +759,12 @@ describe("Presentation OVP strategies", () => {
 
   it("recalculates revisited words while preserving the selected result on repeated seek", () => {
     const calculate = vi.fn(lastCharacter.calculate);
-    const engine = new RsvpEngine({ data: "hello world", wpm: 1000, ovpStrategy: { calculate } });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 1000,
+      ovpStrategy: { calculate },
+    });
+    engine.load("hello world");
     engine.play();
     vi.advanceTimersByTime(20);
     engine.pause();
@@ -699,7 +788,11 @@ describe("Presentation OVP strategies", () => {
   });
 
   it.each(["stop", "replay"])("enters ERROR when OVP preparation fails during %s", (command) => {
-    const engine = new RsvpEngine({ data: "hello world", wpm: 1000 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 1000,
+    });
+    engine.load("hello world");
     engine.play();
     vi.advanceTimersByTime(command === "stop" ? 60 : 120);
     const item = engine.currentItem;
@@ -750,7 +843,12 @@ describe("Presentation OVP strategies", () => {
 
   it("rejects reentrant engine commands while preparing a future word", () => {
     const onError = vi.fn();
-    const engine = new RsvpEngine({ data: "hello world", wpm: 1000, onError });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 1000,
+      onError,
+    });
+    engine.load("hello world");
     engine.setOvpStrategy({
       calculate: (text) => {
         if (text === "world") {
@@ -770,7 +868,11 @@ describe("Presentation OVP strategies", () => {
   it.each(["success", "failure"] as const)(
     "allows a queued pause after strategy %s without retaining the execution guard",
     async (outcome) => {
-      const engine = new RsvpEngine({ data: "hello world", wpm: 1000 });
+      const engine = new RsvpEngine({
+        tokenizer: new DefaultTokenizer<string>(),
+        wpm: 1000,
+      });
+      engine.load("hello world");
       engine.play();
       vi.advanceTimersByTime(20);
       const failure = new Error("calculation failed");
@@ -805,7 +907,11 @@ describe("Presentation OVP strategies", () => {
   );
 
   it("permits subscriber commands after publishing the prepared OVP result", () => {
-    const engine = new RsvpEngine({ data: "hello world", wpm: 1000 });
+    const engine = new RsvpEngine({
+      tokenizer: new DefaultTokenizer<string>(),
+      wpm: 1000,
+    });
+    engine.load("hello world");
     engine.play();
     const events: string[] = [];
     engine.subscribe((_snapshot, event) => {

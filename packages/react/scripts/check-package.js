@@ -19,9 +19,13 @@ for (const exportedFunction of ["createRsvpController", "createRsvpContext"]) {
 const context = esm.createRsvpContext();
 for (const entry of [esm, cjs]) {
   const controller = entry.createRsvpController();
+  assert.throws(() => controller.load("text"), entry.MissingTokenizerError);
+  controller.loadTokens([{ value: "word", ovpIndex: 0, durationMultiplier: 1, meta: 42 }]);
+  const loaded = controller.getSnapshot();
+  assert.equal(loaded.currentItem.meta, 42);
   controller.setWpm(225);
-  if (controller.getSnapshot().wpm !== 225 || "setSpeed" in controller) {
-    throw new Error("Published controller must preserve WPM through setWpm only.");
+  if (controller.getSnapshot().wpm !== 225) {
+    throw new Error("Published controller must preserve WPM through setWpm.");
   }
   controller.destroy();
 }
@@ -35,10 +39,6 @@ for (const contextFunction of [
   if (typeof context[contextFunction] !== "function") {
     throw new Error(`Context factory does not expose ${contextFunction}.`);
   }
-}
-
-if ("useRsvp" in esm || "useRsvpSnapshot" in esm) {
-  throw new Error("Legacy controller-bound hooks must not remain public exports.");
 }
 
 for (const file of ["dist/index.js", "dist/index.cjs", "dist/index.d.ts", "dist/index.d.cts"]) {

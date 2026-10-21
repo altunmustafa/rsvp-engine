@@ -1,4 +1,4 @@
-import type { Token } from "../tokenizer/types";
+import type { OvpStrategy, Token } from "../tokenizer/types";
 
 import { InvalidInputError } from "../errors";
 
@@ -38,5 +38,11 @@ export function validateMsPerItem(ms: number): void {
     throw new InvalidInputError({
       message: `msPerItem must be a finite number between ${MIN_MS_PER_ITEM} and ${MAX_MS_PER_ITEM}.`,
     });
+  }
+}
+
+export function validateOvpStrategy(strategy: OvpStrategy): void {
+  if (typeof strategy?.calculate !== "function") {
+    throw new InvalidInputError({ message: "OVP strategy must provide a calculate function." });
   }
 }

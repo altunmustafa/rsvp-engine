@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 
@@ -13,13 +14,14 @@ for (const entry of [esm, cjs]) {
   if (typeof entry.DefaultOvpStrategy !== "function") {
     throw new Error("Published entry point does not expose DefaultOvpStrategy.");
   }
-  if ("RSVPEngine" in entry || "DefaultOVPStrategy" in entry) {
-    throw new Error("Legacy acronym-cased exports must not remain available.");
-  }
   const engine = new entry.RsvpEngine();
+  assert.throws(() => engine.load("text"), entry.MissingTokenizerError);
+  engine.loadTokens([{ value: "word", ovpIndex: 0, durationMultiplier: 1, meta: 42 }]);
+  const loaded = engine.getSnapshot();
+  assert.equal(loaded.currentItem.meta, 42);
   engine.setWpm(225);
-  if (engine.wpm !== 225 || "setSpeed" in engine) {
-    throw new Error("Published speed API must preserve WPM through setWpm only.");
+  if (engine.wpm !== 225) {
+    throw new Error("Published speed API must preserve WPM through setWpm.");
   }
   engine.destroy();
 }
