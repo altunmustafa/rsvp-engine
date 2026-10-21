@@ -7,13 +7,13 @@ Headless React bindings for `@rsvp-engine/core`. A controller owns playback; typ
 Using npm:
 
 ```bash
-npm install @rsvp-engine/react @rsvp-engine/core react
+npm install @rsvp-engine/react react
 ```
 
 Using pnpm:
 
 ```bash
-pnpm add @rsvp-engine/react @rsvp-engine/core react
+pnpm add @rsvp-engine/react react
 ```
 
 React is a peer dependency; supported versions and runtime requirements are declared in [package.json](package.json).
@@ -23,10 +23,10 @@ React is a peer dependency; supported versions and runtime requirements are decl
 Create the context bundle once at module scope. This example uses a controller owned by a single client-side application:
 
 ```tsx
-import { DefaultTokenizer } from "@rsvp-engine/core";
+import { TextTokenizer } from "@rsvp-engine/react/core";
 import { createRsvpContext, createRsvpController } from "@rsvp-engine/react";
 
-const controller = createRsvpController({ tokenizer: new DefaultTokenizer<string>(), wpm: 300 });
+const controller = createRsvpController({ tokenizer: new TextTokenizer(), wpm: 300 });
 controller.load("Read this text");
 const { RsvpProvider, useRsvpSelector, useRsvpActions } = createRsvpContext<string>();
 
@@ -90,7 +90,7 @@ const status = useRsvpSelector(
 
 ## Controller API
 
-`createRsvpController<T = string, TMeta = unknown>(options?)` creates an empty Core engine with optional `RsvpControllerOptions<T, TMeta>`. Supply a tokenizer to use `load()`, or use `loadTokens()` without one. No tokenizer is selected automatically. Install `@rsvp-engine/core` directly when importing concrete strategies such as `DefaultTokenizer`.
+`createRsvpController<T = string, TMeta = unknown>(options?)` creates an empty Core engine with optional `RsvpControllerOptions<T, TMeta>`. Supply a tokenizer to use `load()`, or use `loadTokens()` without one. No tokenizer is selected automatically. Import Core APIs, including `TextTokenizer`, from `@rsvp-engine/react/core`; Core is installed as a dependency of the React package.
 
 | Option | Purpose |
 | --- | --- |
@@ -180,7 +180,7 @@ controller.loadTokens([{ value: "hello", ovpIndex: 2, durationMultiplier: 1 }]);
 | `SchedulerStrategy` | `schedule(task: () => void, delayMs: number): void`; `cancel(): void`; optional `getDeadline(): number \| null` in the engine clock. |
 | `TimeDriver` | `now(): number` (finite milliseconds); `setTimeout(callback: () => void, ms: number): unknown`; `clearTimeout(handle: unknown): void`. |
 
-Core's concrete tokenizer, OVP, scheduler, and time-driver classes are available from `@rsvp-engine/core`. Injected instances stay externally owned. Tokenizer and OVP callbacks must be synchronous and side-effect-free; engine mutation inside them is rejected. Custom schedulers should share the engine clock; without a deadline, accounting is nominal. The default driver requires host timers.
+Core's complete public API, including its tokenizer, OVP, scheduler, time-driver classes, types, errors, and constants, is available from `@rsvp-engine/react/core`. The React root exports only its controller and context bindings and their types. The Core subpath re-exports the dependency without bundling a separate copy or importing React. Injected instances stay externally owned. Tokenizer and OVP callbacks must be synchronous and side-effect-free; engine mutation inside them is rejected. Custom schedulers should share the engine clock; without a deadline, accounting is nominal. The default driver requires host timers.
 
 ### Application metadata
 
@@ -211,11 +211,11 @@ const reader = (
 );
 ```
 
-With `TMeta = SourceSpan`, every token from a configured tokenizer or `loadTokens()` must carry metadata. Once an item is non-null, its `meta` is a `SourceSpan`. `SourceSpan | undefined` permits metadata-free tokens and an explicitly supplied `DefaultTokenizer`. These are TypeScript requirements; metadata has no runtime schema validation.
+With `TMeta = SourceSpan`, every token from a configured tokenizer or `loadTokens()` must carry metadata. Once an item is non-null, its `meta` is a `SourceSpan`. `SourceSpan | undefined` permits metadata-free tokens and an explicitly supplied `TextTokenizer`. These are TypeScript requirements; metadata has no runtime schema validation.
 
 The same fixed metadata type reaches subscriptions, context actions, and selectors. A custom `TokenizerStrategy<T, TMeta>` lets `createRsvpController({ tokenizer })` infer both types. Explicit `<T>` alone leaves metadata as `unknown`, which also permits metadata-free tokens. `createRsvpContext<T, TMeta>()` fixes both types but creates no engine, so it never requires a tokenizer. Metadata may also be a primitive or a union.
 
-Core preserves metadata references through copying and OVP changes without cloning, deep freezing, or interpreting their contents. Keep metadata immutable while in use: in-place mutations do not notify subscribers. OVP-only changes do not rerender selectors that return the same metadata reference. The server snapshot has no current item or metadata. `DefaultTokenizer` does not supply metadata; source mapping and sentence navigation belong to the application.
+Core preserves metadata references through copying and OVP changes without cloning, deep freezing, or interpreting their contents. Keep metadata immutable while in use: in-place mutations do not notify subscribers. OVP-only changes do not rerender selectors that return the same metadata reference. The server snapshot has no current item or metadata. `TextTokenizer` does not supply metadata; source mapping and sentence navigation belong to the application.
 
 ### Presentation OVP overrides
 
@@ -234,7 +234,7 @@ Catch controller construction and synchronous command failures at their call sit
 
 ```typescript
 const reader = createRsvpController({
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
   onError: (error) => console.error(error),
 });
 
@@ -248,7 +248,7 @@ try {
 
 Construction and synchronous command failures never invoke `onError`. Without the callback, timer/listener failures reach the host as asynchronous unhandled errors. Listener failures are isolated, so other listeners and queued updates continue. If a command error escapes a listener, it becomes one `ListenerError` with that error as its cause.
 
-React re-exports the same Core error constructors for `instanceof` checks:
+Import the same Core error constructors from `@rsvp-engine/react/core` for `instanceof` checks:
 
 | Error family | Meaning |
 | --- | --- |
@@ -279,7 +279,9 @@ For upgrades across multiple major versions, apply these steps in version order.
 
 ### React 1 → 2
 
-- Remove factory `data` and call `load(data)` or `loadTokens(tokens)` after creating the controller. To keep built-in tokenization, explicitly supply Core's `DefaultTokenizer`; otherwise `load()` throws nonfatal `MissingTokenizerError`. SSR and initial hydration use empty content even when the live controller has been loaded.
+- Move Core error, constant, and type imports from `@rsvp-engine/react` to `@rsvp-engine/react/core`. Concrete strategies are available from that subpath too, so applications using it can remove their direct Core dependency.
+- Replace `DefaultTokenizer<T>` with non-generic `TextTokenizer` and `DefaultTokenizerOptions` with `TextTokenizerOptions`. Remove `nestedTokenize`; every string-array element is split into words. Use `loadTokens()` or a custom tokenizer for generic items or phrases that must stay intact.
+- Remove factory `data` and call `load(data)` or `loadTokens(tokens)` after creating the controller. To keep built-in tokenization, explicitly supply Core's `TextTokenizer`; otherwise `load()` throws nonfatal `MissingTokenizerError`. SSR and initial hydration use empty content even when the live controller has been loaded.
 - React 2 uses Core 3. Catch all synchronous command failures and use `onError` for timer/listener failures. Replace `snapshot.error`, `clearError()`, `errorOccurred`, and `errorCleared` with application-owned diagnostics and `stateChanged` for fatal transitions.
 - Errors use the re-exported `EngineError` family and retain source failures in `cause`. Replace `new InvalidInputError(message)` with `new InvalidInputError({ message })`. Listener exceptions are isolated as `ListenerError`.
 - Include `ovpChanged` in exhaustive event handlers and `setOvpStrategy` in custom controller/action implementations. Tokenizer contracts and supplied offsets are unchanged.

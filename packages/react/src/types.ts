@@ -8,8 +8,6 @@ import type {
 } from "@rsvp-engine/core";
 import type { ReactElement, ReactNode } from "react";
 
-export type { RsvpStoreListener } from "@rsvp-engine/core";
-
 /** Immutable observable state exposed by an RSVP controller. */
 export type RsvpControllerSnapshot<T = string, TMeta = unknown> = RsvpSnapshot<T, TMeta>;
 

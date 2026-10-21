@@ -1,14 +1,18 @@
-import type { RsvpSnapshot, SchedulerStrategy, TokenizerStrategy } from "@rsvp-engine/core";
+import type { RsvpSnapshot, SchedulerStrategy, TokenizerStrategy } from "./core";
 
-import {
-  DefaultTokenizer,
-  EngineDestroyedError,
-  IndexOutOfBoundsError,
-  InvalidInputError,
-} from "@rsvp-engine/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EngineError, ListenerError, TokenizationError, createRsvpController } from "./index";
+import {
+  EngineDestroyedError,
+  EngineError,
+  IndexOutOfBoundsError,
+  InvalidInputError,
+  ListenerError,
+  TextTokenizer,
+  TokenizationError,
+} from "./core";
+
+import { createRsvpController } from "./index";
 
 describe("RSVP controller", () => {
   beforeEach(() => {
@@ -22,7 +26,7 @@ describe("RSVP controller", () => {
 
   it("exposes the flat Core snapshot through reads and subscription payloads", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     controller.load("one two");
@@ -43,7 +47,7 @@ describe("RSVP controller", () => {
 
   it("publishes sampled timing without timers, keeps no-op snapshots stable, and freezes paused time", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     controller.load("one two.");
@@ -73,7 +77,7 @@ describe("RSVP controller", () => {
 
   it("returns cached immutable client and construction-time server snapshots", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 300,
     });
     const server = controller.getServerSnapshot();
@@ -102,7 +106,7 @@ describe("RSVP controller", () => {
   it("forwards Core event types with their snapshots", () => {
     const onError = vi.fn();
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       onError,
     });
@@ -133,7 +137,7 @@ describe("RSVP controller", () => {
 
   it("forwards detached OVP actions and notifications while preserving the server snapshot", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     controller.load("hello world");
     const server = controller.getServerSnapshot();
@@ -149,7 +153,7 @@ describe("RSVP controller", () => {
 
   it("selects before playback and stops completed sessions without replacing retained items", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     controller.load("one two.");
@@ -200,7 +204,7 @@ describe("RSVP controller", () => {
 
   it("notifies once for silent mutations and skips unchanged snapshots", () => {
     const controller = createRsvpController<string>({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     const listener = vi.fn();
     controller.subscribe(listener);
@@ -221,7 +225,7 @@ describe("RSVP controller", () => {
 
   it("preserves exact WPM and notifies only for observable changes", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 425,
     });
     const server = controller.getServerSnapshot();
@@ -250,7 +254,7 @@ describe("RSVP controller", () => {
 
   it("observes one consistent Core update per presentation and completion", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
     });
     controller.load("one two");
@@ -334,7 +338,7 @@ describe("RSVP controller", () => {
     const failure = new Error("schedule failed");
     let schedules = 0;
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       onError,
       scheduler: {
@@ -363,7 +367,7 @@ describe("RSVP controller", () => {
   it("throws synchronous failures without calling onError or notifying subscribers", () => {
     const onError = vi.fn();
     const controller = createRsvpController<string>({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       onError,
     });
     const initial = controller.getSnapshot();
@@ -402,7 +406,7 @@ describe("RSVP controller", () => {
 
   it("throws invalid navigation errors directly", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     controller.load("one two");
 
@@ -415,7 +419,7 @@ describe("RSVP controller", () => {
     "reports seek(%s) without corrupting the cached playback snapshot",
     (index) => {
       const controller = createRsvpController({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 600,
       });
       controller.load("one two three");
@@ -441,7 +445,7 @@ describe("RSVP controller", () => {
 
   it("allows safe unsubscription during notification", () => {
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
     });
     controller.load("one two");
     const second = vi.fn();
@@ -461,7 +465,7 @@ describe("RSVP controller", () => {
       cancel: vi.fn(),
     };
     const controller = createRsvpController({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       scheduler,
     });
     controller.load("one two");

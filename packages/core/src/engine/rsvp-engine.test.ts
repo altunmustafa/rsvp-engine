@@ -11,7 +11,7 @@ import {
   InvalidInputError,
   InvalidTransitionError,
 } from "../errors";
-import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
+import { TextTokenizer } from "../tokenizer/text-tokenizer";
 
 import { MAX_MS_PER_ITEM, MAX_WPM, MIN_MS_PER_ITEM, MIN_WPM } from "./config";
 import { RsvpEngine } from "./rsvp-engine";
@@ -21,7 +21,7 @@ function createEngine(
 ): RsvpEngine<string> {
   const { data = "Hello world foo bar baz", ...options } = overrides;
   const engine = new RsvpEngine<string>({
-    tokenizer: new DefaultTokenizer<string>(),
+    tokenizer: new TextTokenizer(),
     wpm: 300,
     ...options,
   });
@@ -76,7 +76,7 @@ describe("RsvpEngine", () => {
   describe("construction & configuration", () => {
     it("starts in IDLE state with default wpm", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
       });
       expect(engine.state).toBe("IDLE");
       expect(engine.wpm).toBe(300);
@@ -165,7 +165,7 @@ describe("RsvpEngine", () => {
         cancel: vi.fn(),
       };
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         scheduler: customScheduler,
         wpm: 300,
       });
@@ -176,7 +176,7 @@ describe("RsvpEngine", () => {
 
     it("accepts no data and starts empty", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
       expect(engine.totalItems).toBe(0);
@@ -189,7 +189,7 @@ describe("RsvpEngine", () => {
   describe("data and token loading", () => {
     it("load() tokenizes and loads new text into engine", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
       expect(engine.totalItems).toBe(0);
@@ -201,7 +201,7 @@ describe("RsvpEngine", () => {
 
     it("loadTokens() directly loads tokens (e.g. from async or external tokenizers)", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
       expect(engine.totalItems).toBe(0);
@@ -222,7 +222,7 @@ describe("RsvpEngine", () => {
 
     it("load() throws EngineDestroyedError on destroyed engine", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
       engine.destroy();
@@ -231,7 +231,7 @@ describe("RsvpEngine", () => {
 
     it("loadTokens() throws EngineDestroyedError on destroyed engine", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
       engine.destroy();
@@ -703,7 +703,7 @@ describe("RsvpEngine", () => {
         cancel: vi.fn(),
       };
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
         scheduler: customScheduler,
       });
@@ -818,7 +818,7 @@ describe("RsvpEngine", () => {
         cancel: vi.fn(),
       };
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
         scheduler: customScheduler,
       });
@@ -858,7 +858,7 @@ describe("RsvpEngine", () => {
   describe("error handling", () => {
     it("play() with no data throws a nonfatal error", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
 
@@ -868,7 +868,7 @@ describe("RsvpEngine", () => {
 
     it("empty string data produces no tokens, play throws an error", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
       engine.load("");
@@ -879,7 +879,7 @@ describe("RsvpEngine", () => {
 
     it("whitespace-only data produces no tokens, play throws an error", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
       engine.load("   ");
@@ -983,7 +983,7 @@ describe("RsvpEngine", () => {
 
     it("validates pre-tokenized items without changing state", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
 
@@ -1069,7 +1069,7 @@ describe("RsvpEngine", () => {
 
     it("currentItem returns null when no tokens", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
       expect(engine.currentItem).toBeNull();
@@ -1077,7 +1077,7 @@ describe("RsvpEngine", () => {
 
     it("progress is 0 when no tokens", () => {
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         wpm: 300,
       });
       expect(engine.progress).toBe(0);

@@ -1,10 +1,10 @@
 import {
-  DefaultTokenizer,
   RsvpEngine,
   type RsvpEngineOptions,
   type RsvpItem,
   type RsvpSnapshot,
   type RsvpStoreListener,
+  TextTokenizer,
   type Token,
   type TokenizerStrategy,
 } from "@rsvp-engine/core";
@@ -81,16 +81,16 @@ const undefinedMetadata: Token<string, SourceSpan> = {
 };
 const defaultTokenizer = new RsvpEngine<string, SourceSpan>({
   // @ts-expect-error The default tokenizer cannot supply required metadata.
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
 });
 const optional = new RsvpEngine<string, SourceSpan | undefined>();
 optional.loadTokens([{ value: "word", ovpIndex: 0, durationMultiplier: 1 }]);
 optional.loadTokens([{ value: "word", ovpIndex: 0, durationMultiplier: 1, meta: undefined }]);
 optional.loadTokens([token]);
 new RsvpEngine<string, SourceSpan | undefined>({
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
 }).destroy();
-const unknown = new RsvpEngine({ tokenizer: new DefaultTokenizer<string>() });
+const unknown = new RsvpEngine({ tokenizer: new TextTokenizer() });
 unknown.loadTokens([token]);
 // @ts-expect-error The default tokenizer does not infer a metadata shape.
 const unknownStart: unknown = unknown.currentItem?.meta?.start;
@@ -100,10 +100,10 @@ const partialStart: unknown = partial.currentItem?.meta?.start;
 const controller = createRsvpController<string, SourceSpan>({ tokenizer });
 createRsvpController<string, SourceSpan>({
   // @ts-expect-error The React factory also rejects metadata-free tokenizers for required metadata.
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
 }).destroy();
 const optionalController = createRsvpController<string, SourceSpan | undefined>({
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
 });
 optionalController.destroy();
 const { useRsvpSelector, useRsvpActions } = createRsvpContext<string, SourceSpan>();

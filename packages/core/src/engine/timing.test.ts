@@ -4,7 +4,7 @@ import type { SchedulerStrategy, TimeDriver } from "../scheduler/types";
 import { describe, expect, it, vi } from "vitest";
 
 import { EngineError } from "../errors";
-import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
+import { TextTokenizer } from "../tokenizer/text-tokenizer";
 
 import { RsvpEngine } from "./rsvp-engine";
 
@@ -40,7 +40,7 @@ describe("playback timing", () => {
   it("samples weighted durations on changes without polling or additional timers", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
     });
@@ -87,7 +87,7 @@ describe("playback timing", () => {
   it("recalculates navigation and replacement data without presenting or scheduling", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
     });
@@ -119,7 +119,7 @@ describe("playback timing", () => {
   it("preserves the playing item while changing future durations and skips unchanged speed", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
     });
@@ -147,7 +147,7 @@ describe("playback timing", () => {
   it("uses the scheduler's effective deadline after drift correction", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 300,
       timeDriver: clock.driver,
     });
@@ -173,7 +173,7 @@ describe("playback timing", () => {
   it("advances an expired item on resume without scheduling a zero delay", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
     });
@@ -202,7 +202,7 @@ describe("playback timing", () => {
   it("keeps timing and snapshots stable for no-ops and nonfatal errors", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
     });
@@ -222,7 +222,7 @@ describe("playback timing", () => {
   it("publishes timing-only changes when seeking to the same partially presented item", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
     });
@@ -250,7 +250,7 @@ describe("playback timing", () => {
   it("delivers one atomic timing sample per nested operation, paired with its event", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
     });
@@ -293,7 +293,7 @@ describe("playback timing", () => {
       cancel: vi.fn(),
     };
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
       scheduler,
@@ -314,7 +314,7 @@ describe("playback timing", () => {
 
   it("invalidates remaining duration on fatal errors and clears timing on reset", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       scheduler: {
         schedule: () => {
           throw new Error("failed");
@@ -337,7 +337,7 @@ describe("playback timing", () => {
   it("does not restart scheduling after an item listener destroys the engine", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       timeDriver: clock.driver,
     });
     engine.load("one two");
@@ -348,7 +348,7 @@ describe("playback timing", () => {
 
   it("rejects an invalid scheduler deadline as a fatal timing failure", () => {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       scheduler: { schedule: vi.fn(), cancel: vi.fn(), getDeadline: () => Number.NaN },
     });
     engine.load("one");
@@ -371,7 +371,7 @@ describe("playback timing", () => {
       const cancel = vi.fn();
       const onError = vi.fn();
       const engine = new RsvpEngine({
-        tokenizer: new DefaultTokenizer<string>(),
+        tokenizer: new TextTokenizer(),
         onError,
         timeDriver: { now, setTimeout: vi.fn(), clearTimeout: vi.fn() },
         scheduler: {
@@ -448,7 +448,7 @@ describe("playback timing", () => {
   it("keeps the full remaining interval when a presentation listener pauses immediately", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
     });
@@ -472,7 +472,7 @@ describe("playback timing", () => {
   it("preserves readable pacing and finite timing after severe lag", () => {
     const clock = createClock();
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       timeDriver: clock.driver,
     });

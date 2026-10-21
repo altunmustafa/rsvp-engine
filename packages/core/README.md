@@ -21,10 +21,10 @@ pnpm add @rsvp-engine/core
 ## Quick start
 
 ```typescript
-import { DefaultTokenizer, RsvpEngine } from "@rsvp-engine/core";
+import { TextTokenizer, RsvpEngine } from "@rsvp-engine/core";
 
 const engine = new RsvpEngine({
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
   wpm: 300,
   onError: (error) => console.error(error),
 });
@@ -118,7 +118,7 @@ Estimates exclude pauses and future host delays. For a countdown, share the engi
 
 ## Tokenization and custom strategies
 
-`DefaultTokenizer` splits strings with `Intl.Segmenter`, falling back to whitespace. Array elements and non-string values are individual tokens; `nestedTokenize: true` also tokenizes array contents. Configure punctuation through `sentenceDurationMultiplier`, `clauseDurationMultiplier`, and `dashDurationMultiplier`, or inject a tokenizer `ovpStrategy` for initial offsets.
+`TextTokenizer` accepts a string or a flat array of strings. It splits each text independently with `Intl.Segmenter`, falling back to whitespace, and combines the resulting words in input order. Empty texts produce no tokens. Other values, mixed arrays, and nested arrays throw `InvalidInputError` when tokenized directly. Configure punctuation through `sentenceDurationMultiplier`, `clauseDurationMultiplier`, and `dashDurationMultiplier`, or inject a tokenizer `ovpStrategy` for initial offsets.
 
 A source `Token<T, TMeta = unknown>` and its presented `RsvpItem<T, TMeta>` share readonly fields: `value: T`, `ovpIndex: number`, `durationMultiplier: number`, and application metadata `meta`. Metadata is required unless `TMeta` accepts `undefined`. The OVP is a non-negative integer UTF-16 offset, at most the string length, suitable for `slice()`. The multiplier must be positive and finite; display duration is `msPerItem * durationMultiplier`. Position belongs to `currentIndex`.
 
@@ -142,7 +142,7 @@ The default scheduler corrects ordinary lag and rebases after severe delays. A c
 
 ### Application metadata
 
-Use `meta` to associate each token with application data, such as a position in the original text. The engine preserves metadata through loading, OVP changes, navigation, and snapshots without interpreting it. `DefaultTokenizer` does not produce metadata; source mapping and sentence navigation belong to the application.
+Use `meta` to associate each token with application data, such as a position in the original text. The engine preserves metadata through loading, OVP changes, navigation, and snapshots without interpreting it. `TextTokenizer` does not produce metadata; source mapping and sentence navigation belong to the application.
 
 ```typescript
 import { RsvpEngine } from "@rsvp-engine/core";
@@ -163,7 +163,7 @@ const span = reader.currentItem?.meta;
 if (span) console.log(source.slice(span.start, span.end));
 ```
 
-This consumer-defined span uses JavaScript UTF-16 offsets with an inclusive start and exclusive end. With `TMeta = SourceSpan`, every token from a configured tokenizer or `loadTokens()` must include metadata. Once `currentItem` is non-null, its `meta` is a `SourceSpan`. `SourceSpan | undefined` permits metadata-free tokens and an explicitly supplied `DefaultTokenizer`. `TMeta` can also be a primitive or a union.
+This consumer-defined span uses JavaScript UTF-16 offsets with an inclusive start and exclusive end. With `TMeta = SourceSpan`, every token from a configured tokenizer or `loadTokens()` must include metadata. Once `currentItem` is non-null, its `meta` is a `SourceSpan`. `SourceSpan | undefined` permits metadata-free tokens and an explicitly supplied `TextTokenizer`. `TMeta` can also be a primitive or a union.
 
 A custom `TokenizerStrategy<T, TMeta>` lets `new RsvpEngine({ tokenizer })` infer both types. Supply both `<T, TMeta>` when specifying them explicitly; supplying only `<T>` leaves metadata as `unknown`, which requires narrowing before reading fields.
 
@@ -221,7 +221,8 @@ For upgrades across multiple major versions, apply these steps in version order.
 
 ### Core 2 → 3
 
-- Remove constructor `data` and call `load(data)` or `loadTokens(tokens)` after construction. To keep built-in tokenization, pass `tokenizer: new DefaultTokenizer<T>()` explicitly; otherwise `load()` throws nonfatal `MissingTokenizerError`.
+- Replace `DefaultTokenizer<T>` with non-generic `TextTokenizer` and `DefaultTokenizerOptions` with `TextTokenizerOptions`. Remove `nestedTokenize`; string-array elements are always split into words. Use `loadTokens()` or a custom tokenizer for numbers, objects, nested input, or phrases that must stay intact.
+- Remove constructor `data` and call `load(data)` or `loadTokens(tokens)` after construction. To keep built-in tokenization, pass `tokenizer: new TextTokenizer()` explicitly; otherwise `load()` throws nonfatal `MissingTokenizerError`.
 - Catch all synchronous command failures; use `onError` for timer/listener failures. Replace `snapshot.error`, `clearError()`, `errorOccurred`, and `errorCleared` with application-owned diagnostics and `stateChanged` for fatal transitions.
 - Errors use the `EngineError` family and retain source failures in `cause`. Replace `new InvalidInputError(message)` with `new InvalidInputError({ message })`. Listener exceptions are isolated as `ListenerError`.
 - Include `ovpChanged` in exhaustive event handlers; use `ovpStrategy`/`setOvpStrategy()` for presentation overrides. Tokenizer contracts and supplied token offsets are unchanged.

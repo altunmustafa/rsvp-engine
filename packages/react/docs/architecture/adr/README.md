@@ -7,3 +7,4 @@ React ADRs use the Michael Nygard sections `Status`, `Context`, `Decision`, and 
 | [ADR-0001](./0001-own-core-with-a-cached-external-store.md) | Superseded by ADR-0003 | Own one Core engine behind a cached external store with explicit lifetime. |
 | [ADR-0002](./0002-use-context-bound-selectors-and-actions.md) | Accepted | Require Context-bound selective reads backed by React's official selector implementation, stable actions, and a controller escape hatch. |
 | [ADR-0003](./0003-delegate-core-observable-store.md) | Accepted; error storage superseded by Core ADR-0018 | Delegate the live store and commands to Core; retain the server snapshot. |
+| [ADR-0004](./0004-core-public-subpath.md) | Accepted | Expose Core through a dependency-forwarding subpath and keep React bindings at the root. |

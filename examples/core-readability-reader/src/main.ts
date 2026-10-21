@@ -1,8 +1,8 @@
 import {
-  DefaultTokenizer,
   RsvpEngine,
   type RsvpEventType,
   type RsvpSnapshot,
+  TextTokenizer,
 } from "@rsvp-engine/core";
 
 import { extractReadableArticle, fetchHtmlSource } from "./extract";
@@ -34,7 +34,7 @@ const domElements = {
 let fetchController: AbortController | undefined;
 
 const engine = new RsvpEngine({
-  tokenizer: new DefaultTokenizer<string>(),
+  tokenizer: new TextTokenizer(),
   wpm: domElements.wpmInput.valueAsNumber,
   onError: showError,
 });

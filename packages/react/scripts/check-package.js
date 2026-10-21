@@ -1,51 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const esm = await import("@rsvp-engine/react");
 const require = createRequire(import.meta.url);
-const cjs = require("@rsvp-engine/react");
-
-for (const exportedFunction of ["createRsvpController", "createRsvpContext"]) {
-  if (typeof esm[exportedFunction] !== "function" || typeof cjs[exportedFunction] !== "function") {
-    throw new Error(`ESM/CJS entry points do not expose ${exportedFunction}.`);
-  }
-}
-
-const context = esm.createRsvpContext();
-for (const entry of [esm, cjs]) {
-  const controller = entry.createRsvpController();
-  assert.throws(() => controller.load("text"), entry.MissingTokenizerError);
-  controller.loadTokens([{ value: "word", ovpIndex: 0, durationMultiplier: 1, meta: 42 }]);
-  const loaded = controller.getSnapshot();
-  assert.equal(loaded.currentItem.meta, 42);
-  controller.setWpm(225);
-  if (controller.getSnapshot().wpm !== 225) {
-    throw new Error("Published controller must preserve WPM through setWpm.");
-  }
-  controller.destroy();
-}
-
-for (const contextFunction of [
-  "RsvpProvider",
-  "useRsvpSelector",
-  "useRsvpActions",
-  "useRsvpController",
-]) {
-  if (typeof context[contextFunction] !== "function") {
-    throw new Error(`Context factory does not expose ${contextFunction}.`);
-  }
-}
-
-for (const file of ["dist/index.js", "dist/index.cjs", "dist/index.d.ts", "dist/index.d.cts"]) {
-  if (!existsSync(new URL(`../${file}`, import.meta.url))) {
-    throw new Error(`Required package file is missing: ${file}.`);
-  }
-}
 
 const esmBundle = readFileSync(new URL("../dist/index.js", import.meta.url), "utf8");
 const cjsBundle = readFileSync(new URL("../dist/index.cjs", import.meta.url), "utf8");
@@ -54,8 +15,6 @@ for (const external of ["@rsvp-engine/core", "react", "use-sync-external-store"]
     throw new Error(`${external} must remain external in both package bundles.`);
   }
 }
-
-console.log("ESM, CJS, declarations, public React API, and external peers are present.");
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 const workspaceRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -92,10 +51,12 @@ try {
     manifest.main,
     manifest.module,
     manifest.types,
-    manifest.exports["."].import.default,
-    manifest.exports["."].require.default,
-    manifest.exports["."].import.types,
-    manifest.exports["."].require.types,
+    ...Object.values(manifest.exports).flatMap((entry) => [
+      entry.import.default,
+      entry.require.default,
+      entry.import.types,
+      entry.require.types,
+    ]),
   ]) {
     assert(files.includes(`package/${file.replace(/^\.\//, "")}`), `Missing packed file: ${file}`);
   }
@@ -108,6 +69,99 @@ try {
   assert(!files.some((file) => /^package\/(docs|src|type-tests|node_modules)\//.test(file)));
   console.log(
     "Tarball includes public entries, types, license, and README with resolved dependencies.",
+  );
+
+  const consumerRoot = join(temporaryDirectory, "consumer");
+  const consumerModules = join(consumerRoot, "node_modules");
+  const installedReact = join(consumerModules, "@rsvp-engine", "react");
+  const installedCore = join(installedReact, "node_modules", "@rsvp-engine", "core");
+  const coreArchive = join(temporaryDirectory, "core.tgz");
+  execFileSync("pnpm", ["--filter", "@rsvp-engine/core", "pack", "--out", coreArchive], {
+    cwd: workspaceRoot,
+    stdio: "pipe",
+  });
+  for (const [tarball, destination] of [
+    [archive, installedReact],
+    [coreArchive, installedCore],
+  ]) {
+    mkdirSync(destination, { recursive: true });
+    execFileSync("tar", ["-xzf", tarball, "--strip-components=1", "-C", destination]);
+  }
+
+  // Core is installed only beneath React; this consumer cannot import Core directly.
+  // Exercise the subpath before installing React to verify its independent runtime boundary.
+  for (const [format, imports] of [
+    [
+      "module",
+      `import assert from "node:assert/strict";
+       import * as subpath from "@rsvp-engine/react/core";
+       import * as core from ${JSON.stringify(pathToFileURL(join(installedCore, coreManifest.exports["."].import.default)).href)};`,
+    ],
+    [
+      "commonjs",
+      `const assert = require("node:assert/strict");
+       const subpath = require("@rsvp-engine/react/core");
+       const core = require(${JSON.stringify(installedCore)});`,
+    ],
+  ]) {
+    execFileSync(
+      process.execPath,
+      [
+        `--input-type=${format}`,
+        "--eval",
+        `
+      ${imports}
+      for (const name of Object.keys(core).filter(
+        (name) => name !== "default" && name !== "module.exports",
+      )) {
+        assert.equal(subpath[name], core[name], "Core subpath must preserve the identity of " + name);
+      }
+    `,
+      ],
+      { cwd: consumerRoot, stdio: "pipe" },
+    );
+  }
+
+  for (const dependency of ["react", "use-sync-external-store"]) {
+    symlinkSync(
+      dirname(require.resolve(`${dependency}/package.json`)),
+      join(consumerModules, dependency),
+      "dir",
+    );
+  }
+  for (const [format, imports] of [
+    [
+      "module",
+      'import assert from "node:assert/strict"; import { createRsvpContext, createRsvpController } from "@rsvp-engine/react"; import { TextTokenizer, MissingTokenizerError } from "@rsvp-engine/react/core";',
+    ],
+    [
+      "commonjs",
+      'const assert = require("node:assert/strict"); const { createRsvpContext, createRsvpController } = require("@rsvp-engine/react"); const { TextTokenizer, MissingTokenizerError } = require("@rsvp-engine/react/core");',
+    ],
+  ]) {
+    execFileSync(
+      process.execPath,
+      [
+        `--input-type=${format}`,
+        "--eval",
+        `
+      ${imports}
+      const controller = createRsvpController({ tokenizer: new TextTokenizer() });
+      controller.load("word");
+      assert.equal(controller.getSnapshot().currentItem.value, "word");
+      controller.destroy();
+      const { RsvpProvider } = createRsvpContext();
+      assert.equal(typeof RsvpProvider, "function");
+      const empty = createRsvpController();
+      assert.throws(() => empty.load("text"), MissingTokenizerError);
+      empty.destroy();
+    `,
+      ],
+      { cwd: consumerRoot, stdio: "pipe" },
+    );
+  }
+  console.log(
+    "Packed ESM/CJS consumers use Core through React alone; its subpath preserves Core identities without React.",
   );
 } finally {
   rmSync(temporaryDirectory, { recursive: true, force: true });

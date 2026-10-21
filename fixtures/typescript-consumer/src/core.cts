@@ -11,10 +11,17 @@ import {
   type RsvpItem,
   type RsvpSnapshot,
   SessionLoadError,
+  TextTokenizer,
   type Token,
   TokenizationError,
   type TokenizerStrategy,
 } from "@rsvp-engine/core";
+
+const textEngine = new RsvpEngine({ tokenizer: new TextTokenizer() });
+textEngine.load(["one two", "three"]);
+const textValue: string | undefined = textEngine.currentItem?.value;
+void textValue;
+textEngine.destroy();
 
 const errorOptions: EngineErrorOptions = { cause: new Error("source failure"), isFatal: true };
 new EngineError("Consumer failure", errorOptions);

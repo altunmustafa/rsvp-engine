@@ -440,9 +440,6 @@ importers:
 
   examples/react-reader:
     dependencies:
-      '@rsvp-engine/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@rsvp-engine/react':
         specifier: workspace:*
         version: link:../../packages/react
@@ -477,9 +474,6 @@ importers:
 
   fixtures/react-18:
     dependencies:
-      '@rsvp-engine/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@rsvp-engine/react':
         specifier: workspace:*
         version: file:packages/react(react@18.3.1)
@@ -526,9 +520,6 @@ importers:
 
   fixtures/react-19:
     dependencies:
-      '@rsvp-engine/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@rsvp-engine/react':
         specifier: workspace:*
         version: file:packages/react(react@19.2.8)

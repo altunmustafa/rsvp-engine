@@ -12,7 +12,7 @@ import {
   PlaybackSchedulingError,
   TokenizationError,
 } from "../errors";
-import { DefaultTokenizer } from "../tokenizer/default-tokenizer";
+import { TextTokenizer } from "../tokenizer/text-tokenizer";
 
 import { RsvpEngine } from "./rsvp-engine";
 
@@ -26,7 +26,7 @@ describe("Core observable store", () => {
 
   function createEngine(options: RsvpEngineOptions<string> = {}): RsvpEngine<string> {
     const engine = new RsvpEngine({
-      tokenizer: new DefaultTokenizer<string>(),
+      tokenizer: new TextTokenizer(),
       wpm: 600,
       ...options,
     });

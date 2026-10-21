@@ -26,3 +26,4 @@ Core ADRs use the Michael Nygard sections `Status`, `Context`, `Decision`, and `
 | [ADR-0020](./0020-failure-safe-error-reporting.md) | Accepted | Preserve playback error boundaries when clocks, cancellation, or diagnostic transport fail. |
 | [ADR-0021](./0021-consumer-defined-token-metadata.md) | Accepted | Preserve consumer-defined metadata with a fixed type that determines its presence. |
 | [ADR-0022](./0022-explicit-content-loading.md) | Accepted | Start empty and load content explicitly; require a tokenizer only for raw loading. |
+| [ADR-0023](./0023-text-only-built-in-tokenizer.md) | Accepted | Limit the built-in tokenizer to independently segmented texts; use prepared tokens or custom strategies for other items. |
