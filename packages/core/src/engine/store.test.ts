@@ -272,6 +272,25 @@ describe("Core observable store", () => {
     engine.destroy();
   });
 
+  it("applies subscription changes to the next queued notification", () => {
+    const engine = createEngine();
+    const delivered: string[] = [];
+    engine.subscribe((_, eventType) => {
+      delivered.push(`first:${eventType}`);
+      if (eventType === "started") {
+        unsubscribe();
+        engine.subscribe((_, nextEventType) => delivered.push(`late:${nextEventType}`));
+        engine.pause();
+      }
+    });
+    const unsubscribe = engine.subscribe((_, eventType) => delivered.push(`second:${eventType}`));
+
+    engine.play();
+
+    expect(delivered).toEqual(["first:started", "second:started", "first:paused", "late:paused"]);
+    engine.destroy();
+  });
+
   it("ignores cancelled callbacks after a subscriber pauses and resumes playback", () => {
     const tasks: (() => void)[] = [];
     const scheduler: SchedulerStrategy = {

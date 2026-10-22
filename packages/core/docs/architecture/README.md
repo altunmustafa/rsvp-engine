@@ -40,6 +40,8 @@ Loading validates tokens, installs them, and prepares the first item through the
 
 Publication prepares the snapshot and delivers notifications together. Subscriber failures are isolated from other listeners and engine fatality, while diagnostic transport failures preserve committed playback. Fatal reporting remains possible when clock reads or cancellation fail. See [listener isolation](./adr/0019-isolated-listener-error-reporting.md) and [failure boundaries](./adr/0020-failure-safe-error-reporting.md).
 
+An internal notification dispatcher owns subscriptions and ordered delivery of captured snapshots. The engine retains snapshot creation, timing, and error-reporting policy. Nested publications wait for the active notification to finish; destruction stops delivery and clears the queue.
+
 Destroy permanently ends the instance lifetime and clears session buffers and subscriptions. Commands and new subscriptions then fail; callers are responsible for stopping all reads. Previously captured snapshots remain valid. See [ADR-0014](./adr/0014-terminal-destruction.md).
 
 ## Dependency injection
