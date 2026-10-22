@@ -142,3 +142,11 @@ export class IndexOutOfBoundsError extends EngineError {
     this.totalItems = totalItems;
   }
 }
+
+/** Internal diagnostic delivery failure that bypasses the playback error policy. */
+export class UndeliveredError extends AggregateError {
+  constructor(errors: readonly unknown[], options?: ErrorOptions) {
+    super(errors, "Failed to report error.", options);
+    this.name = "UndeliveredError";
+  }
+}

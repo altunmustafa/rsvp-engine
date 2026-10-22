@@ -7,6 +7,7 @@ import type {
   RsvpTiming,
   UnsubscribeFn,
 } from "./types";
+import type { ListenerError } from "../errors";
 import type { RuntimeGlobal } from "../runtimeGlobal";
 import type { SchedulerStrategy, TimeDriver } from "../scheduler/types";
 import type { RsvpState } from "../state/types";
@@ -18,17 +19,18 @@ import {
   IndexOutOfBoundsError,
   InvalidInputError,
   ItemSelectionError,
-  ListenerError,
   MissingTokenizerError,
   PlaybackSchedulingError,
   SessionLoadError,
   TokenizationError,
+  UndeliveredError,
 } from "../errors";
 import { DriftCorrectedScheduler } from "../scheduler/drift-corrected-scheduler";
 import { SystemTimeDriver } from "../scheduler/system-time-driver";
 import { StateMachine } from "../state/state-machine";
 
 import { DEFAULT_WPM } from "./config";
+import { Notifier } from "./notifier";
 import { validateMsPerItem, validateOvpStrategy, validateTokens, validateWpm } from "./validation";
 
 interface SpeedSetting {
@@ -46,19 +48,6 @@ interface PresentationState<T, TMeta> {
   remainingMs: number;
 }
 
-interface StoreNotification<T, TMeta> {
-  readonly snapshot: RsvpSnapshot<T, TMeta>;
-  readonly eventType: RsvpEventType;
-}
-
-// Diagnostic delivery failures must never enter the playback error policy.
-class UndeliveredError extends AggregateError {
-  constructor(errors: readonly unknown[], options?: ErrorOptions) {
-    super(errors, "Failed to report error.", options);
-    this.name = "UndeliveredError";
-  }
-}
-
 /**
  * Headless playback engine with a synchronous observable store.
  * Reads after destroy are unsupported; commands and new subscriptions are rejected.
@@ -71,7 +60,7 @@ export class RsvpEngine<T = string, TMeta = unknown> {
   readonly #timeDriver: TimeDriver;
   readonly #tokenizer?: TokenizerStrategy<T, TMeta>;
   readonly #onError: RsvpEngineOptions["onError"];
-  #reportingError = false;
+  #reportingToHandler = false;
   // Overrides presentation when a string item is selected, independently of tokenizer OVP.
   // Retains the preference across sessions without changing stored token offsets.
   #ovpStrategy: OvpStrategy | undefined;
@@ -97,9 +86,7 @@ export class RsvpEngine<T = string, TMeta = unknown> {
 
   #destroyed = false;
   #snapshot: RsvpSnapshot<T, TMeta>;
-  readonly #listeners = new Set<RsvpStoreListener<T, TMeta>>();
-  #notifying = false;
-  readonly #notificationQueue: StoreNotification<T, TMeta>[] = [];
+  readonly #notifications = new Notifier<T, TMeta>((error) => this.#reportError(error));
 
   constructor(options: RsvpEngineOptions<T, TMeta> = {}) {
     if (options.ovpStrategy !== undefined) {
@@ -136,8 +123,7 @@ export class RsvpEngine<T = string, TMeta = unknown> {
     try {
       this.#cancelAdvance();
     } finally {
-      this.#listeners.clear();
-      this.#notificationQueue.length = 0;
+      this.#notifications.destroy();
       this.#clearSessionData();
       this.#ovpStrategy = undefined;
       this.#destroyed = true;
@@ -364,10 +350,7 @@ export class RsvpEngine<T = string, TMeta = unknown> {
    */
   readonly subscribe = (listener: RsvpStoreListener<T, TMeta>): UnsubscribeFn => {
     this.#assertNotDestroyed();
-    this.#listeners.add(listener);
-    return () => {
-      this.#listeners.delete(listener);
-    };
+    return this.#notifications.subscribe(listener);
   };
 
   #clearSessionData(): void {
@@ -517,24 +500,6 @@ export class RsvpEngine<T = string, TMeta = unknown> {
     }
   }
 
-  #execute(action: () => void, source: "command" | "scheduler" = "command"): void {
-    this.#assertNotDestroyed();
-    this.#assertNotExecutingStrategy();
-    try {
-      action();
-    } catch (error) {
-      if (error instanceof UndeliveredError) {
-        throw error;
-      }
-      const err = this.#handleError(error);
-      if (source === "command") {
-        throw err;
-      }
-      this.#dispatchError(err);
-      return;
-    }
-  }
-
   #transition(action: "play" | "pause" | "stop" | "seek" | "reset"): void {
     this.#stateMachine.transition(action);
   }
@@ -562,52 +527,74 @@ export class RsvpEngine<T = string, TMeta = unknown> {
     });
   }
 
+  #execute(action: () => void, source: "command" | "scheduler" = "command"): void {
+    this.#assertNotDestroyed();
+    this.#assertNotExecutingStrategy();
+    try {
+      action();
+    } catch (error) {
+      const err = this.#handleError(error);
+      if (source === "command") {
+        throw err;
+      }
+      this.#reportError(err);
+    }
+  }
+
   #handleError(error: unknown): EngineError {
+    if (error instanceof UndeliveredError) {
+      throw error;
+    }
     const err = error instanceof EngineError ? error : new EngineError(undefined, { cause: error });
 
-    if (err.isFatal) {
-      if (this.state !== "ERROR") {
-        this.#stateMachine.transition("error");
-      }
-      try {
-        this.#cancelAdvance();
-      } catch {
-        // Cancellation must not replace the original failure; stale callbacks are already invalidated.
-      }
-      this.#presentation.deadlineAtMs = 0;
-      this.#presentation.remainingMs = 0;
+    if (!err.isFatal) {
+      return err;
+    }
+    if (this.state !== "ERROR") {
+      this.#stateMachine.transition("error");
+    }
+    try {
+      this.#cancelAdvance();
+    } catch {
+      // Cancellation must not replace the original failure; stale callbacks are already invalidated.
+    }
+    this.#presentation.deadlineAtMs = 0;
+    this.#presentation.remainingMs = 0;
 
-      try {
-        this.#publishNotification("stateChanged");
-      } catch (reportingError) {
-        if (!(reportingError instanceof UndeliveredError)) {
-          throw reportingError;
-        }
-        // Preserve the original engine failure when diagnostics cannot reach the host.
+    try {
+      this.#publishNotification("stateChanged");
+    } catch (reportingError) {
+      if (!(reportingError instanceof UndeliveredError)) {
+        throw reportingError;
       }
+      // Preserve the original engine failure when diagnostics cannot reach the host.
     }
     return err;
   }
 
-  #dispatchError(error: EngineError | ListenerError): void {
-    if (this.#onError && !this.#reportingError) {
-      this.#reportingError = true;
-      try {
-        this.#onError(error);
-        return;
-      } catch (reporterError) {
-        this.#dispatchUnhandledError(
-          new AggregateError([error, reporterError], "Error handler failed."),
-        );
-        return;
-      } finally {
-        this.#reportingError = false;
-      }
+  #reportError(error: EngineError | ListenerError): void {
+    if (this.#onError && !this.#reportingToHandler) {
+      this.#reportErrorToHandler(error, this.#onError);
+    } else {
+      this.#reportErrorToHost(error);
     }
-    this.#dispatchUnhandledError(error);
   }
 
-  #dispatchUnhandledError(error: unknown): void {
+  #reportErrorToHandler(
+    error: EngineError | ListenerError,
+    handler: NonNullable<RsvpEngineOptions["onError"]>,
+  ): void {
+    this.#reportingToHandler = true;
+    try {
+      handler.call(this, error);
+    } catch (reporterError) {
+      this.#reportErrorToHost(new AggregateError([error, reporterError], "Error handler failed."));
+    } finally {
+      this.#reportingToHandler = false;
+    }
+  }
+
+  #reportErrorToHost(error: unknown): void {
     const report = () => {
       throw error;
     };
@@ -698,46 +685,7 @@ export class RsvpEngine<T = string, TMeta = unknown> {
     if (!this.#updateSnapshot(eventType)) {
       return;
     }
-    this.#notificationQueue.push({ snapshot: this.#snapshot, eventType });
-    this.#sendNotifications();
-  }
-
-  #sendNotifications(): void {
-    if (this.#notifying || this.#notificationQueue.length === 0) {
-      return;
-    }
-    this.#notifying = true;
-    let reportingFailures: UndeliveredError[] | undefined;
-    try {
-      while (this.#notificationQueue.length && !this.#destroyed) {
-        const { snapshot, eventType } = this.#notificationQueue.shift()!;
-        for (const listener of Array.from(this.#listeners)) {
-          if (this.#destroyed) {
-            break;
-          }
-          try {
-            listener(snapshot, eventType);
-          } catch (error) {
-            try {
-              this.#dispatchError(new ListenerError(eventType, { cause: error }));
-            } catch (reportingError) {
-              if (!(reportingError instanceof UndeliveredError)) {
-                throw reportingError;
-              }
-              (reportingFailures ??= []).push(reportingError);
-            }
-          }
-        }
-      }
-    } finally {
-      this.#notificationQueue.length = 0;
-      this.#notifying = false;
-    }
-    if (reportingFailures) {
-      throw reportingFailures.length === 1
-        ? reportingFailures[0]
-        : new UndeliveredError(reportingFailures);
-    }
+    this.#notifications.publish(this.#snapshot, eventType);
   }
 
   #refreshTiming(): void {
