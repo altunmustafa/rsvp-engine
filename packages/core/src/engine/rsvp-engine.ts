@@ -48,6 +48,16 @@ interface PresentationState<T, TMeta> {
   remainingMs: number;
 }
 
+interface TimingInputs {
+  readonly state: RsvpState;
+  // Rebuilt on loading or clearing a session, independently of its presentation.
+  readonly suffixMultiplierSums: Float64Array;
+  readonly index: number;
+  readonly msPerItem: number;
+  readonly deadlineAtMs: number;
+  readonly remainingMs: number;
+}
+
 /**
  * Headless playback engine with a synchronous observable store.
  * Reads after destroy are unsupported; commands and new subscriptions are rejected.
@@ -79,8 +89,7 @@ export class RsvpEngine<T = string, TMeta = unknown> {
 
   #speed: SpeedSetting;
   #timing: RsvpTiming;
-  // Seeking to the selected item can restart its duration without changing the item reference.
-  #remainingTimeChanged = false;
+  #timingInputs: TimingInputs;
   // Invalidates stale callbacks after cancellation or rescheduling, even if the scheduler still invokes them.
   #scheduleRevision = 0;
 
@@ -111,6 +120,7 @@ export class RsvpEngine<T = string, TMeta = unknown> {
       remainingDurationMs: 0,
       sampledAtMs: this.#readTime(),
     });
+    this.#timingInputs = this.#captureTimingInputs();
     this.#snapshot = this.#createSnapshot();
   }
 
@@ -125,6 +135,7 @@ export class RsvpEngine<T = string, TMeta = unknown> {
     } finally {
       this.#notifications.destroy();
       this.#clearSessionData();
+      this.#timingInputs = this.#captureTimingInputs();
       this.#ovpStrategy = undefined;
       this.#destroyed = true;
     }
@@ -358,7 +369,6 @@ export class RsvpEngine<T = string, TMeta = unknown> {
     this.#suffixMultiplierSums = new Float64Array(1);
     this.#presentation = { index: 0, item: null, deadlineAtMs: 0, remainingMs: 0 };
     this.#isExternalTokens = false;
-    this.#remainingTimeChanged = false;
   }
 
   #loadTokens(tokens: Token<T, TMeta>[], isExternalTokens = false): void {
@@ -434,7 +444,6 @@ export class RsvpEngine<T = string, TMeta = unknown> {
         ? this.#presentation.item
         : this.#createPresentationItem(token, ovpStrategy);
     const remainingMs = token === null ? 0 : this.msPerItem * token.durationMultiplier;
-    this.#remainingTimeChanged = this.#presentation.remainingMs !== remainingMs;
     this.#presentation = { index, item, deadlineAtMs: 0, remainingMs };
   }
 
@@ -654,17 +663,9 @@ export class RsvpEngine<T = string, TMeta = unknown> {
     });
   }
 
-  #updateSnapshot(eventType: RsvpEventType): boolean {
+  #updateSnapshot(): boolean {
     const previous = this.#snapshot;
-    if (
-      previous.state !== this.state ||
-      (previous.currentItem !== this.currentItem && eventType !== "ovpChanged") ||
-      previous.msPerItem !== this.msPerItem ||
-      this.#remainingTimeChanged
-    ) {
-      this.#refreshTiming();
-    }
-    this.#remainingTimeChanged = false;
+    this.#refreshTiming();
     const changed =
       previous.state !== this.state ||
       previous.currentIndex !== this.#presentation.index ||
@@ -682,30 +683,52 @@ export class RsvpEngine<T = string, TMeta = unknown> {
   }
 
   #publishNotification(eventType: RsvpEventType): void {
-    if (!this.#updateSnapshot(eventType)) {
+    if (!this.#updateSnapshot()) {
       return;
     }
     this.#notifications.publish(this.#snapshot, eventType);
   }
 
+  #captureTimingInputs(): TimingInputs {
+    return {
+      state: this.state,
+      suffixMultiplierSums: this.#suffixMultiplierSums,
+      index: this.#presentation.index,
+      msPerItem: this.msPerItem,
+      deadlineAtMs: this.#presentation.deadlineAtMs,
+      remainingMs: this.#presentation.remainingMs,
+    };
+  }
+
   #refreshTiming(): void {
+    const inputs = this.#captureTimingInputs();
+    const previous = this.#timingInputs;
+    if (
+      previous.index === inputs.index &&
+      previous.state === inputs.state &&
+      previous.msPerItem === inputs.msPerItem &&
+      previous.remainingMs === inputs.remainingMs &&
+      previous.deadlineAtMs === inputs.deadlineAtMs &&
+      previous.suffixMultiplierSums === inputs.suffixMultiplierSums
+    ) {
+      return;
+    }
     // Fatal reporting must remain possible when the clock itself has failed.
-    const sampledAtMs = this.state === "ERROR" ? this.#timing.sampledAtMs : this.#readTime();
-    const totalDurationMs = this.#suffixMultiplierSums[0] * this.msPerItem;
+    const sampledAtMs = inputs.state === "ERROR" ? this.#timing.sampledAtMs : this.#readTime();
+    const totalDurationMs = inputs.suffixMultiplierSums[0] * inputs.msPerItem;
     let remainingDurationMs: number | null = totalDurationMs;
 
-    if (this.state === "ERROR") {
+    if (inputs.state === "ERROR") {
       remainingDurationMs = null;
-    } else if (this.state === "COMPLETED") {
+    } else if (inputs.state === "COMPLETED") {
       remainingDurationMs = 0;
-    } else if (this.state === "PLAYING") {
+    } else if (inputs.state === "PLAYING") {
       remainingDurationMs =
-        Math.max(0, this.#presentation.deadlineAtMs - sampledAtMs) +
-        this.#suffixMultiplierSums[this.#presentation.index + 1] * this.msPerItem;
-    } else if (this.state === "PAUSED") {
+        Math.max(0, inputs.deadlineAtMs - sampledAtMs) +
+        inputs.suffixMultiplierSums[inputs.index + 1] * inputs.msPerItem;
+    } else if (inputs.state === "PAUSED") {
       remainingDurationMs =
-        this.#presentation.remainingMs +
-        this.#suffixMultiplierSums[this.#presentation.index + 1] * this.msPerItem;
+        inputs.remainingMs + inputs.suffixMultiplierSums[inputs.index + 1] * inputs.msPerItem;
     }
 
     if (
@@ -715,5 +738,6 @@ export class RsvpEngine<T = string, TMeta = unknown> {
     ) {
       this.#timing = Object.freeze({ totalDurationMs, remainingDurationMs, sampledAtMs });
     }
+    this.#timingInputs = inputs;
   }
 }
